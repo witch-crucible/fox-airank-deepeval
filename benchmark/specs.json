@@ -54,6 +54,17 @@
       "risk": "unauthorized-edit-of-submitted-order"
     }
   },
+  "logic-cart-event-trace": {
+    "type": "logic",
+    "expected": {
+      "process_issue": "out-of-order-event-application",
+      "evidence": {
+        "out_of_order_pairs": 1,
+        "affected_items": 1
+      },
+      "control": "sequence-number-enforcement"
+    }
+  },
   "fix-cart-total": {
     "type": "javascript",
     "file": "cart.js",
