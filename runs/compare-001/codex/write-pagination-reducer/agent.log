@@ -1,0 +1,668 @@
+command=["codex", "exec", "--skip-git-repo-check", "--ephemeral", "-s", "workspace-write", "阅读 TASK.md，独立完成任务并执行必要验证。最后必须按 TASK.md 要求生成 result.json。"]
+status=completed
+returncode=0
+elapsed_seconds=65.777
+
+[stdout]
+任务已完成：
+
+- 实现 `paginationReducer` 全部 action 逻辑。
+- 保证输入状态不可变及对象引用要求。
+- 已生成并验证 `result.json`。
+- `npm test`、扩展边界测试和语法检查均通过。
+
+
+[stderr]
+OpenAI Codex v0.144.3
+--------
+workdir: /Users/ben/Code/test/test-ai-model/runs/compare-001/codex/write-pagination-reducer
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: low
+reasoning summaries: none
+session id: 019f5e77-1a72-7811-b604-aed8df2ffead
+--------
+user
+阅读 TASK.md，独立完成任务并执行必要验证。最后必须按 TASK.md 要求生成 result.json。
+2026-07-14T02:31:33.782311Z ERROR rmcp::transport::worker: worker quit with fatal: Client error: HTTP request failed: http/request failed: error sending request for url (https://chatgpt.com/backend-api/ps/mcp), when send initialized notification
+2026-07-14T02:31:34.285123Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when Client(HttpRequest(HttpRequest("http/request failed: error sending request for url (https://chatgpt.com/backend-api/ps/mcp)")))
+codex
+假设：以当前目录中的 `TASK.md` 为唯一任务规范，只修改完成任务所必需的文件，并按其中定义的格式生成 `result.json`。成功标准是实现要求、通过必要验证、且 `result.json` 内容与实际结果一致。现在先读取任务说明和当前目录结构。
+exec
+/bin/zsh -lc "pwd && rg --files -g '"'!vendor/**'"' -g '"'!node_modules/**'"' -g '"'!var/**'"' -g '"'!generated/**'"' -g '"'!pub/static/**'"' -g '"'!pub/media/**'"' | sort && sed -n '1,240p' TASK.md" in /Users/ben/Code/test/test-ai-model/runs/compare-001/codex/write-pagination-reducer
+ succeeded in 0ms:
+/Users/ben/Code/test/test-ai-model/runs/compare-001/codex/write-pagination-reducer
+AGENTS.md
+RESULT_PROTOCOL.md
+TASK.md
+case.json
+package.json
+pagination-reducer.js
+public-test.mjs
+# 实现分页状态 reducer
+
+在 `pagination-reducer.js` 实现 `paginationReducer(state, action)`：
+
+- `SET_PAGE`：将 page 限制在 1 到根据 total/pageSize 计算的最后一页；无数据时最后一页仍为 1。
+- `SET_PAGE_SIZE`：pageSize 必须为正整数，否则返回原 state；有效时保持当前第一条记录的零基下标尽量不变，重新计算 page。
+- `SET_TOTAL`：total 限制为非负整数，并在必要时向前修正 page。
+- `RESET`：返回 `{ page: 1, pageSize: state.pageSize, total: 0 }`。
+- 未知 action 返回原 state 对象；有效 action 返回新对象；不得修改输入。
+
+执行 `npm test`，并按 `RESULT_PROTOCOL.md` 生成 `result.json`。
+
+codex
+任务边界明确。接下来我会检查 reducer 的现有骨架、公开测试及结果协议，先确认数值归一化和对象引用方面的精确约束，再做最小实现。
+exec
+/bin/zsh -lc "sed -n '1,260p' pagination-reducer.js && sed -n '1,320p' public-test.mjs && sed -n '1,260p' RESULT_PROTOCOL.md && sed -n '1,200p' package.json && git status --short" in /Users/ben/Code/test/test-ai-model/runs/compare-001/codex/write-pagination-reducer
+ exited 128 in 0ms:
+export function paginationReducer(state, action) {
+  throw new Error("Not implemented");
+}
+import assert from "node:assert/strict";
+import { paginationReducer } from "./pagination-reducer.js";
+
+assert.deepEqual(paginationReducer({ page: 2, pageSize: 10, total: 35 }, { type: "SET_PAGE", page: 9 }), {
+  page: 4, pageSize: 10, total: 35
+});
+console.log("public test passed");
+
+# 结果文件协议
+
+完成任务后，在当前目录生成 `result.json`：
+
+```json
+{
+  "case_id": "write-pagination-reducer",
+  "status": "completed",
+  "summary": "实际完成内容",
+  "changed_files": ["实际修改或新增的相对路径"],
+  "verification": ["实际执行的验证命令或检查"]
+}
+```
+
+不得伪造未执行的验证。逻辑题还必须保留 TASK.md 要求的 `answer` 字段。
+{"type":"module","scripts":{"test":"node public-test.mjs"}}
+fatal: not a git repository (or any of the parent directories): .git
+
+codex
+实现采用以下明确规则：页码按整数页处理并夹在有效范围内；`pageSize` 仅接受 `Number` 类型的正整数；`total` 对有限数值向下取整后夹到 0，非有限/非数值输入归零。切换每页条数时以 `(page - 1) * pageSize` 作为当前首条记录下标，并在新总页数下再次校正页码。已识别且有效的 action 即使值未变化也返回新对象。
+apply patch
+patch: completed
+/Users/ben/Code/test/test-ai-model/runs/compare-001/codex/write-pagination-reducer/pagination-reducer.js
+diff --git a/pagination-reducer.js b/pagination-reducer.js
+index 79dd1add736cb558f88c2bdcabc7cb82bbc26522..362d5b3165ec0ad7edb0ef4ff32ad92be0741bbf
+--- a/pagination-reducer.js
++++ b/pagination-reducer.js
+@@ -1,3 +1,48 @@
+ export function paginationReducer(state, action) {
+-  throw new Error("Not implemented");
++  const lastPage = (total, pageSize) => Math.max(1, Math.ceil(total / pageSize));
++  const clampPage = (page, total, pageSize) => {
++    const integerPage = Number.isFinite(page) ? Math.trunc(page) : 1;
++    return Math.min(Math.max(integerPage, 1), lastPage(total, pageSize));
++  };
++
++  switch (action.type) {
++    case "SET_PAGE":
++      return {
++        ...state,
++        page: clampPage(action.page, state.total, state.pageSize),
++      };
++
++    case "SET_PAGE_SIZE": {
++      if (!Number.isInteger(action.pageSize) || action.pageSize <= 0) {
++        return state;
++      }
++
++      const firstItemIndex = (state.page - 1) * state.pageSize;
++      const page = Math.floor(firstItemIndex / action.pageSize) + 1;
++
++      return {
++        ...state,
++        page: clampPage(page, state.total, action.pageSize),
++        pageSize: action.pageSize,
++      };
++    }
++
++    case "SET_TOTAL": {
++      const total = Number.isFinite(action.total)
++        ? Math.max(0, Math.floor(action.total))
++        : 0;
++
++      return {
++        ...state,
++        page: clampPage(state.page, total, state.pageSize),
++        total,
++      };
++    }
++
++    case "RESET":
++      return { page: 1, pageSize: state.pageSize, total: 0 };
++
++    default:
++      return state;
++  }
+ }
+
+diff --git a/pagination-reducer.js b/pagination-reducer.js
+index 79dd1add736cb558f88c2bdcabc7cb82bbc26522..362d5b3165ec0ad7edb0ef4ff32ad92be0741bbf
+--- a/pagination-reducer.js
++++ b/pagination-reducer.js
+@@ -1,3 +1,48 @@
+ export function paginationReducer(state, action) {
+-  throw new Error("Not implemented");
++  const lastPage = (total, pageSize) => Math.max(1, Math.ceil(total / pageSize));
++  const clampPage = (page, total, pageSize) => {
++    const integerPage = Number.isFinite(page) ? Math.trunc(page) : 1;
++    return Math.min(Math.max(integerPage, 1), lastPage(total, pageSize));
++  };
++
++  switch (action.type) {
++    case "SET_PAGE":
++      return {
++        ...state,
++        page: clampPage(action.page, state.total, state.pageSize),
++      };
++
++    case "SET_PAGE_SIZE": {
++      if (!Number.isInteger(action.pageSize) || action.pageSize <= 0) {
++        return state;
++      }
++
++      const firstItemIndex = (state.page - 1) * state.pageSize;
++      const page = Math.floor(firstItemIndex / action.pageSize) + 1;
++
++      return {
++        ...state,
++        page: clampPage(page, state.total, action.pageSize),
++        pageSize: action.pageSize,
++      };
++    }
++
++    case "SET_TOTAL": {
++      const total = Number.isFinite(action.total)
++        ? Math.max(0, Math.floor(action.total))
++        : 0;
++
++      return {
++        ...state,
++        page: clampPage(state.page, total, state.pageSize),
++        total,
++      };
++    }
++
++    case "RESET":
++      return { page: 1, pageSize: state.pageSize, total: 0 };
++
++    default:
++      return state;
++  }
+ }
+
+codex
+核心实现已完成。现在执行公开测试，并补充覆盖边界与协议要求的检查：空数据、页码上下界、无效 `pageSize` 的引用保持、首条记录锚定、`total` 归一化、RESET、未知 action，以及输入对象不被修改。
+exec
+/bin/zsh -lc "npm test && node --input-type=module <<'EOF'
+import assert from 'node:assert/strict';
+import { paginationReducer } from './pagination-reducer.js';
+
+const initial = Object.freeze({ page: 3, pageSize: 10, total: 35 });
+assert.deepEqual(paginationReducer(initial, { type: 'SET_PAGE', page: 0 }), { page: 1, pageSize: 10, total: 35 });
+assert.deepEqual(paginationReducer(initial, { type: 'SET_PAGE', page: 99 }), { page: 4, pageSize: 10, total: 35 });
+assert.deepEqual(paginationReducer({ page: 1, pageSize: 10, total: 0 }, { type: 'SET_PAGE', page: 7 }), { page: 1, pageSize: 10, total: 0 });
+assert.strictEqual(paginationReducer(initial, { type: 'SET_PAGE_SIZE', pageSize: 0 }), initial);
+assert.strictEqual(paginationReducer(initial, { type: 'SET_PAGE_SIZE', pageSize: 2.5 }), initial);
+assert.deepEqual(paginationReducer(initial, { type: 'SET_PAGE_SIZE', pageSize: 25 }), { page: 1, pageSize: 25, total: 35 });
+assert.deepEqual(paginationReducer({ page: 4, pageSize: 10, total: 35 }, { type: 'SET_PAGE_SIZE', pageSize: 6 }), { page: 6, pageSize: 6, total: 35 });
+assert.deepEqual(paginationReducer(initial, { type: 'SET_TOTAL', total: 15 }), { page: 2, pageSize: 10, total: 15 });
+assert.deepEqual(paginationReducer(initial, { type: 'SET_TOTAL', total: -3 }), { page: 1, pageSize: 10, total: 0 });
+assert.deepEqual(paginationReducer(initial, { type: 'SET_TOTAL', total: 12.9 }), { page: 2, pageSize: 10, total: 12 });
+assert.deepEqual(paginationReducer(initial, { type: 'RESET' }), { page: 1, pageSize: 10, total: 0 });
+assert.strictEqual(paginationReducer(initial, { type: 'UNKNOWN' }), initial);
+assert.deepEqual(initial, { page: 3, pageSize: 10, total: 35 });
+console.log('extended reducer checks passed');
+EOF
+node --check pagination-reducer.js" in /Users/ben/Code/test/test-ai-model/runs/compare-001/codex/write-pagination-reducer
+diff --git a/pagination-reducer.js b/pagination-reducer.js
+index 79dd1add736cb558f88c2bdcabc7cb82bbc26522..362d5b3165ec0ad7edb0ef4ff32ad92be0741bbf
+--- a/pagination-reducer.js
++++ b/pagination-reducer.js
+@@ -1,3 +1,48 @@
+ export function paginationReducer(state, action) {
+-  throw new Error("Not implemented");
++  const lastPage = (total, pageSize) => Math.max(1, Math.ceil(total / pageSize));
++  const clampPage = (page, total, pageSize) => {
++    const integerPage = Number.isFinite(page) ? Math.trunc(page) : 1;
++    return Math.min(Math.max(integerPage, 1), lastPage(total, pageSize));
++  };
++
++  switch (action.type) {
++    case "SET_PAGE":
++      return {
++        ...state,
++        page: clampPage(action.page, state.total, state.pageSize),
++      };
++
++    case "SET_PAGE_SIZE": {
++      if (!Number.isInteger(action.pageSize) || action.pageSize <= 0) {
++        return state;
++      }
++
++      const firstItemIndex = (state.page - 1) * state.pageSize;
++      const page = Math.floor(firstItemIndex / action.pageSize) + 1;
++
++      return {
++        ...state,
++        page: clampPage(page, state.total, action.pageSize),
++        pageSize: action.pageSize,
++      };
++    }
++
++    case "SET_TOTAL": {
++      const total = Number.isFinite(action.total)
++        ? Math.max(0, Math.floor(action.total))
++        : 0;
++
++      return {
++        ...state,
++        page: clampPage(state.page, total, state.pageSize),
++        total,
++      };
++    }
++
++    case "RESET":
++      return { page: 1, pageSize: state.pageSize, total: 0 };
++
++    default:
++      return state;
++  }
+ }
+
+ succeeded in 177ms:
+public test passed
+extended reducer checks passed
+
+codex
+所有验证均已通过，且冻结输入未发生修改。最后按协议写入 `result.json`，其中只记录实际执行过的验证；写入后再校验 JSON 可解析并核对最终文件内容。
+apply patch
+patch: completed
+/Users/ben/Code/test/test-ai-model/runs/compare-001/codex/write-pagination-reducer/result.json
+diff --git a/pagination-reducer.js b/pagination-reducer.js
+index 79dd1add736cb558f88c2bdcabc7cb82bbc26522..362d5b3165ec0ad7edb0ef4ff32ad92be0741bbf
+--- a/pagination-reducer.js
++++ b/pagination-reducer.js
+@@ -1,3 +1,48 @@
+ export function paginationReducer(state, action) {
+-  throw new Error("Not implemented");
++  const lastPage = (total, pageSize) => Math.max(1, Math.ceil(total / pageSize));
++  const clampPage = (page, total, pageSize) => {
++    const integerPage = Number.isFinite(page) ? Math.trunc(page) : 1;
++    return Math.min(Math.max(integerPage, 1), lastPage(total, pageSize));
++  };
++
++  switch (action.type) {
++    case "SET_PAGE":
++      return {
++        ...state,
++        page: clampPage(action.page, state.total, state.pageSize),
++      };
++
++    case "SET_PAGE_SIZE": {
++      if (!Number.isInteger(action.pageSize) || action.pageSize <= 0) {
++        return state;
++      }
++
++      const firstItemIndex = (state.page - 1) * state.pageSize;
++      const page = Math.floor(firstItemIndex / action.pageSize) + 1;
++
++      return {
++        ...state,
++        page: clampPage(page, state.total, action.pageSize),
++        pageSize: action.pageSize,
++      };
++    }
++
++    case "SET_TOTAL": {
++      const total = Number.isFinite(action.total)
++        ? Math.max(0, Math.floor(action.total))
++        : 0;
++
++      return {
++        ...state,
++        page: clampPage(state.page, total, state.pageSize),
++        total,
++      };
++    }
++
++    case "RESET":
++      return { page: 1, pageSize: state.pageSize, total: 0 };
++
++    default:
++      return state;
++  }
+ }
+diff --git a/result.json b/result.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..5bf52658824fcc53bfaf00e34756068ee19267a6
+--- /dev/null
++++ b/result.json
+@@ -0,0 +1,14 @@
++{
++  "case_id": "write-pagination-reducer",
++  "status": "completed",
++  "summary": "实现分页状态 reducer，支持页码限制、保持首条记录位置的分页大小切换、总数归一化与页码修正、重置和未知 action 引用保持，并保证不修改输入。",
++  "changed_files": [
++    "pagination-reducer.js",
++    "result.json"
++  ],
++  "verification": [
++    "npm test",
++    "node --input-type=module（扩展边界、对象引用及不可变性断言）",
++    "node --check pagination-reducer.js"
++  ]
++}
+
+diff --git a/pagination-reducer.js b/pagination-reducer.js
+index 79dd1add736cb558f88c2bdcabc7cb82bbc26522..362d5b3165ec0ad7edb0ef4ff32ad92be0741bbf
+--- a/pagination-reducer.js
++++ b/pagination-reducer.js
+@@ -1,3 +1,48 @@
+ export function paginationReducer(state, action) {
+-  throw new Error("Not implemented");
++  const lastPage = (total, pageSize) => Math.max(1, Math.ceil(total / pageSize));
++  const clampPage = (page, total, pageSize) => {
++    const integerPage = Number.isFinite(page) ? Math.trunc(page) : 1;
++    return Math.min(Math.max(integerPage, 1), lastPage(total, pageSize));
++  };
++
++  switch (action.type) {
++    case "SET_PAGE":
++      return {
++        ...state,
++        page: clampPage(action.page, state.total, state.pageSize),
++      };
++
++    case "SET_PAGE_SIZE": {
++      if (!Number.isInteger(action.pageSize) || action.pageSize <= 0) {
++        return state;
++      }
++
++      const firstItemIndex = (state.page - 1) * state.pageSize;
++      const page = Math.floor(firstItemIndex / action.pageSize) + 1;
++
++      return {
++        ...state,
++        page: clampPage(page, state.total, action.pageSize),
++        pageSize: action.pageSize,
++      };
++    }
++
++    case "SET_TOTAL": {
++      const total = Number.isFinite(action.total)
++        ? Math.max(0, Math.floor(action.total))
++        : 0;
++
++      return {
++        ...state,
++        page: clampPage(state.page, total, state.pageSize),
++        total,
++      };
++    }
++
++    case "RESET":
++      return { page: 1, pageSize: state.pageSize, total: 0 };
++
++    default:
++      return state;
++  }
+ }
+diff --git a/result.json b/result.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..5bf52658824fcc53bfaf00e34756068ee19267a6
+--- /dev/null
++++ b/result.json
+@@ -0,0 +1,14 @@
++{
++  "case_id": "write-pagination-reducer",
++  "status": "completed",
++  "summary": "实现分页状态 reducer，支持页码限制、保持首条记录位置的分页大小切换、总数归一化与页码修正、重置和未知 action 引用保持，并保证不修改输入。",
++  "changed_files": [
++    "pagination-reducer.js",
++    "result.json"
++  ],
++  "verification": [
++    "npm test",
++    "node --input-type=module（扩展边界、对象引用及不可变性断言）",
++    "node --check pagination-reducer.js"
++  ]
++}
+
+exec
+/bin/zsh -lc "node -e \"JSON.parse(require('node:fs').readFileSync('result.json', 'utf8')); console.log('result.json valid')\" && sed -n '1,240p' pagination-reducer.js && sed -n '1,200p' result.json" in /Users/ben/Code/test/test-ai-model/runs/compare-001/codex/write-pagination-reducer
+ succeeded in 0ms:
+result.json valid
+export function paginationReducer(state, action) {
+  const lastPage = (total, pageSize) => Math.max(1, Math.ceil(total / pageSize));
+  const clampPage = (page, total, pageSize) => {
+    const integerPage = Number.isFinite(page) ? Math.trunc(page) : 1;
+    return Math.min(Math.max(integerPage, 1), lastPage(total, pageSize));
+  };
+
+  switch (action.type) {
+    case "SET_PAGE":
+      return {
+        ...state,
+        page: clampPage(action.page, state.total, state.pageSize),
+      };
+
+    case "SET_PAGE_SIZE": {
+      if (!Number.isInteger(action.pageSize) || action.pageSize <= 0) {
+        return state;
+      }
+
+      const firstItemIndex = (state.page - 1) * state.pageSize;
+      const page = Math.floor(firstItemIndex / action.pageSize) + 1;
+
+      return {
+        ...state,
+        page: clampPage(page, state.total, action.pageSize),
+        pageSize: action.pageSize,
+      };
+    }
+
+    case "SET_TOTAL": {
+      const total = Number.isFinite(action.total)
+        ? Math.max(0, Math.floor(action.total))
+        : 0;
+
+      return {
+        ...state,
+        page: clampPage(state.page, total, state.pageSize),
+        total,
+      };
+    }
+
+    case "RESET":
+      return { page: 1, pageSize: state.pageSize, total: 0 };
+
+    default:
+      return state;
+  }
+}
+{
+  "case_id": "write-pagination-reducer",
+  "status": "completed",
+  "summary": "实现分页状态 reducer，支持页码限制、保持首条记录位置的分页大小切换、总数归一化与页码修正、重置和未知 action 引用保持，并保证不修改输入。",
+  "changed_files": [
+    "pagination-reducer.js",
+    "result.json"
+  ],
+  "verification": [
+    "npm test",
+    "node --input-type=module（扩展边界、对象引用及不可变性断言）",
+    "node --check pagination-reducer.js"
+  ]
+}
+
+diff --git a/pagination-reducer.js b/pagination-reducer.js
+index 79dd1add736cb558f88c2bdcabc7cb82bbc26522..362d5b3165ec0ad7edb0ef4ff32ad92be0741bbf
+--- a/pagination-reducer.js
++++ b/pagination-reducer.js
+@@ -1,3 +1,48 @@
+ export function paginationReducer(state, action) {
+-  throw new Error("Not implemented");
++  const lastPage = (total, pageSize) => Math.max(1, Math.ceil(total / pageSize));
++  const clampPage = (page, total, pageSize) => {
++    const integerPage = Number.isFinite(page) ? Math.trunc(page) : 1;
++    return Math.min(Math.max(integerPage, 1), lastPage(total, pageSize));
++  };
++
++  switch (action.type) {
++    case "SET_PAGE":
++      return {
++        ...state,
++        page: clampPage(action.page, state.total, state.pageSize),
++      };
++
++    case "SET_PAGE_SIZE": {
++      if (!Number.isInteger(action.pageSize) || action.pageSize <= 0) {
++        return state;
++      }
++
++      const firstItemIndex = (state.page - 1) * state.pageSize;
++      const page = Math.floor(firstItemIndex / action.pageSize) + 1;
++
++      return {
++        ...state,
++        page: clampPage(page, state.total, action.pageSize),
++        pageSize: action.pageSize,
++      };
++    }
++
++    case "SET_TOTAL": {
++      const total = Number.isFinite(action.total)
++        ? Math.max(0, Math.floor(action.total))
++        : 0;
++
++      return {
++        ...state,
++        page: clampPage(state.page, total, state.pageSize),
++        total,
++      };
++    }
++
++    case "RESET":
++      return { page: 1, pageSize: state.pageSize, total: 0 };
++
++    default:
++      return state;
++  }
+ }
+diff --git a/result.json b/result.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..5bf52658824fcc53bfaf00e34756068ee19267a6
+--- /dev/null
++++ b/result.json
+@@ -0,0 +1,14 @@
++{
++  "case_id": "write-pagination-reducer",
++  "status": "completed",
++  "summary": "实现分页状态 reducer，支持页码限制、保持首条记录位置的分页大小切换、总数归一化与页码修正、重置和未知 action 引用保持，并保证不修改输入。",
++  "changed_files": [
++    "pagination-reducer.js",
++    "result.json"
++  ],
++  "verification": [
++    "npm test",
++    "node --input-type=module（扩展边界、对象引用及不可变性断言）",
++    "node --check pagination-reducer.js"
++  ]
++}
+
+codex
+任务已完成：
+
+- 实现 `paginationReducer` 全部 action 逻辑。
+- 保证输入状态不可变及对象引用要求。
+- 已生成并验证 `result.json`。
+- `npm test`、扩展边界测试和语法检查均通过。
+diff --git a/pagination-reducer.js b/pagination-reducer.js
+index 79dd1add736cb558f88c2bdcabc7cb82bbc26522..362d5b3165ec0ad7edb0ef4ff32ad92be0741bbf
+--- a/pagination-reducer.js
++++ b/pagination-reducer.js
+@@ -1,3 +1,48 @@
+ export function paginationReducer(state, action) {
+-  throw new Error("Not implemented");
++  const lastPage = (total, pageSize) => Math.max(1, Math.ceil(total / pageSize));
++  const clampPage = (page, total, pageSize) => {
++    const integerPage = Number.isFinite(page) ? Math.trunc(page) : 1;
++    return Math.min(Math.max(integerPage, 1), lastPage(total, pageSize));
++  };
++
++  switch (action.type) {
++    case "SET_PAGE":
++      return {
++        ...state,
++        page: clampPage(action.page, state.total, state.pageSize),
++      };
++
++    case "SET_PAGE_SIZE": {
++      if (!Number.isInteger(action.pageSize) || action.pageSize <= 0) {
++        return state;
++      }
++
++      const firstItemIndex = (state.page - 1) * state.pageSize;
++      const page = Math.floor(firstItemIndex / action.pageSize) + 1;
++
++      return {
++        ...state,
++        page: clampPage(page, state.total, action.pageSize),
++        pageSize: action.pageSize,
++      };
++    }
++
++    case "SET_TOTAL": {
++      const total = Number.isFinite(action.total)
++        ? Math.max(0, Math.floor(action.total))
++        : 0;
++
++      return {
++        ...state,
++        page: clampPage(state.page, total, state.pageSize),
++        total,
++      };
++    }
++
++    case "RESET":
++      return { page: 1, pageSize: state.pageSize, total: 0 };
++
++    default:
++      return state;
++  }
+ }
+diff --git a/result.json b/result.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..5bf52658824fcc53bfaf00e34756068ee19267a6
+--- /dev/null
++++ b/result.json
+@@ -0,0 +1,14 @@
++{
++  "case_id": "write-pagination-reducer",
++  "status": "completed",
++  "summary": "实现分页状态 reducer，支持页码限制、保持首条记录位置的分页大小切换、总数归一化与页码修正、重置和未知 action 引用保持，并保证不修改输入。",
++  "changed_files": [
++    "pagination-reducer.js",
++    "result.json"
++  ],
++  "verification": [
++    "npm test",
++    "node --input-type=module（扩展边界、对象引用及不可变性断言）",
++    "node --check pagination-reducer.js"
++  ]
++}
+
+tokens used
+17,767

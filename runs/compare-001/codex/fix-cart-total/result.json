@@ -1,0 +1,14 @@
+{
+  "case_id": "fix-cart-total",
+  "status": "completed",
+  "summary": "修复 calculateCart：按整数处理价格和数量并忽略非正数量，正确计算及限制百分比折扣，按折后金额判断免邮，保证总额非负且不修改输入对象。",
+  "changed_files": [
+    "cart.js",
+    "result.json"
+  ],
+  "verification": [
+    "npm test",
+    "node --check cart.js",
+    "node --input-type=module（补充断言：整数转换、无效数量、折扣限幅、折后免邮阈值、总额非负、输入不可变）"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "case_id": "logic-commit-consistency",
+  "status": "completed",
+  "summary": "核对 commit 声明与代码变更：currency 维度已加入产品列表缓存键并有测试覆盖，locale 维度未实现，因此提交声明未被完整实现。",
+  "changed_files": [
+    "result.json"
+  ],
+  "verification": [
+    "阅读并对照 COMMIT_MESSAGE.txt、change.diff、TASK.md 和 RESULT_PROTOCOL.md",
+    "node -e 校验 result.json 的 JSON 语法、协议字段和 answer 枚举约束"
+  ],
+  "answer": {
+    "consistent": false,
+    "implemented_dimensions": [
+      "currency"
+    ],
+    "missing_dimensions": [
+      "locale"
+    ],
+    "risk": "cross-locale-cache-collision"
+  }
+}

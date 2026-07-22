@@ -1,0 +1,13 @@
+{
+  "case_id": "fix-pagination-window",
+  "status": "completed",
+  "summary": "修复 pageWindow 的非正参数、current 越界、窗口长度、边界平移及偶数窗口居中行为。",
+  "changed_files": [
+    "pagination.js",
+    "result.json"
+  ],
+  "verification": [
+    "npm test",
+    "node --input-type=module（补充边界断言）"
+  ]
+}

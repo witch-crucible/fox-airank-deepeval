@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "frontend-agent-benchmark"
+version = "0.1.0"
+description = "面向代码代理工具的前端能力测试集"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+agent-bench = "benchmark.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["benchmark*"]

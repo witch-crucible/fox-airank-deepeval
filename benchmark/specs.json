@@ -1,0 +1,93 @@
+{
+  "logic-fragmented-business-rule": {
+    "type": "logic",
+    "expected": {
+      "threshold_basis": "after_discount",
+      "mainland_threshold": 500,
+      "mainland_standard_shipping": 30,
+      "vip_mainland_free": true,
+      "overseas_shipping": 80,
+      "orders": {"o1": 30, "o2": 0, "o3": 80, "o4": 0}
+    }
+  },
+  "logic-commit-consistency": {
+    "type": "logic",
+    "expected": {
+      "consistent": false,
+      "implemented_dimensions": ["currency"],
+      "missing_dimensions": ["locale"],
+      "risk": "cross-locale-cache-collision"
+    }
+  },
+  "logic-comment-implementation": {
+    "type": "logic",
+    "expected": {
+      "contract_violated": true,
+      "misclassified_values": ["stock=0"],
+      "faulty_condition": "!stock",
+      "correct_condition": "stock === null"
+    }
+  },
+  "logic-result-process": {
+    "type": "logic",
+    "expected": {
+      "process_issue": "retry-without-idempotency",
+      "evidence": {"duplicate_orders": 8, "retried_intents": 8},
+      "control": "idempotency-key-per-intent"
+    }
+  },
+  "fix-cart-total": {
+    "type": "javascript",
+    "file": "cart.js",
+    "checks": [
+      "assert.deepEqual(solution.calculateCart([{price:100,quantity:2},{price:50,quantity:1}], null, 300, 20), {subtotal:250,discount:0,shipping:20,total:270});",
+      "assert.deepEqual(solution.calculateCart([{price:125,quantity:2}], {percent:10}, 225, 20), {subtotal:250,discount:25,shipping:0,total:225}); assert.deepEqual(solution.calculateCart([{price:333,quantity:1}], {percent:15}, 1000, 0), {subtotal:333,discount:50,shipping:0,total:283});",
+      "const items=[{price:100,quantity:-2},{price:40,quantity:2}]; const snapshot=JSON.stringify(items); assert.deepEqual(solution.calculateCart(items,{percent:150},100,9),{subtotal:80,discount:80,shipping:9,total:9}); assert.equal(JSON.stringify(items),snapshot);"
+    ]
+  },
+  "fix-query-string": {
+    "type": "javascript",
+    "file": "query.js",
+    "checks": [
+      "assert.equal(solution.toQueryString({q:'dior bag',page:2}), 'page=2&q=dior%20bag');",
+      "assert.equal(solution.toQueryString({z:null,a:false,b:0,c:'',d:undefined}), 'a=false&b=0&c=');",
+      "const input={tag:['silk scarf','bag&shoe'],q:'a=b'}; const snapshot=JSON.stringify(input); assert.equal(solution.toQueryString(input),'q=a%3Db&tag=silk%20scarf&tag=bag%26shoe'); assert.equal(JSON.stringify(input),snapshot);"
+    ]
+  },
+  "fix-pagination-window": {
+    "type": "javascript",
+    "file": "pagination.js",
+    "checks": [
+      "assert.deepEqual(solution.pageWindow(5,10,4),[3,4,5,6]); assert.deepEqual(solution.pageWindow(5,10,5),[3,4,5,6,7]);",
+      "assert.deepEqual(solution.pageWindow(1,10,5),[1,2,3,4,5]); assert.deepEqual(solution.pageWindow(10,10,5),[6,7,8,9,10]);",
+      "assert.deepEqual(solution.pageWindow(-2,3,9),[1,2,3]); assert.deepEqual(solution.pageWindow(2,0,3),[]); assert.deepEqual(solution.pageWindow(2,5,0),[]);"
+    ]
+  },
+  "write-product-filter": {
+    "type": "javascript",
+    "file": "product-filter.js",
+    "checks": [
+      "const p=[{sku:'A1',name:'Dior Bag',category:'bag',price:100,stock:2},{sku:'B2',name:'Silk',category:'scarf',price:50,stock:0}]; assert.deepEqual(solution.filterProducts(p,{query:'  b2 '}),[p[1]]); assert.deepEqual(solution.filterProducts(p,{categories:['bag'],inStockOnly:true}),[p[0]]);",
+      "const p=[{sku:'a',name:'B',category:'x',price:20,stock:1},{sku:'b',name:'A',category:'x',price:20,stock:1},{sku:'c',name:'C',category:'y',price:10,stock:1}]; assert.deepEqual(solution.filterProducts(p,{minPrice:10,maxPrice:20,sortBy:'price-desc'}).map(x=>x.sku),['a','b','c']); assert.deepEqual(solution.filterProducts(p,{sortBy:'name-asc'}).map(x=>x.sku),['b','a','c']);",
+      "const p=[{sku:'a',name:'A',category:'x',price:1,stock:1}]; const options={categories:[]}; const beforeP=JSON.stringify(p), beforeO=JSON.stringify(options); const result=solution.filterProducts(p,options); assert.notEqual(result,p); assert.equal(JSON.stringify(p),beforeP); assert.equal(JSON.stringify(options),beforeO);"
+    ]
+  },
+  "write-pagination-reducer": {
+    "type": "javascript",
+    "file": "pagination-reducer.js",
+    "checks": [
+      "const s={page:2,pageSize:10,total:35}; assert.deepEqual(solution.paginationReducer(s,{type:'SET_PAGE',page:0}),{page:1,pageSize:10,total:35}); assert.deepEqual(solution.paginationReducer(s,{type:'SET_PAGE',page:99}),{page:4,pageSize:10,total:35}); assert.deepEqual(s,{page:2,pageSize:10,total:35});",
+      "assert.deepEqual(solution.paginationReducer({page:3,pageSize:10,total:100},{type:'SET_PAGE_SIZE',pageSize:25}),{page:1,pageSize:25,total:100}); const s={page:3,pageSize:10,total:100}; assert.equal(solution.paginationReducer(s,{type:'SET_PAGE_SIZE',pageSize:0}),s);",
+      "assert.deepEqual(solution.paginationReducer({page:5,pageSize:10,total:50},{type:'SET_TOTAL',total:12}),{page:2,pageSize:10,total:12}); assert.deepEqual(solution.paginationReducer({page:2,pageSize:10,total:20},{type:'RESET'}),{page:1,pageSize:10,total:0}); const s={page:1,pageSize:10,total:0}; assert.equal(solution.paginationReducer(s,{type:'UNKNOWN'}),s);"
+    ]
+  },
+  "write-product-card": {
+    "type": "javascript",
+    "file": "product-card.js",
+    "checks": [
+      "const h=solution.renderProductCard({sku:'A',imageUrl:'/a.jpg',name:'Lady Dior',price:32000,description:'Bag',stock:1}); assert.ok(h.startsWith('<article class=\"product-card\" data-sku=\"A\">')); assert.ok(h.includes('src=\"/a.jpg\"')); assert.ok(h.includes('alt=\"Lady Dior\"')); assert.ok(h.includes('<h2>Lady Dior</h2>')); assert.ok(h.includes('¥32000')); assert.ok(h.includes('data-action=\"add-to-cart\"')); assert.ok(h.includes('>加入购物车</button>'));",
+      "const h=solution.renderProductCard({sku:'B',imageUrl:'/b.jpg',name:'Out',price:1,description:'None',stock:0}); assert.match(h,/<button[^>]*disabled[^>]*>/); assert.ok(h.includes('>暂时缺货</button>')); assert.ok(!h.includes('data-action=\"add-to-cart\"'));",
+      "const h=solution.renderProductCard({sku:'\" onmouseover=\"x',imageUrl:'x\" onerror=\"x',name:'<script>x</script>',price:2,description:\"A & B 'quote'\",stock:1}); assert.ok(!h.includes('<script>')); assert.ok(h.includes('&lt;script&gt;x&lt;/script&gt;')); assert.ok(h.includes('A &amp; B')); assert.ok(h.includes('&quot;')); assert.ok(h.includes('&#39;') || h.includes('&#x27;'));"
+    ]
+  }
+}

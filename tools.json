@@ -1,0 +1,14 @@
+{
+  "codex": {
+    "command": ["codex", "exec", "--skip-git-repo-check", "--ephemeral", "-s", "workspace-write", "{prompt}"]
+  },
+  "claude-code": {
+    "command": ["claude", "-p", "--permission-mode", "auto", "--no-session-persistence", "{prompt}"]
+  },
+  "qwen": {
+    "command": ["qwen", "-p", "{prompt}"]
+  },
+  "opencode": {
+    "command": ["opencode", "run", "--auto", "{prompt}"]
+  }
+}

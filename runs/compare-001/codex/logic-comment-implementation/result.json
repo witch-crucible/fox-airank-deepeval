@@ -1,0 +1,20 @@
+{
+  "case_id": "logic-comment-implementation",
+  "status": "completed",
+  "summary": "根据已确认的注释契约识别库存判断偏差，并给出最小修正条件。",
+  "changed_files": [
+    "result.json"
+  ],
+  "verification": [
+    "node -e JSON.parse(require('fs').readFileSync('result.json', 'utf8'))",
+    "node result.json 字段约束内联检查"
+  ],
+  "answer": {
+    "contract_violated": true,
+    "misclassified_values": [
+      "stock=0"
+    ],
+    "faulty_condition": "!stock",
+    "correct_condition": "stock === null"
+  }
+}
