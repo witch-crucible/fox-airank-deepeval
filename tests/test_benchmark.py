@@ -10,7 +10,7 @@ from benchmark.report import render_report_html
 class BenchmarkTests(unittest.TestCase):
     def test_reference_solutions_score_full_marks(self):
         cases = load_cases()
-        self.assertEqual(len(cases), 10)
+        self.assertEqual(len(cases), 13)
         with tempfile.TemporaryDirectory() as directory:
             run_dir = Path(directory) / "run"
             prepare(run_dir, ["reference"], cases)
