@@ -2,9 +2,9 @@
 
 该项目比较 Codex、Claude Code、Qwen Code、OpenCode、Qoder 等代码代理工具在真实项目工作流中的能力，而不是直接调用模型 API。
 
-评测覆盖三类能力，共 10 个前端 JavaScript case：
+评测覆盖三类能力，共 13 个前端 JavaScript case：
 
-- `logic_analysis`（4 个）：从零散业务沟通还原规则、检查 commit 声明与 diff 是否一致、对照注释发现实现偏差、从结果数据反推过程缺陷。
+- `logic_analysis`（7 个）：从零散业务沟通还原规则、检查 commit 声明与 diff 是否一致、对照注释发现实现偏差、从结果数据反推过程缺陷、从异步竞态合约发现实现偏差、检查访问策略声明与实现是否一致、从购物车事件日志反推乱序缺陷。
 - `code_correction`：修复购物车金额、查询参数、分页边界缺陷。
 - `code_generation`：实现商品筛选、分页 reducer、安全商品卡片。
 
@@ -87,7 +87,7 @@ python3 benchmark.py grade --run-dir runs/smoke --tool codex --case fix-cart-tot
 
 ## 验证项目自身
 
-参考解会完整跑过 10 个 case 的评分规则：
+参考解会完整跑过 13 个 case 的评分规则：
 
 ```bash
 python3 -m unittest discover -s tests -v
