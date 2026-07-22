@@ -44,6 +44,16 @@
       "control": "idempotency-key-per-intent"
     }
   },
+  "logic-access-policy": {
+    "type": "logic",
+    "expected": {
+      "policy_matches_implementation": false,
+      "violating_role": "editor",
+      "violating_status": "submitted",
+      "violating_action": "edit",
+      "risk": "unauthorized-edit-of-submitted-order"
+    }
+  },
   "fix-cart-total": {
     "type": "javascript",
     "file": "cart.js",
