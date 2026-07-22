@@ -1,4 +1,12 @@
 {
+  "logic-async-search-race": {
+    "type": "logic",
+    "expected": {
+      "contract_violated": true,
+      "unguarded_call": "render(suggestions)",
+      "missing_condition": "token === latestToken"
+    }
+  },
   "logic-fragmented-business-rule": {
     "type": "logic",
     "expected": {
