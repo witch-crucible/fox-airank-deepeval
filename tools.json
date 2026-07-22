@@ -6,7 +6,7 @@
     "command": ["claude", "-p", "--permission-mode", "auto", "--no-session-persistence", "{prompt}"]
   },
   "qwen": {
-    "command": ["qwen", "-p", "{prompt}"]
+    "command": ["qwen", "-p", "--yolo", "{prompt}"]
   },
   "opencode": {
     "command": ["opencode", "run", "--auto", "{prompt}"]
