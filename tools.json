@@ -9,6 +9,6 @@
     "command": ["qwen", "-p", "--yolo", "{prompt}"]
   },
   "opencode": {
-    "command": ["opencode", "run", "--auto", "{prompt}"]
+    "command": ["opencode", "run", "--auto", "--model", "opencode/deepseek-v4-flash-free", "{prompt}"]
   }
 }
