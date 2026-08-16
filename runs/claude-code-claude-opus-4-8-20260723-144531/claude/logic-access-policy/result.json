@@ -1,0 +1,17 @@
+{
+  "case_id": "logic-access-policy",
+  "status": "completed",
+  "summary": "对比 ACCESS_POLICY.md 与 permissions.js，穷举 3 角色 × 3 状态共 9 种组合的 view/edit 权限。策略规定 submitted 状态下 editor 仅可查看、不可编辑，而 canEdit(\"editor\", \"submitted\") 返回 true，允许了策略明确禁止的编辑操作，实现与策略不一致。",
+  "changed_files": ["result.json"],
+  "verification": [
+    "阅读 ACCESS_POLICY.md 与 permissions.js，逐条比对每个角色/状态的 view、edit 权限",
+    "使用 node 导入 permissions.js 并穷举 editor/reviewer/admin × draft/submitted/archived 全部 9 种组合，与策略期望值逐一对比，确认唯一符合固定风险标识的违规为 editor 在 submitted 状态下可编辑（canEdit 返回 true，策略要求 false）"
+  ],
+  "answer": {
+    "policy_matches_implementation": false,
+    "violating_role": "editor",
+    "violating_status": "submitted",
+    "violating_action": "edit",
+    "risk": "unauthorized-edit-of-submitted-order"
+  }
+}

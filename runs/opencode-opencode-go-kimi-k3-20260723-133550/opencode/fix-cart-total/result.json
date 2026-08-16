@@ -1,0 +1,10 @@
+{
+  "case_id": "fix-cart-total",
+  "status": "completed",
+  "summary": "审查了 cart.js 的 calculateCart：实现已满足 TASK.md 全部要求（忽略 quantity<=0 的商品；subtotal 为有效商品 price*quantity 之和；百分比优惠券仅作用于 subtotal、四舍五入到整数且百分比限制在 0-100；shippingThreshold 基于折后金额判断，达到阈值免运费否则收 shippingFee；total 不为负且不修改输入对象；函数签名与返回字段保持不变），无需修改代码。",
+  "changed_files": [],
+  "verification": [
+    "npm test（public-test.mjs 通过）",
+    "node --input-type=module -e 边界检查：quantity<=0 忽略、折扣四舍五入（105*50%=53）、percent 截断到 0-100、折后金额阈值判断（含等于阈值免运费）、total 非负、输入对象未被修改、非百分比优惠券忽略——全部通过"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "case_id": "write-product-filter",
+  "status": "completed",
+  "summary": "在 product-filter.js 实现 filterProducts：query 去空格且忽略大小写匹配 name/sku，categories 非空时精确匹配，minPrice/maxPrice 含端点，inStockOnly 保留 stock > 0，sortBy 支持 price-asc/price-desc/name-asc（使用 slice() 后 sort 保证稳定且不改原数组），未提供 sortBy 时保持原顺序，返回新数组且不修改输入。",
+  "changed_files": ["product-filter.js"],
+  "verification": [
+    "node public-test.mjs（public test passed）",
+    "node -e 自测：稳定排序（price-asc/price-desc/name-asc 相等值保持原顺序）、价格端点+inStockOnly+categories 组合过滤、query 去空格忽略大小写、冻结输入对象/options 不被修改、返回新数组"
+  ]
+}

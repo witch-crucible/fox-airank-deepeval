@@ -1,0 +1,7 @@
+{
+  "case_id": "fix-pagination-window",
+  "status": "completed",
+  "summary": "修复 pageWindow：total/size <= 0 返回空数组；size 上限为 total，current 夹紧到 [1,total]；start = clamp(current - floor(size/2), 1, total - size + 1)，保证窗口长度为 size 且 current 居中（偶数 size 时位于中间靠右），靠近两端时平移窗口。",
+  "changed_files": ["pagination.js"],
+  "verification": ["npm test（node public-test.mjs）通过：public test passed"]
+}

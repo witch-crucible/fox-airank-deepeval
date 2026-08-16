@@ -1,0 +1,17 @@
+{
+  "case_id": "logic-commit-consistency",
+  "status": "completed",
+  "summary": "commit 声明同时覆盖 locale 与 currency 两个维度（消息称'include locale and currency'并提到防止'localized names'泄露），但 change.diff 只在 productListCacheKey 中新增了 currency 参数并拼入缓存键，函数签名和缓存键字符串均未加入 locale，测试也只新增了 currency 隔离的用例，没有 locale 隔离用例。因此提交内容未完整实现声明，locale 维度缺失，会导致本地化名称在不同 locale 请求间通过缓存键冲突而串场。",
+  "changed_files": ["result.json"],
+  "verification": [
+    "阅读 COMMIT_MESSAGE.txt 确认声明覆盖 locale 和 currency 两个维度",
+    "阅读 change.diff 确认 src/catalog/cache-key.js 中 productListCacheKey 仅新增 currency 参数并拼接进缓存键字符串 `products:${categoryId}:${page}:${currency}`，未新增 locale 参数或拼接",
+    "阅读 change.diff 确认 test/cache-key.test.js 仅新增 currency 隔离测试，未新增 locale 隔离测试"
+  ],
+  "answer": {
+    "consistent": false,
+    "implemented_dimensions": ["currency"],
+    "missing_dimensions": ["locale"],
+    "risk": "cross-locale-cache-collision"
+  }
+}

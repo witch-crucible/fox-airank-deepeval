@@ -1,0 +1,13 @@
+{
+  "case_id": "write-product-filter",
+  "status": "completed",
+  "summary": "实现商品的查询、分类、价格与库存筛选，以及稳定的价格和名称排序；保证输入不被修改并始终返回新数组。",
+  "changed_files": [
+    "product-filter.js",
+    "result.json"
+  ],
+  "verification": [
+    "npm test",
+    "node --input-type=module（扩展断言：查询、空分类、价格端点、库存、三种排序、稳定性、新数组与输入不可变性）"
+  ]
+}

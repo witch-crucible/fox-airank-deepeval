@@ -1,0 +1,15 @@
+{
+  "case_id": "logic-fragmented-business-rule",
+  "status": "completed",
+  "summary": "综合 fragments.md 中周三、周四被周五验收确认的最终口径（周一/周二的门槛判断口径已被周三修正覆盖）还原运费规则：国内订单免运门槛按优惠后金额（subtotal-discount）判断，满 500 免运否则 30；VIP 国内订单一律免运、不看金额；海外固定 80 运费，不参与会员和满额活动。据此计算 orders.json 中 4 个订单的运费。",
+  "changed_files": ["result.json"],
+  "verification": ["python3 脚本按还原规则逐条计算 o1-o4 运费并核对：o1(mainland,非VIP,600-120=480<500)=30；o2(mainland,VIP)=0；o3(overseas)=80；o4(mainland,非VIP,550-40=510>=500)=0"],
+  "answer": {
+    "threshold_basis": "after_discount",
+    "mainland_threshold": 500,
+    "mainland_standard_shipping": 30,
+    "vip_mainland_free": true,
+    "overseas_shipping": 80,
+    "orders": {"o1": 30, "o2": 0, "o3": 80, "o4": 0}
+  }
+}

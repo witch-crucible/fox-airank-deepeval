@@ -1,0 +1,10 @@
+{
+  "case_id": "fix-pagination-window",
+  "status": "completed",
+  "summary": "修复 pagination.js 的 pageWindow：total/size <= 0 返回空数组；current 限制到 [1, total]，size 上限为 total；窗口尽量居中，靠近两端时平移以保持目标长度；偶数 size 时 current 位于中间两个位置中靠右者（如 pageWindow(5, 10, 4) 返回 [3,4,5,6]）。保持函数签名不变。",
+  "changed_files": ["pagination.js", "result.json"],
+  "verification": [
+    "npm test（node public-test.mjs）通过，输出 public test passed",
+    "node --input-type=module 边界用例断言全部通过：空数组分支、current clamp、size 上限、居中/两端平移、偶数 size 右中位（含 pageWindow(5,10,4)=[3,4,5,6]）"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "case_id": "logic-commit-consistency",
+  "status": "completed",
+  "summary": "提交仅实现了按 currency 隔离产品列表缓存，未实现声明中的 locale 隔离。",
+  "changed_files": [
+    "result.json"
+  ],
+  "verification": [
+    "人工核对 COMMIT_MESSAGE.txt 与 change.diff：currency 已加入缓存键并有测试，locale 未加入缓存键且无对应测试",
+    "python3 -m json.tool result.json",
+    "python3 内联断言校验 result.json 协议字段、answer 精确结构及允许的枚举值"
+  ],
+  "answer": {
+    "consistent": false,
+    "implemented_dimensions": [
+      "currency"
+    ],
+    "missing_dimensions": [
+      "locale"
+    ],
+    "risk": "cross-locale-cache-collision"
+  }
+}

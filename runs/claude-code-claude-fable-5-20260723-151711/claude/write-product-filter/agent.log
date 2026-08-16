@@ -1,0 +1,14 @@
+command=["claude", "-p", "--permission-mode", "auto", "--no-session-persistence", "阅读 TASK.md，独立完成任务并执行必要验证。最后必须按 TASK.md 要求生成 result.json。"]
+status=completed
+returncode=0
+elapsed_seconds=64.646
+
+[stdout]
+完成。已在 `product-filter.js` 实现 `filterProducts` 并生成 `result.json`。
+
+实现要点：query 去首尾空格、忽略大小写，用子串匹配 name 或 sku；categories 为空（或未提供）不过滤，否则精确匹配；价格区间含端点；`inStockOnly` 保留 `stock > 0`；排序用 `slice().sort()`（Node 的 sort 稳定），相等值保持原顺序，未提供 `sortBy` 时保持过滤后的原顺序；始终返回新数组，不改动输入。
+
+验证：`npm` 因 shell 的 nvm 配置损坏无法直接调用，改用 `~/.nvm/.../bin/node public-test.mjs` 运行同一测试命令，输出 `public test passed`；另跑了自测覆盖三种排序的稳定性、组合过滤、query 归一化，并用 `Object.freeze` 冻结输入确认无修改，全部符合预期。
+
+
+[stderr]

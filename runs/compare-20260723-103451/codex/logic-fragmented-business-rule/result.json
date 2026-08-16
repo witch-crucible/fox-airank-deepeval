@@ -1,0 +1,25 @@
+{
+  "case_id": "logic-fragmented-business-rule",
+  "status": "completed",
+  "summary": "综合全部沟通记录还原当前有效运费规则，并计算四个订单的运费。",
+  "changed_files": [
+    "result.json"
+  ],
+  "verification": [
+    "python3 -m json.tool result.json",
+    "python3 -c \"import json; d=json.load(open('result.json')); a=d['answer']; assert d['case_id']=='logic-fragmented-business-rule' and d['status']=='completed'; assert list(a)==['threshold_basis','mainland_threshold','mainland_standard_shipping','vip_mainland_free','overseas_shipping','orders']; assert a=={'threshold_basis':'after_discount','mainland_threshold':500,'mainland_standard_shipping':30,'vip_mainland_free':True,'overseas_shipping':80,'orders':{'o1':30,'o2':0,'o3':80,'o4':0}}\""
+  ],
+  "answer": {
+    "threshold_basis": "after_discount",
+    "mainland_threshold": 500,
+    "mainland_standard_shipping": 30,
+    "vip_mainland_free": true,
+    "overseas_shipping": 80,
+    "orders": {
+      "o1": 30,
+      "o2": 0,
+      "o3": 80,
+      "o4": 0
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "created_at": "2026-07-23T03:53:29.060049+00:00",
+  "tools": [
+    "opencode"
+  ],
+  "cases": [
+    "fix-cart-total",
+    "fix-pagination-window",
+    "fix-query-string",
+    "write-pagination-reducer",
+    "write-product-card",
+    "write-product-filter",
+    "logic-access-policy",
+    "logic-async-search-race",
+    "logic-cart-event-trace",
+    "logic-comment-implementation",
+    "logic-commit-consistency",
+    "logic-fragmented-business-rule",
+    "logic-result-process"
+  ]
+}

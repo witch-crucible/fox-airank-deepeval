@@ -1,0 +1,17 @@
+{
+  "case_id": "logic-commit-consistency",
+  "status": "completed",
+  "summary": "对比 COMMIT_MESSAGE.txt 与 change.diff：commit 声明在 product-list 缓存键中同时加入 locale 和 currency，但 diff 仅将 currency 加入缓存键并补充了 currency 测试，locale 维度完全未实现，因此声明与变更不一致，仍存在跨 locale 缓存碰撞风险。",
+  "changed_files": ["result.json"],
+  "verification": [
+    "逐行阅读 COMMIT_MESSAGE.txt，确认声明包含 locale 与 currency 两个维度",
+    "逐行审查 change.diff：cache-key.js 的新键为 products:${categoryId}:${page}:${currency}，仅含 currency；测试文件仅新增 currency 用例，无 locale 相关改动",
+    "python3 -c \"import json; json.load(open('result.json'))\" 校验 result.json 为合法 JSON"
+  ],
+  "answer": {
+    "consistent": false,
+    "implemented_dimensions": ["currency"],
+    "missing_dimensions": ["locale"],
+    "risk": "cross-locale-cache-collision"
+  }
+}

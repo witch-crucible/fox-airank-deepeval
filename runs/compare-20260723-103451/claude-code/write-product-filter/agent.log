@@ -1,0 +1,16 @@
+command=["claude", "-p", "--permission-mode", "auto", "--no-session-persistence", "阅读 TASK.md，独立完成任务并执行必要验证。最后必须按 TASK.md 要求生成 result.json。"]
+status=completed
+returncode=0
+elapsed_seconds=101.526
+
+[stdout]
+Task complete. Implemented `filterProducts` in `product-filter.js` per spec: query trimming/case-insensitive substring match on name/sku, exact category matching (no filter when empty), inclusive price bounds, `inStockOnly`, and stable `price-asc`/`price-desc`/`name-asc` sorting (original order preserved for ties and when `sortBy` is omitted) — without mutating `products`, `options`, or any nested objects.
+
+Verification:
+- `npm test` → public test passed
+- Ad-hoc script covering categories/price bounds/inStockOnly/all sort modes/tie stability/no-mutation/new-array-return → all passed
+
+`result.json` generated in the task directory as required.
+
+
+[stderr]

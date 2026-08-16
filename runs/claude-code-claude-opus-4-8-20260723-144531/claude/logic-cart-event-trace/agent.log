@@ -1,0 +1,43 @@
+command=["claude", "-p", "--permission-mode", "auto", "--no-session-persistence", "阅读 TASK.md，独立完成任务并执行必要验证。最后必须按 TASK.md 要求生成 result.json。"]
+status=completed
+returncode=0
+elapsed_seconds=47.045
+
+[stdout]
+任务完成。
+
+## 结论
+
+**缺陷：事件乱序应用（`out-of-order-event-application`）**
+
+服务端按 `received_at` 到达顺序应用事件，而 sku-1 的两个事件到达顺序与客户端发起顺序（`seq`）相反：
+
+| seq | 事件 | received_at |
+|-----|------|-------------|
+| 1 | add sku-1 | .100 |
+| 2 | remove sku-1 | **.050**（先到）|
+
+remove 先于 add 被应用而落空，导致 sku-1 错误地留在购物车中。
+
+**验证（重放对比）：**
+- 按 `seq`（意图）顺序重放 → 最终购物车为**空**
+- 按 `received_at`（实际）顺序重放 → 最终为 **{sku-1}**
+- 不一致商品：sku-1
+
+sku-2 的 add(.310)/remove(.410) 到达有序，无缺陷。
+
+**统计：** 乱序事件对 = 1，受影响商品 = 1
+
+**措施：** `sequence-number-enforcement`（服务端按客户端 `seq` 强制顺序应用事件）
+
+已生成 `result.json`，含 `answer` 字段：
+```json
+{
+  "process_issue": "out-of-order-event-application",
+  "evidence": {"out_of_order_pairs": 1, "affected_items": 1},
+  "control": "sequence-number-enforcement"
+}
+```
+
+
+[stderr]

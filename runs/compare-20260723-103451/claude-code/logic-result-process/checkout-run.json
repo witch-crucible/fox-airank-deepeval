@@ -1,0 +1,10 @@
+{
+  "checkout_intents": 100,
+  "api_attempts": 108,
+  "successful_api_responses": 108,
+  "created_orders": 108,
+  "unique_checkout_intent_ids_in_orders": 100,
+  "intents_with_two_orders": 8,
+  "failed_intents": 0,
+  "retry_reason": "client timed out before receiving 8 successful first-attempt responses"
+}

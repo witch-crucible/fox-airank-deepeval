@@ -1,0 +1,2 @@
+{"case_id":"logic-comment-implementation","status":"completed","summary":"注释约定 stock===null 允许、stock===0 拒绝、stock>0 允许；但实现中 !stock 将 null 和 0 都视为真值返回 true，导致 stock=0 时错误允许购买。","changed_files":[],"verification":["对比注释契约与实现代码"],"answer":{"contract_violated":true,"misclassified_values":["stock=0"],"faulty_condition":"!stock","correct_condition":"stock === null || stock > 0"}}
+

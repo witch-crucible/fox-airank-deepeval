@@ -1,0 +1,10 @@
+{
+  "case_id": "fix-query-string",
+  "status": "completed",
+  "summary": "重写 toQueryString：跳过 null/undefined 但保留 false/0/空字符串；数组每个元素生成一个同名参数，空数组不生成；key 与 value 均用 encodeURIComponent 编码；按 key 字典序输出且不修改输入对象。",
+  "changed_files": ["query.js", "result.json"],
+  "verification": [
+    "node public-test.mjs -> public test passed",
+    "额外断言：null/undefined 被忽略，false/0/\"\" 保留；数组展开与空数组；encodeURIComponent 编码 key 和 value；key 排序且输入未被修改 -> all extra checks passed"
+  ]
+}

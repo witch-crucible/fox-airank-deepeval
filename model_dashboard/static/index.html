@@ -1,0 +1,1176 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI 模型能力测试</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #18211c;
+      --muted: #667168;
+      --line: #dde3de;
+      --canvas: #f5f6f2;
+      --paper: #fffefa;
+      --paper-strong: #ffffff;
+      --green: #245b45;
+      --green-dark: #173f30;
+      --green-soft: #e2eee6;
+      --gold: #c98c2d;
+      --gold-soft: #fbefd8;
+      --orange: #c45e35;
+      --pink: #a55a70;
+      --shadow: 0 10px 30px rgba(39, 54, 45, 0.055);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 88% 2%, rgba(201, 140, 45, 0.1), transparent 26rem),
+        var(--canvas);
+      color: var(--ink);
+      font: 14px/1.55 Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+    }
+
+    button, input, select { font: inherit; }
+
+    button { cursor: pointer; }
+
+    a { color: var(--green); }
+
+    .app-shell { min-height: 100vh; }
+
+    .topbar {
+      position: sticky;
+      z-index: 20;
+      top: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 68px;
+      padding: 10px clamp(18px, 4vw, 56px);
+      border-bottom: 1px solid rgba(36, 91, 69, 0.12);
+      background: rgba(255, 254, 250, 0.92);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; }
+
+    .brand-mark {
+      display: grid;
+      width: 38px;
+      height: 38px;
+      place-items: center;
+      border-radius: 12px;
+      background: var(--green);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.16);
+      color: white;
+      font-weight: 800;
+      letter-spacing: -.04em;
+    }
+
+    .brand-name { font-size: 15px; font-weight: 760; }
+    .brand-meta { color: var(--muted); font-size: 12px; }
+
+    .topbar-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+
+    .btn {
+      min-height: 38px;
+      padding: 0 14px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: var(--paper-strong);
+      color: var(--ink);
+      font-weight: 680;
+      transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
+    }
+
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(29, 54, 40, .08); }
+    .btn:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 3px solid rgba(201, 140, 45, .32); outline-offset: 2px; }
+    .btn-primary { border-color: var(--green); background: var(--green); color: white; }
+    .btn-primary:hover { background: var(--green-dark); }
+    .btn-quiet { background: transparent; }
+
+    .sync-menu { position: relative; }
+
+    .sync-menu > summary {
+      display: flex;
+      min-height: 38px;
+      align-items: center;
+      gap: 7px;
+      padding: 0 13px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: var(--paper-strong);
+      font-weight: 680;
+      list-style: none;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .sync-menu > summary::-webkit-details-marker { display: none; }
+    .sync-menu > summary::after { content: "⌄"; color: var(--muted); font-size: 12px; transition: transform .16s ease; }
+    .sync-menu[open] > summary::after { transform: rotate(180deg); }
+
+    .sync-menu-popover {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      display: grid;
+      width: 220px;
+      gap: 5px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--paper-strong);
+      box-shadow: 0 18px 45px rgba(26, 45, 35, .14);
+    }
+
+    .sync-menu-popover .btn { width: 100%; justify-content: flex-start; border-color: transparent; text-align: left; }
+    .sync-menu-popover .btn:hover { background: var(--green-soft); box-shadow: none; }
+
+    main { width: min(1400px, calc(100% - 36px)); margin: 0 auto; padding: 34px 0 64px; }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(260px, .6fr);
+      gap: 24px;
+      align-items: end;
+      margin-bottom: 24px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before { content: ""; width: 22px; height: 2px; background: var(--gold); }
+
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { max-width: 820px; margin-bottom: 12px; font-size: clamp(34px, 4.2vw, 54px); line-height: 1.06; letter-spacing: -.04em; }
+    h1 em { color: var(--green); font-family: ui-serif, "Songti SC", serif; font-weight: 520; }
+    h2 { margin-bottom: 6px; font-size: 20px; letter-spacing: -.02em; }
+    h3 { margin-bottom: 8px; font-size: 16px; }
+    .hero-copy { max-width: 760px; margin-bottom: 0; color: var(--muted); font-size: 16px; }
+
+    .source-note {
+      padding: 15px 17px;
+      border: 1px solid rgba(36, 91, 69, .14);
+      border-radius: 16px;
+      background: rgba(255, 254, 250, .7);
+      color: var(--muted);
+    }
+
+    .source-note strong,
+    .source-note span { display: block; }
+    .source-note strong { margin-bottom: 4px; color: var(--ink); }
+
+    .metric-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .metric {
+      position: relative;
+      min-height: 112px;
+      padding: 17px 18px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .metric::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--green); opacity: .85; }
+    .metric:nth-child(2)::before { background: var(--gold); }
+    .metric:nth-child(3)::before { background: var(--orange); }
+    .metric:nth-child(4)::before { background: var(--pink); }
+    .metric-label { color: var(--muted); font-size: 12px; font-weight: 680; }
+    .metric-value { margin: 10px 0 4px; font-size: 30px; font-weight: 790; line-height: 1; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+    .metric-detail { color: var(--muted); font-size: 12px; }
+
+    .dashboard-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(320px, .72fr); gap: 14px; }
+
+    .panel {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    .panel-wide { grid-column: 1 / -1; }
+
+    .panel-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 20px 22px 13px;
+    }
+
+    .panel-header p { margin-bottom: 0; color: var(--muted); font-size: 12px; }
+
+    .segmented {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: #f6f7f3;
+    }
+
+    .segmented button {
+      padding: 6px 10px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 680;
+    }
+
+    .segmented button[aria-pressed="true"] { background: white; color: var(--green); box-shadow: 0 2px 8px rgba(35, 57, 43, .08); }
+
+    .view-switch { flex-wrap: nowrap; }
+    .view-switch button { white-space: nowrap; }
+
+    .chart { padding: 4px 22px 22px; }
+
+    .ranking-row {
+      display: grid;
+      grid-template-columns: 28px minmax(130px, 1fr) minmax(180px, 2fr) 64px;
+      gap: 12px;
+      align-items: center;
+      min-height: 46px;
+      padding: 0 7px;
+      border-radius: 9px;
+    }
+
+    .ranking-row + .ranking-row { border-top: 1px solid rgba(223, 228, 223, .7); border-radius: 0; }
+    .ranking-row:first-child { background: var(--gold-soft); }
+    .rank-number { color: var(--muted); font: 700 12px ui-monospace, monospace; }
+    .rank-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 680; }
+    .rank-name small { display: block; overflow: hidden; color: var(--muted); font-weight: 450; text-overflow: ellipsis; }
+    .bar-track { height: 10px; overflow: hidden; border-radius: 99px; background: #e6e9e4; }
+    .bar-fill { height: 100%; border-radius: inherit; background: var(--green); }
+    .ranking-row:first-child .bar-fill { background: var(--gold); }
+    .bar-value { text-align: right; font: 720 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+    .coverage { padding: 0 24px 22px; }
+    .coverage-item { margin-bottom: 19px; }
+    .coverage-line { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 7px; }
+    .coverage-line strong { font-size: 13px; }
+    .coverage-line span { color: var(--muted); font-size: 12px; }
+    .coverage .bar-fill { background: var(--gold); }
+    .method-note { margin: 2px 24px 22px; padding: 13px 14px; border-radius: 12px; background: var(--green-soft); color: #315b49; font-size: 12px; }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 0 24px 16px;
+    }
+
+    .control {
+      min-height: 40px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: white;
+      color: var(--ink);
+    }
+
+    .search { flex: 1 1 260px; }
+
+    .table-wrap { max-height: min(72vh, 860px); overflow: auto; border-top: 1px solid var(--line); scrollbar-color: #bdc8c0 transparent; scrollbar-width: thin; }
+    table { width: 100%; min-width: 1080px; border-collapse: collapse; }
+    .table-wrap-full table { min-width: 2100px; }
+    th, td { padding: 13px 15px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+    th { position: sticky; top: 0; z-index: 2; background: #f7f8f4; color: var(--muted); font-size: 11px; font-weight: 760; letter-spacing: .02em; white-space: nowrap; }
+    th:first-child, td:first-child { position: sticky; left: 0; z-index: 1; background: var(--paper); box-shadow: 1px 0 0 var(--line); }
+    th:first-child { z-index: 3; background: #f7f8f4; }
+    .sort-button { display: inline-flex; align-items: center; justify-content: inherit; gap: 5px; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-weight: inherit; letter-spacing: inherit; text-align: inherit; cursor: pointer; }
+    .sort-button::after { content: "↕"; color: #a6aea8; font-size: 10px; }
+    th.number .sort-button { justify-content: flex-end; }
+    th[aria-sort="ascending"] .sort-button, th[aria-sort="descending"] .sort-button { color: var(--green); }
+    th[aria-sort="ascending"] .sort-button::after { content: "↑"; color: var(--green); }
+    th[aria-sort="descending"] .sort-button::after { content: "↓"; color: var(--green); }
+    tbody tr:hover { background: rgba(226, 238, 230, .35); }
+    tbody tr:hover td:first-child { background: #f3f8f4; }
+    td.number { text-align: right; font: 650 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    td strong { display: block; }
+    td small { color: var(--muted); }
+
+    .badge { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 8px; border-radius: 99px; background: var(--green-soft); color: var(--green); font-size: 11px; font-weight: 720; }
+    .badge-third { background: var(--gold-soft); color: #825712; }
+    .badge-empty { background: #eceeeb; color: var(--muted); }
+    .note-cell { max-width: 260px; color: var(--muted); white-space: normal; }
+    .archived-row { opacity: .68; }
+    .archived-row td:first-child { background: #f1f2ef; }
+    .row-action { min-height: 30px; padding: 0 10px; border-radius: 8px; color: var(--green); font-size: 11px; white-space: nowrap; }
+    .table-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 54px; padding: 9px 18px; border-top: 1px solid var(--line); background: #fafbf8; }
+    .pagination-summary { color: var(--muted); font-size: 12px; }
+    .pagination-controls { display: flex; align-items: center; gap: 8px; }
+    .page-size { width: auto; min-height: 34px; padding: 5px 9px; }
+    .page-button { min-height: 34px; padding: 0 11px; }
+    .page-button:disabled { cursor: not-allowed; opacity: .45; transform: none; box-shadow: none; }
+
+    .capability-grid { padding: 0 24px 24px; overflow-x: auto; }
+    .capability-row { display: grid; grid-template-columns: minmax(160px, 1.4fr) repeat(4, minmax(82px, .6fr)); gap: 8px; min-width: 600px; margin-bottom: 8px; align-items: center; }
+    .capability-head { color: var(--muted); font-size: 11px; font-weight: 720; }
+    .heat-cell { display: grid; min-height: 36px; place-items: center; border-radius: 9px; background: #eef0ec; color: var(--muted); font: 700 12px ui-monospace, monospace; }
+    .heat-cell[data-level="high"] { background: var(--green); color: white; }
+    .heat-cell[data-level="medium"] { background: #8dab96; color: #12372a; }
+    .heat-cell[data-level="low"] { background: var(--gold-soft); color: #765315; }
+
+    .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; padding: 0 24px 24px; }
+    .price-card { padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: white; }
+    .price-card h3 { margin-bottom: 12px; }
+    .plan { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+    .plan strong { font-variant-numeric: tabular-nums; }
+    .price-card p { margin: 8px 0 0; color: var(--muted); font-size: 11px; }
+
+    .empty { padding: 36px; text-align: center; color: var(--muted); }
+    .loading { min-height: 100vh; display: grid; place-items: center; color: var(--muted); }
+
+    dialog {
+      width: min(760px, calc(100% - 28px));
+      max-height: calc(100vh - 40px);
+      padding: 0;
+      overflow: auto;
+      border: 0;
+      border-radius: 22px;
+      background: var(--paper);
+      box-shadow: 0 30px 90px rgba(18, 35, 26, .3);
+    }
+
+    dialog::backdrop { background: rgba(18, 30, 23, .52); backdrop-filter: blur(3px); }
+    .dialog-head { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; gap: 16px; padding: 22px 24px 14px; background: var(--paper); border-bottom: 1px solid var(--line); }
+    .dialog-head h2 { margin: 0; }
+    .icon-btn { width: 36px; height: 36px; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: white; color: var(--muted); font-size: 20px; }
+    form { padding: 20px 24px 24px; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .field { display: grid; gap: 6px; }
+    .field-full { grid-column: 1 / -1; }
+    label { color: #465149; font-size: 12px; font-weight: 700; }
+    input, select { width: 100%; min-height: 42px; padding: 9px 11px; border: 1px solid #ccd3cd; border-radius: 10px; background: white; color: var(--ink); }
+    input[type="checkbox"] { width: 18px; min-height: 18px; padding: 0; }
+    .check-field { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+    .section-label { grid-column: 1 / -1; margin-top: 7px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--green); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .field-hint { margin: 0; color: var(--muted); font-size: 11px; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 22px; }
+    .form-error { min-height: 22px; margin: 14px 0 0; color: #a33b2c; font-size: 12px; }
+    details.mapping-help { grid-column: 1 / -1; padding: 12px 14px; border-radius: 12px; background: #f5f6f2; color: var(--muted); }
+    details.mapping-help summary { color: var(--ink); cursor: pointer; font-weight: 700; }
+    code { font: 11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+    .toast {
+      position: fixed;
+      z-index: 50;
+      right: 22px;
+      bottom: 22px;
+      max-width: min(420px, calc(100% - 44px));
+      padding: 13px 16px;
+      border-radius: 12px;
+      background: var(--green-dark);
+      box-shadow: 0 16px 40px rgba(18, 35, 26, .25);
+      color: white;
+      transform: translateY(20px);
+      opacity: 0;
+      pointer-events: none;
+      transition: .2s ease;
+    }
+
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.error { background: #8d3428; }
+
+    @media (max-width: 960px) {
+      .hero, .dashboard-grid { grid-template-columns: 1fr; }
+      .metric-strip { grid-template-columns: repeat(2, 1fr); }
+      .panel-wide { grid-column: auto; }
+      .hero { align-items: start; }
+      .topbar { align-items: flex-start; }
+      .topbar-actions { flex-wrap: wrap; }
+    }
+
+    @media (max-width: 640px) {
+      .topbar { position: static; display: grid; gap: 10px; padding: 11px 14px 13px; }
+      .brand-meta { display: none; }
+      .topbar-actions { display: grid; grid-template-columns: 1fr auto auto; width: 100%; }
+      .topbar-actions > .btn { padding: 0 11px; font-size: 12px; }
+      .view-switch { grid-column: 1 / -1; }
+      .view-switch button { flex: 1; }
+      .sync-menu > summary { justify-content: center; font-size: 12px; }
+      .sync-menu-popover { right: auto; left: 0; }
+      main { width: min(100% - 20px, 1400px); padding-top: 24px; }
+      h1 { font-size: 34px; }
+      .hero { gap: 18px; }
+      .metric-strip { grid-template-columns: 1fr 1fr; gap: 8px; }
+      .metric { min-height: 104px; padding: 14px 14px 14px 16px; }
+      .metric-value { font-size: 26px; }
+      .panel-header { padding: 18px 16px 12px; flex-direction: column; }
+      .chart, .coverage, .toolbar, .capability-grid, .pricing-grid { padding-left: 16px; padding-right: 16px; }
+      .table-pagination { align-items: stretch; flex-direction: column; }
+      .pagination-controls { justify-content: space-between; }
+      .ranking-row { grid-template-columns: 24px minmax(110px, 1fr) 55px; padding: 0 4px; }
+      .ranking-row .bar-track { display: none; }
+      .form-grid { grid-template-columns: 1fr; }
+      .field-full, .section-label, details.mapping-help { grid-column: auto; }
+      form { padding: 18px 16px 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">AI</div>
+        <div>
+          <div class="brand-name">模型能力台</div>
+          <div class="brand-meta">Coding agent benchmark observatory</div>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <div class="segmented view-switch" role="group" aria-label="展示模式">
+          <button type="button" data-view="dashboard" aria-pressed="true">看板模式</button>
+          <button type="button" data-view="table" aria-pressed="false">表格模式</button>
+        </div>
+        <details class="sync-menu">
+          <summary>同步榜单</summary>
+          <div class="sync-menu-popover">
+            <button class="btn btn-quiet" id="sync-arena" type="button">同步 Arena 前 30</button>
+            <button class="btn btn-quiet" id="sync-artificial-analysis" type="button">同步 AA 编程榜</button>
+            <button class="btn btn-quiet" id="sync-llm-stats" type="button">同步 LLM Stats</button>
+          </div>
+        </details>
+        <button class="btn btn-quiet" id="open-import" type="button">接入数据</button>
+        <button class="btn btn-primary" id="open-model" type="button">＋ 增加模型</button>
+      </div>
+    </header>
+
+    <main id="app">
+      <div class="loading">正在读取模型数据…</div>
+    </main>
+  </div>
+
+  <dialog id="model-dialog" aria-labelledby="model-dialog-title">
+    <div class="dialog-head">
+      <div><h2 id="model-dialog-title">增加模型</h2><div class="brand-meta">新增后写入本地 data.local.json</div></div>
+      <button class="icon-btn" type="button" data-close="model-dialog" aria-label="关闭">×</button>
+    </div>
+    <form id="model-form">
+      <div class="form-grid">
+        <div class="field"><label for="model-tool">AI 编程工具 *</label><input id="model-tool" name="tool" required maxlength="100" placeholder="例如 Codex"></div>
+        <div class="field"><label for="model-name">模型 *</label><input id="model-name" name="model" required maxlength="160" placeholder="例如 GPT-5.6-Sol"></div>
+        <div class="field"><label for="model-effort">推理强度</label><input id="model-effort" name="reasoning_effort" maxlength="80" placeholder="Low / High / Max"></div>
+        <div class="field"><label for="model-speed">响应速度</label><input id="model-speed" name="response_speed" maxlength="40" placeholder="快 / 中 / 慢"></div>
+
+        <div class="section-label">人工测试（每项 0–10）</div>
+        <div class="field"><label for="score-skill">Skill 调用</label><input id="score-skill" name="skill_call" type="number" min="0" max="10" step="0.01"></div>
+        <div class="field"><label for="score-review">代码评审</label><input id="score-review" name="code_review" type="number" min="0" max="10" step="0.01"></div>
+        <div class="field"><label for="score-logic">逻辑分析</label><input id="score-logic" name="logic_analysis" type="number" min="0" max="10" step="0.01"></div>
+        <div class="field"><label for="score-fix">功能修复</label><input id="score-fix" name="function_fix" type="number" min="0" max="10" step="0.01"></div>
+
+        <div class="section-label">基准数据（0–100，Arena 除外）</div>
+        <div class="field"><label for="score-correction">ModelTest · 代码修正</label><input id="score-correction" name="model_test_correction" type="number" min="0" max="100" step="0.01"></div>
+        <div class="field"><label for="score-generation">ModelTest · 代码生成</label><input id="score-generation" name="model_test_generation" type="number" min="0" max="100" step="0.01"></div>
+        <div class="field"><label for="score-model-logic">ModelTest · 逻辑分析</label><input id="score-model-logic" name="model_test_logic" type="number" min="0" max="100" step="0.01"></div>
+        <div class="field"><label for="score-arena">Arena WebDev</label><input id="score-arena" name="arena_webdev" type="number" min="0" step="0.01"></div>
+
+        <div class="section-label">补充信息</div>
+        <div class="field field-full"><label for="model-notes">备注</label><input id="model-notes" name="notes" maxlength="500" placeholder="实际体验、限制或异常"></div>
+        <div class="field field-full"><label for="model-report">运行报告路径</label><input id="model-report" name="report_path" maxlength="1000" placeholder="runs/.../report.html"></div>
+      </div>
+      <p class="form-error" id="model-error" role="alert"></p>
+      <div class="dialog-actions"><button class="btn" type="button" data-close="model-dialog">取消</button><button class="btn btn-primary" type="submit">保存模型</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="import-dialog" aria-labelledby="import-dialog-title">
+    <div class="dialog-head">
+      <div><h2 id="import-dialog-title">接入第三方 JSON</h2><div class="brand-meta">服务端拉取，不在浏览器保存密钥</div></div>
+      <button class="icon-btn" type="button" data-close="import-dialog" aria-label="关闭">×</button>
+    </div>
+    <form id="import-form">
+      <div class="form-grid">
+        <div class="field"><label for="source-name">数据源名称</label><input id="source-name" name="name" maxlength="120" placeholder="例如 内部模型榜单"></div>
+        <div class="field"><label for="source-url">JSON API URL *</label><input id="source-url" name="url" type="url" required maxlength="2000" placeholder="https://example.com/api/models"></div>
+        <div class="field"><label for="array-path">数组路径</label><input id="array-path" name="array_path" maxlength="300" placeholder="例如 data.models；根节点为数组则留空"></div>
+        <div class="field"><label for="source-env">密钥环境变量</label><input id="source-env" name="auth_env" maxlength="100" placeholder="例如 MODEL_API_TOKEN"></div>
+        <div class="field"><label for="source-header">鉴权请求头</label><input id="source-header" name="auth_header" maxlength="100" value="Authorization"></div>
+        <div class="field"><label for="source-prefix">密钥前缀</label><input id="source-prefix" name="auth_prefix" maxlength="100" value="Bearer "></div>
+
+        <div class="section-label">字段映射（填写第三方字段路径）</div>
+        <div class="field"><label for="map-tool">AI 编程工具 *</label><input id="map-tool" name="map_tool" required value="tool" placeholder="agent.name"></div>
+        <div class="field"><label for="map-model">模型 *</label><input id="map-model" name="map_model" required value="model" placeholder="model.name"></div>
+        <div class="field"><label for="map-effort">推理强度</label><input id="map-effort" name="map_effort" value="reasoning_effort"></div>
+        <div class="field"><label for="map-modeltest">ModelTest 总分</label><input id="map-modeltest" name="map_modeltest" value="scores.model_test_total"></div>
+        <div class="field"><label for="map-arena">Arena WebDev</label><input id="map-arena" name="map_arena" value="scores.arena_webdev"></div>
+        <div class="field"><label for="map-notes">备注</label><input id="map-notes" name="map_notes" value="notes"></div>
+        <details class="mapping-help">
+          <summary>映射说明与 JSON 示例</summary>
+          <p>路径使用英文句点读取嵌套字段，例如 <code>identity.agent</code>。至少映射工具和模型。接口示例：</p>
+          <code>{"data":{"models":[{"tool":"Codex","model":"GPT-X","scores":{"model_test_total":95,"arena_webdev":1600}}]}}</code>
+        </details>
+        <label class="check-field field-full"><input name="overwrite" type="checkbox"> 同工具、模型和推理强度重复时，用第三方数据覆盖</label>
+      </div>
+      <p class="form-error" id="import-error" role="alert"></p>
+      <div class="dialog-actions"><button class="btn" type="button" data-close="import-dialog">取消</button><button class="btn btn-primary" type="submit">拉取并导入</button></div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    const app = document.getElementById("app");
+    const toast = document.getElementById("toast");
+    const state = {
+      data: null,
+      metric: "model_test_total",
+      search: "",
+      tool: "all",
+      source: "all",
+      archive: "active",
+      pageSize: 50,
+      tablePage: { compact: 1, full: 1 },
+      tableSort: {
+        compact: { key: "composite_total", direction: "desc" },
+        full: { key: "composite_total", direction: "desc" }
+      },
+      view: "dashboard"
+    };
+    const metricLabels = {
+      model_test_total: "ModelTest 总分",
+      manual_total: "人工测试总分",
+      arena_webdev: "Arena WebDev",
+      artificial_analysis_index: "AA Coding Index",
+      llm_stats_score: "LLM Stats Score",
+      composite_total: "原表综合分"
+    };
+    const scoreFields = ["skill_call", "code_review", "logic_analysis", "function_fix", "model_test_correction", "model_test_generation", "model_test_logic", "arena_webdev"];
+    const scoreLabel = { skill_call: "Skill 调用", code_review: "代码评审", logic_analysis: "逻辑分析", function_fix: "功能修复" };
+    const numberFormatters = new Map();
+    const dateTimeFormatter = new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" });
+
+    function el(tag, className, text) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
+
+    function number(value, digits = 2) {
+      if (value === null || value === undefined || value === "") return "—";
+      if (!numberFormatters.has(digits)) numberFormatters.set(digits, new Intl.NumberFormat("zh-CN", { maximumFractionDigits: digits }));
+      return numberFormatters.get(digits).format(Number(value));
+    }
+
+    function dateTime(value) {
+      if (!value) return "未知";
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? String(value) : dateTimeFormatter.format(parsed);
+    }
+
+    function resetTablePages() {
+      state.tablePage.compact = 1;
+      state.tablePage.full = 1;
+    }
+
+    function sourceLabel(model) {
+      const sourceType = model.source?.type || "manual";
+      return sourceType === "arena_webdev" ? "Arena" : sourceType === "artificial_analysis" ? "AA Coding" : sourceType === "llm_stats" ? "LLM Stats" : sourceType === "third_party" ? model.source?.name || "第三方" : sourceType === "excel" ? "Excel" : "手工";
+    }
+
+    function sortValue(model, key) {
+      if (key === "identity") return `${model.model || ""}\u0000${model.tool || ""}`;
+      if (key === "rank") return model.source?.rank;
+      if (key === "reasoning_effort" || key === "response_speed") return model[key];
+      if (key === "source") return sourceLabel(model);
+      if (key === "notes") return model.notes || model.supplement;
+      return model.scores?.[key];
+    }
+
+    function sortModels(models, columns, sortState) {
+      const column = columns.find(item => item.key === sortState.key) || columns.find(item => item.sortable);
+      if (!column) return models;
+      const direction = sortState.direction === "asc" ? 1 : -1;
+      return models.sort((left, right) => {
+        const a = sortValue(left, column.key);
+        const b = sortValue(right, column.key);
+        const aMissing = a === null || a === undefined || a === "";
+        const bMissing = b === null || b === undefined || b === "";
+        if (aMissing || bMissing) return aMissing === bMissing ? 0 : aMissing ? 1 : -1;
+        const compared = column.type === "number"
+          ? Number(a) - Number(b)
+          : String(a).localeCompare(String(b), "zh-CN", { numeric: true, sensitivity: "base" });
+        return compared * direction;
+      });
+    }
+
+    function pct(value) { return `${Math.round(value * 100)}%`; }
+
+    function showToast(message, error = false) {
+      toast.textContent = message;
+      toast.className = `toast show${error ? " error" : ""}`;
+      window.clearTimeout(showToast.timer);
+      showToast.timer = window.setTimeout(() => toast.className = "toast", 3200);
+    }
+
+    async function api(path, options = {}) {
+      const response = await fetch(path, {
+        ...options,
+        headers: { "Content-Type": "application/json", ...(options.headers || {}) }
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `请求失败（HTTP ${response.status}）`);
+      return payload;
+    }
+
+    async function loadData() {
+      app.setAttribute("aria-busy", "true");
+      try {
+        state.data = await api("/api/models");
+        render();
+      } catch (error) {
+        app.replaceChildren(el("div", "empty", `读取失败：${error.message}`));
+      } finally {
+        app.setAttribute("aria-busy", "false");
+      }
+    }
+
+    function tested(model) {
+      const scores = model.scores || {};
+      return [scores.manual_total, scores.model_test_total, scores.arena_webdev, scores.artificial_analysis_index, scores.llm_stats_score].some(value => value !== null && value !== undefined);
+    }
+
+    function filteredModels() {
+      const query = state.search.trim().toLocaleLowerCase("zh-CN");
+      return state.data.models.filter(model => {
+        const matchesSearch = !query || [model.tool, model.model, model.reasoning_effort, model.notes].join(" ").toLocaleLowerCase("zh-CN").includes(query);
+        const matchesTool = state.tool === "all" || model.tool === state.tool;
+        const sourceType = model.source?.type || "local";
+        const sourceGroup = ["third_party", "arena_webdev", "artificial_analysis", "llm_stats"].includes(sourceType) ? sourceType : "local";
+        const matchesSource = state.source === "all" || state.source === sourceGroup;
+        const archived = model.archived === true;
+        const matchesArchive = state.view !== "table" ? !archived : state.archive === "all" || (state.archive === "archived" ? archived : !archived);
+        return matchesSearch && matchesTool && matchesSource && matchesArchive;
+      });
+    }
+
+    function render() {
+      const data = state.data;
+      const allModels = data.models || [];
+      const activeModels = allModels.filter(model => model.archived !== true);
+      const archivedCount = allModels.length - activeModels.length;
+      const models = state.view === "table" ? allModels : activeModels;
+      const tools = [...new Set(allModels.map(model => model.tool))].sort((a, b) => a.localeCompare(b, "zh-CN"));
+      const visibleToolCount = new Set(models.map(model => model.tool)).size;
+      const testedCount = models.filter(tested).length;
+      const thirdPartyCount = models.filter(model => ["third_party", "arena_webdev", "artificial_analysis", "llm_stats"].includes(model.source?.type)).length;
+      document.querySelectorAll("[data-view]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.view === state.view)));
+      app.replaceChildren();
+
+      if (state.view === "table") {
+        const hero = el("section", "hero");
+        const heroText = el("div");
+        heroText.append(el("div", "eyebrow", "Model data table"));
+        const title = el("h1");
+        title.append("模型数据，", el("em", "逐项对比"));
+        heroText.append(title, el("p", "hero-copy", "集中查看每个模型的人工测试、ModelTest、Arena、费用来源与备注；筛选条件与看板明细共用。"));
+        const source = el("aside", "source-note");
+        source.append(
+          el("strong", "", `${activeModels.length} 条当前记录 · ${archivedCount} 条已归档`),
+          el("span", "", `${data.meta?.source_name || "本地数据"} · 源数据 ${data.meta?.source_updated_at || "日期未知"}`),
+          el("span", "", `本地更新 ${dateTime(data.meta?.updated_at || data.meta?.imported_at)}`)
+        );
+        hero.append(heroText, source);
+        app.append(hero, renderTable(tools, true));
+        return;
+      }
+
+      const hero = el("section", "hero");
+      const heroText = el("div");
+      heroText.append(el("div", "eyebrow", "Model intelligence index"));
+      const title = el("h1");
+      title.append("看清每个模型，", el("em", "强在哪里"));
+      heroText.append(title, el("p", "hero-copy", "把人工实测、仓库 ModelTest 与 Arena WebDev 放到同一视图中。保留原始口径，空白数据明确显示为未测试。"));
+      const source = el("aside", "source-note");
+      source.append(
+        el("strong", "", "数据快照"),
+        el("span", "", `${data.meta?.source_name || "本地数据"} · 源数据 ${data.meta?.source_updated_at || "日期未知"}`),
+        el("span", "", `本地更新 ${dateTime(data.meta?.updated_at || data.meta?.imported_at)}`)
+      );
+      hero.append(heroText, source);
+
+      const metrics = el("section", "metric-strip", undefined);
+      const metricData = [
+        [number(models.length, 0), "模型配置", `${visibleToolCount} 个 AI 编程工具`],
+        [number(testedCount, 0), "有测试数据", `覆盖率 ${models.length ? pct(testedCount / models.length) : "0%"}`],
+        [number(thirdPartyCount, 0), "外部榜单记录", thirdPartyCount ? "已标注来源与拉取时间" : "可同步 Arena 或接入 JSON API"],
+        ["3 / 3 / 7", "ModelTest 权重", "修正 / 生成 / 逻辑 case 数"]
+      ];
+      metricData.forEach(([value, label, detail]) => {
+        const card = el("article", "metric");
+        card.append(el("div", "metric-label", label), el("div", "metric-value", value), el("div", "metric-detail", detail));
+        metrics.append(card);
+      });
+
+      const grid = el("div", "dashboard-grid");
+      grid.append(renderRanking(models), renderCoverage(models), renderCapability(models), renderTable(tools), renderPricing(data.pricing || []));
+      app.append(hero, metrics, grid);
+    }
+
+    function panelHeader(title, subtitle) {
+      const header = el("div", "panel-header");
+      const copy = el("div");
+      copy.append(el("h2", "", title), el("p", "", subtitle));
+      header.append(copy);
+      return header;
+    }
+
+    function renderRanking(models) {
+      const panel = el("section", "panel");
+      const header = panelHeader("模型排名", "只比较当前指标有数据的模型；空白不按 0 分处理");
+      const segmented = el("div", "segmented");
+      Object.entries(metricLabels).forEach(([value, label]) => {
+        const button = el("button", "", label);
+        button.type = "button";
+        button.setAttribute("aria-pressed", String(state.metric === value));
+        button.addEventListener("click", () => { state.metric = value; render(); });
+        segmented.append(button);
+      });
+      header.append(segmented);
+      panel.append(header);
+      const chart = el("div", "chart");
+      const ranked = models
+        .filter(model => model.scores?.[state.metric] !== null && model.scores?.[state.metric] !== undefined)
+        .sort((a, b) => b.scores[state.metric] - a.scores[state.metric])
+        .slice(0, 10);
+      const max = Math.max(...ranked.map(model => Number(model.scores[state.metric])), 1);
+      ranked.forEach((model, index) => {
+        const row = el("div", "ranking-row");
+        const name = el("div", "rank-name", model.model);
+        name.append(el("small", "", `${model.tool}${model.reasoning_effort ? ` · ${model.reasoning_effort}` : ""}`));
+        const track = el("div", "bar-track");
+        const fill = el("div", "bar-fill");
+        fill.style.width = `${Math.max(2, Number(model.scores[state.metric]) / max * 100)}%`;
+        track.append(fill);
+        row.append(el("div", "rank-number", String(index + 1).padStart(2, "0")), name, track, el("div", "bar-value", number(model.scores[state.metric])));
+        chart.append(row);
+      });
+      if (!ranked.length) chart.append(el("div", "empty", "当前指标暂无数据"));
+      panel.append(chart);
+      return panel;
+    }
+
+    function renderCoverage(models) {
+      const panel = el("aside", "panel");
+      panel.append(panelHeader("数据覆盖", "每个评价体系的已填模型占比"));
+      const body = el("div", "coverage");
+      [
+        ["人工测试", "manual_total"],
+        ["ModelTest", "model_test_total"],
+        ["Arena WebDev", "arena_webdev"]
+      ].forEach(([label, field]) => {
+        const count = models.filter(model => model.scores?.[field] !== null && model.scores?.[field] !== undefined).length;
+        const ratio = models.length ? count / models.length : 0;
+        const item = el("div", "coverage-item");
+        const line = el("div", "coverage-line");
+        line.append(el("strong", "", label), el("span", "", `${count} / ${models.length}`));
+        const track = el("div", "bar-track");
+        const fill = el("div", "bar-fill");
+        fill.style.width = `${ratio * 100}%`;
+        track.append(fill);
+        item.append(line, track);
+        body.append(item);
+      });
+      panel.append(body, el("div", "method-note", "原表综合分 = 人工总分 + ModelTest 总分 + Arena 分。由于量纲不同，它用于还原原表排序，不作为归一化能力结论。"));
+      return panel;
+    }
+
+    function renderCapability(models) {
+      const panel = el("section", "panel panel-wide");
+      panel.append(panelHeader("人工能力剖面", "得分越高颜色越深；仅展示已填写人工测试项的模型"));
+      const grid = el("div", "capability-grid");
+      const head = el("div", "capability-row capability-head");
+      head.append(el("span", "", "模型"), ...Object.values(scoreLabel).map(label => el("span", "", label)));
+      grid.append(head);
+      const visible = models.filter(model => Object.keys(scoreLabel).some(field => model.scores?.[field] !== null && model.scores?.[field] !== undefined)).sort((a, b) => (b.scores.manual_total || 0) - (a.scores.manual_total || 0)).slice(0, 12);
+      visible.forEach(model => {
+        const row = el("div", "capability-row");
+        const name = el("div", "rank-name", model.model);
+        name.append(el("small", "", model.tool));
+        row.append(name);
+        Object.keys(scoreLabel).forEach(field => {
+          const value = model.scores?.[field];
+          const cell = el("div", "heat-cell", number(value));
+          if (value !== null && value !== undefined) cell.dataset.level = value >= 8 ? "high" : value >= 5 ? "medium" : "low";
+          row.append(cell);
+        });
+        grid.append(row);
+      });
+      if (!visible.length) grid.append(el("div", "empty", "暂无人工测试明细"));
+      panel.append(grid);
+      return panel;
+    }
+
+    function renderTable(tools, full = false) {
+      const panel = el("section", "panel panel-wide");
+      panel.dataset.fullTable = String(full);
+      panel.append(panelHeader(full ? "模型数据表格" : "模型数据明细", full ? "点击列名排序；空白值始终排在末尾" : "筛选、查找并点击列名排序"));
+      const toolbar = el("div", "toolbar");
+      const search = el("input", "control search");
+      search.type = "search";
+      search.value = state.search;
+      search.placeholder = "搜索模型、工具、推理强度或备注";
+      search.setAttribute("aria-label", "搜索模型数据");
+      search.addEventListener("input", event => {
+        state.search = event.target.value;
+        resetTablePages();
+        window.clearTimeout(search.renderTimer);
+        search.renderTimer = window.setTimeout(() => renderTableBody(panel), 120);
+      });
+      const tool = el("select", "control");
+      tool.setAttribute("aria-label", "按工具筛选");
+      tool.append(new Option("全部工具", "all"), ...tools.map(value => new Option(value, value)));
+      tool.value = state.tool;
+      tool.addEventListener("change", event => { state.tool = event.target.value; resetTablePages(); renderTableBody(panel); });
+      const source = el("select", "control");
+      source.setAttribute("aria-label", "按来源筛选");
+      source.append(new Option("全部来源", "all"), new Option("Excel / 手工", "local"), new Option("Arena WebDev", "arena_webdev"), new Option("Artificial Analysis", "artificial_analysis"), new Option("LLM Stats", "llm_stats"), new Option("其他第三方", "third_party"));
+      source.value = state.source;
+      source.addEventListener("change", event => { state.source = event.target.value; resetTablePages(); renderTableBody(panel); });
+      toolbar.append(search, tool, source);
+      if (full) {
+        const archive = el("select", "control");
+        archive.setAttribute("aria-label", "按归档状态筛选");
+        archive.append(new Option("当前数据", "active"), new Option("已归档", "archived"), new Option("全部数据", "all"));
+        archive.value = state.archive;
+        archive.addEventListener("change", event => { state.archive = event.target.value; resetTablePages(); renderTableBody(panel); });
+        toolbar.append(archive);
+      }
+      panel.append(toolbar);
+      const wrap = el("div", `table-wrap${full ? " table-wrap-full" : ""}`);
+      wrap.dataset.tableRoot = "true";
+      const pagination = el("div", "table-pagination");
+      pagination.dataset.paginationRoot = "true";
+      const paginationStatus = el("div", "pagination-summary");
+      paginationStatus.dataset.paginationStatus = "true";
+      paginationStatus.setAttribute("role", "status");
+      paginationStatus.setAttribute("aria-live", "polite");
+      paginationStatus.setAttribute("aria-atomic", "true");
+      pagination.append(paginationStatus);
+      panel.append(wrap, pagination);
+      renderTableBody(panel);
+      return panel;
+    }
+
+    function renderTableBody(panel) {
+      const wrap = panel.querySelector("[data-table-root]");
+      const pagination = panel.querySelector("[data-pagination-root]");
+      const paginationStatus = panel.querySelector("[data-pagination-status]");
+      const focusedAction = document.activeElement?.dataset?.tableAction;
+      const focusedSort = document.activeElement?.dataset?.sortKey;
+      if (!wrap) return;
+      wrap.replaceChildren();
+      if (pagination) pagination.querySelector("[data-pagination-controls]")?.remove();
+      const full = panel.dataset.fullTable === "true";
+      const columns = full
+        ? [
+            ["工具 / 模型", "identity", "text"], ["推理强度", "reasoning_effort", "text"], ["榜单排名", "rank", "number", "asc"],
+            ["Skill 调用", "skill_call", "number"], ["代码评审", "code_review", "number"], ["逻辑分析", "logic_analysis", "number"], ["功能修复", "function_fix", "number"], ["人工总分", "manual_total", "number"],
+            ["代码修正", "model_test_correction", "number"], ["代码生成", "model_test_generation", "number"], ["ModelTest 逻辑", "model_test_logic", "number"], ["ModelTest 总分", "model_test_total", "number"],
+            ["Arena", "arena_webdev", "number"], ["AA Index", "artificial_analysis_index", "number"], ["DeepSWE", "aa_deep_swe", "number"], ["Terminal-Bench v2", "aa_terminal_bench_v2", "number"], ["SWE-Atlas-QnA", "aa_swe_atlas_qna", "number"],
+            ["LLM Stats", "llm_stats_score", "number"], ["Reasoning", "llm_stats_reasoning", "number"], ["Code", "llm_stats_code", "number"], ["Agents", "llm_stats_agents", "number"], ["原表综合", "composite_total", "number"],
+            ["速度", "response_speed", "text"], ["来源", "source", "text"], ["备注", "notes", "text"], ["操作", "", "text"]
+          ]
+        : [
+            ["工具 / 模型", "identity", "text"], ["推理强度", "reasoning_effort", "text"], ["榜单排名", "rank", "number", "asc"], ["人工总分", "manual_total", "number"],
+            ["ModelTest", "model_test_total", "number"], ["Arena", "arena_webdev", "number"], ["AA Index", "artificial_analysis_index", "number"], ["LLM Stats", "llm_stats_score", "number"], ["原表综合", "composite_total", "number"],
+            ["速度", "response_speed", "text"], ["来源", "source", "text"], ["备注", "notes", "text"]
+          ];
+      const columnDefinitions = columns.map(([label, key, type, defaultDirection]) => ({ label, key, type, defaultDirection: defaultDirection || (type === "number" ? "desc" : "asc"), sortable: Boolean(key) }));
+      const sortState = state.tableSort[full ? "full" : "compact"];
+      const models = sortModels(filteredModels(), columnDefinitions, sortState);
+      if (!models.length) {
+        wrap.append(el("div", "empty", "没有符合条件的数据"));
+        if (paginationStatus) paginationStatus.textContent = "共 0 条记录";
+        return;
+      }
+      const pageKey = full ? "full" : "compact";
+      const pageSize = state.pageSize === "all" ? models.length : Number(state.pageSize);
+      const pageCount = Math.max(1, Math.ceil(models.length / pageSize));
+      state.tablePage[pageKey] = Math.min(Math.max(1, state.tablePage[pageKey]), pageCount);
+      const page = state.tablePage[pageKey];
+      const start = (page - 1) * pageSize;
+      const visibleModels = models.slice(start, start + pageSize);
+      const table = el("table");
+      const thead = el("thead");
+      const hr = el("tr");
+      columnDefinitions.forEach((column, index) => {
+        const header = el("th", index >= 2 && index <= (full ? 21 : 8) ? "number" : "");
+        if (column.sortable) {
+          header.setAttribute("aria-sort", sortState.key === column.key ? sortState.direction === "asc" ? "ascending" : "descending" : "none");
+          const button = el("button", "sort-button", column.label);
+          button.type = "button";
+          button.title = `按${column.label}排序`;
+          button.dataset.sortKey = column.key;
+          button.addEventListener("click", () => {
+            if (sortState.key === column.key) sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
+            else {
+              sortState.key = column.key;
+              sortState.direction = column.defaultDirection;
+            }
+            state.tablePage[pageKey] = 1;
+            renderTableBody(panel);
+          });
+          header.append(button);
+        } else header.textContent = column.label;
+        hr.append(header);
+      });
+      thead.append(hr);
+      const tbody = el("tbody");
+      visibleModels.forEach(model => {
+        const row = el("tr");
+        if (model.archived === true) row.classList.add("archived-row");
+        const identity = el("td");
+        identity.append(el("strong", "", model.model), el("small", "", model.tool));
+        const sourceType = model.source?.type || "manual";
+        const external = ["third_party", "arena_webdev", "artificial_analysis", "llm_stats"].includes(sourceType);
+        const badgeText = sourceLabel(model);
+        const badge = el("span", `badge ${external ? "badge-third" : ""}`, badgeText);
+        row.append(identity, el("td", "", model.reasoning_effort || "—"), el("td", "number", number(model.source?.rank, 0)));
+        const fields = full
+          ? ["skill_call", "code_review", "logic_analysis", "function_fix", "manual_total", "model_test_correction", "model_test_generation", "model_test_logic", "model_test_total", "arena_webdev", "artificial_analysis_index", "aa_deep_swe", "aa_terminal_bench_v2", "aa_swe_atlas_qna", "llm_stats_score", "llm_stats_reasoning", "llm_stats_code", "llm_stats_agents", "composite_total"]
+          : ["manual_total", "model_test_total", "arena_webdev", "artificial_analysis_index", "llm_stats_score", "composite_total"];
+        fields.forEach(field => row.append(el("td", "number", number(model.scores?.[field]))));
+        row.append(el("td", "", model.response_speed || "—"));
+        const sourceCell = el("td"); sourceCell.append(badge); row.append(sourceCell);
+        row.append(el("td", "note-cell", model.notes || model.supplement || "—"));
+        if (full) {
+          const actionCell = el("td");
+          const action = el("button", "btn btn-quiet row-action", model.archived === true ? "恢复" : "归档");
+          action.type = "button";
+          action.addEventListener("click", async () => {
+            action.disabled = true;
+            try {
+              await api(`/api/models/${encodeURIComponent(model.id)}/archive`, { method: "POST", body: JSON.stringify({ archived: model.archived !== true }) });
+              await loadData();
+              showToast(model.archived === true ? `已恢复 ${model.model}` : `已归档 ${model.model}`);
+            } catch (error) {
+              action.disabled = false;
+              showToast(error.message, true);
+            }
+          });
+          actionCell.append(action);
+          row.append(actionCell);
+        }
+        tbody.append(row);
+      });
+      table.append(thead, tbody);
+      wrap.append(table);
+      if (pagination) {
+        const end = start + visibleModels.length;
+        if (paginationStatus) paginationStatus.textContent = `第 ${start + 1}–${end} 条，共 ${models.length} 条`;
+        const controls = el("div", "pagination-controls");
+        controls.dataset.paginationControls = "true";
+        const size = el("select", "control page-size");
+        size.dataset.tableAction = "page-size";
+        size.setAttribute("aria-label", "每页显示数量");
+        size.append(new Option("每页 25 条", "25"), new Option("每页 50 条", "50"), new Option("每页 100 条", "100"), new Option("显示全部", "all"));
+        size.value = String(state.pageSize);
+        size.addEventListener("change", event => {
+          state.pageSize = event.target.value === "all" ? "all" : Number(event.target.value);
+          resetTablePages();
+          renderTableBody(panel);
+        });
+        const previous = el("button", "btn page-button", "上一页");
+        previous.type = "button";
+        previous.dataset.tableAction = "previous";
+        previous.disabled = page <= 1;
+        previous.addEventListener("click", () => { state.tablePage[pageKey] -= 1; renderTableBody(panel); });
+        const indicator = el("span", "pagination-summary", `${page} / ${pageCount} 页`);
+        const next = el("button", "btn page-button", "下一页");
+        next.type = "button";
+        next.dataset.tableAction = "next";
+        next.disabled = page >= pageCount;
+        next.addEventListener("click", () => { state.tablePage[pageKey] += 1; renderTableBody(panel); });
+        controls.append(size, previous, indicator, next);
+        pagination.append(controls);
+      }
+      let focusTarget = focusedSort
+        ? panel.querySelector(`[data-sort-key="${CSS.escape(focusedSort)}"]`)
+        : focusedAction ? panel.querySelector(`[data-table-action="${CSS.escape(focusedAction)}"]`) : null;
+      if (focusTarget?.disabled) {
+        const fallbackAction = focusedAction === "next" ? "previous" : "next";
+        focusTarget = panel.querySelector(`[data-table-action="${fallbackAction}"]`);
+      }
+      focusTarget?.focus();
+    }
+
+    function renderPricing(pricing) {
+      const panel = el("section", "panel panel-wide");
+      panel.append(panelHeader("订阅费用快照", "人民币 / 月；沿用 Excel 中的套餐数据，价格可能随时间变化"));
+      const grid = el("div", "pricing-grid");
+      pricing.forEach(item => {
+        const card = el("article", "price-card");
+        const title = item.official_url ? el("a", "", item.tool) : el("span", "", item.tool);
+        if (item.official_url) { title.href = item.official_url; title.target = "_blank"; title.rel = "noreferrer"; }
+        const heading = el("h3"); heading.append(title); card.append(heading);
+        item.plans.forEach(plan => {
+          const row = el("div", "plan");
+          row.append(el("span", "", plan.name), el("strong", "", `¥${number(plan.price_cny_month)}`));
+          card.append(row);
+        });
+        if (item.notes) card.append(el("p", "", item.notes));
+        grid.append(card);
+      });
+      panel.append(grid);
+      return panel;
+    }
+
+    document.getElementById("open-model").addEventListener("click", () => document.getElementById("model-dialog").showModal());
+    document.getElementById("open-import").addEventListener("click", () => document.getElementById("import-dialog").showModal());
+    document.getElementById("sync-arena").addEventListener("click", async event => {
+      const button = event.currentTarget;
+      const label = button.textContent;
+      button.disabled = true;
+      button.textContent = "正在同步…";
+      try {
+        const result = await api("/api/import/arena-webdev", { method: "POST", body: "{}" });
+        await loadData();
+        showToast(`Arena 前 30 已同步：新增 ${result.created}，更新 ${result.updated}，移除 ${result.removed}`);
+      } catch (error) {
+        showToast(error.message, true);
+      } finally {
+        button.disabled = false;
+        button.textContent = label;
+      }
+    });
+    document.getElementById("sync-artificial-analysis").addEventListener("click", async event => {
+      const button = event.currentTarget;
+      const label = button.textContent;
+      button.disabled = true;
+      button.textContent = "正在同步…";
+      try {
+        const result = await api("/api/import/artificial-analysis", { method: "POST", body: "{}" });
+        await loadData();
+        showToast(`AA 编程榜已同步：新增 ${result.created}，更新 ${result.updated}，移除 ${result.removed}`);
+      } catch (error) {
+        showToast(error.message, true);
+      } finally {
+        button.disabled = false;
+        button.textContent = label;
+      }
+    });
+    document.getElementById("sync-llm-stats").addEventListener("click", async event => {
+      const button = event.currentTarget;
+      const label = button.textContent;
+      button.disabled = true;
+      button.textContent = "正在同步…";
+      try {
+        const result = await api("/api/import/llm-stats", { method: "POST", body: "{}" });
+        await loadData();
+        showToast(`LLM Stats 已同步：新增 ${result.created}，更新 ${result.updated}，移除 ${result.removed}`);
+      } catch (error) {
+        showToast(error.message, true);
+      } finally {
+        button.disabled = false;
+        button.textContent = label;
+      }
+    });
+    document.querySelectorAll("[data-view]").forEach(button => button.addEventListener("click", () => { state.view = button.dataset.view; render(); }));
+    document.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => document.getElementById(button.dataset.close).close()));
+    document.querySelectorAll("dialog").forEach(dialog => dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); }));
+
+    function optionalFormNumber(form, name) {
+      const value = form.elements[name].value;
+      return value === "" ? null : Number(value);
+    }
+
+    document.getElementById("model-form").addEventListener("submit", async event => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const error = document.getElementById("model-error");
+      error.textContent = "";
+      const submit = form.querySelector("[type=submit]");
+      submit.disabled = true;
+      const payload = {
+        tool: form.elements.tool.value,
+        model: form.elements.model.value,
+        reasoning_effort: form.elements.reasoning_effort.value,
+        response_speed: form.elements.response_speed.value,
+        notes: form.elements.notes.value,
+        report_path: form.elements.report_path.value,
+        scores: Object.fromEntries(scoreFields.map(field => [field, optionalFormNumber(form, field)]))
+      };
+      try {
+        await api("/api/models", { method: "POST", body: JSON.stringify(payload) });
+        form.reset();
+        document.getElementById("model-dialog").close();
+        await loadData();
+        showToast(`已增加 ${payload.model}`);
+      } catch (requestError) {
+        error.textContent = requestError.message;
+      } finally { submit.disabled = false; }
+    });
+
+    document.getElementById("import-form").addEventListener("submit", async event => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const error = document.getElementById("import-error");
+      error.textContent = "";
+      const submit = form.querySelector("[type=submit]");
+      submit.disabled = true;
+      submit.textContent = "正在拉取…";
+      const mapping = {
+        tool: form.elements.map_tool.value,
+        model: form.elements.map_model.value,
+        reasoning_effort: form.elements.map_effort.value,
+        "scores.model_test_total": form.elements.map_modeltest.value,
+        "scores.arena_webdev": form.elements.map_arena.value,
+        notes: form.elements.map_notes.value
+      };
+      Object.keys(mapping).forEach(key => { if (!mapping[key]) delete mapping[key]; });
+      const payload = {
+        name: form.elements.name.value,
+        url: form.elements.url.value,
+        array_path: form.elements.array_path.value,
+        auth: {
+          env: form.elements.auth_env.value,
+          header: form.elements.auth_header.value,
+          prefix: form.elements.auth_prefix.value
+        },
+        mapping,
+        overwrite: form.elements.overwrite.checked
+      };
+      try {
+        const result = await api("/api/import", { method: "POST", body: JSON.stringify(payload) });
+        document.getElementById("import-dialog").close();
+        await loadData();
+        showToast(`导入完成：新增 ${result.created}，更新 ${result.updated}，跳过 ${result.skipped}`);
+      } catch (requestError) {
+        error.textContent = requestError.message;
+      } finally { submit.disabled = false; submit.textContent = "拉取并导入"; }
+    });
+
+    loadData();
+  </script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "case_id": "logic-fragmented-business-rule",
+  "status": "completed",
+  "summary": "综合分析 fragments.md 中 7 条零散沟通记录，按周五验收确认的口径（周三确定的 threshold_basis=after_discount 和周四确定的海外固定运费），还原运费规则：国内非 VIP 满 500（优惠后）免运、未满收 30；国内 VIP 免运；海外固定 80。计算 orders.json 中 4 个订单的运费。",
+  "changed_files": ["result.json"],
+  "verification": [
+    "orders.json 数据已逐条核对",
+    "fragments.md 规则已按时间线梳理，以周三/周四确认口径为最终规则"
+  ],
+  "answer": {
+    "threshold_basis": "after_discount",
+    "mainland_threshold": 500,
+    "mainland_standard_shipping": 30,
+    "vip_mainland_free": true,
+    "overseas_shipping": 80,
+    "orders": {
+      "o1": 30,
+      "o2": 0,
+      "o3": 80,
+      "o4": 0
+    }
+  }
+}

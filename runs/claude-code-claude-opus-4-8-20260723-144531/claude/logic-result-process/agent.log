@@ -1,0 +1,40 @@
+command=["claude", "-p", "--permission-mode", "auto", "--no-session-persistence", "阅读 TASK.md，独立完成任务并执行必要验证。最后必须按 TASK.md 要求生成 result.json。"]
+status=completed
+returncode=0
+elapsed_seconds=45.867
+
+[stdout]
+任务完成。
+
+## 结论
+
+**核心问题：`retry-without-idempotency`（重试缺少幂等性）**
+
+从 `checkout-run.json` 的数量关系反推：
+
+| 指标 | 值 | 推理 |
+|------|-----|------|
+| 结账意图 | 100 | 用户真实意图数 |
+| 生成订单 | 108 | 比意图多 8 |
+| 订单中唯一意图 ID | 100 | 108−100 = **8 个重复订单** |
+| 有两个订单的意图 | 8 | 与重复订单数吻合 |
+| 失败意图 | 0 | 排除“丢请求”和“成功计数错误” |
+| 重试原因 | 超时未收到 8 个首次成功响应 | 触发了 8 次重试 |
+
+链路：客户端在服务端**已成功**处理但响应未及时返回时超时 → 对这 8 个意图重试 → 重试无幂等键 → 服务端把同一意图当新请求再次落单 → 产生 8 个重复订单（`failed_intents=0` 证明请求并未丢失，也不是计数逻辑错误）。
+
+**最直接控制措施：`idempotency-key-per-intent`** —— 每个结账意图携带幂等键，服务端对同键请求去重，重试即幂等，从根上消除重复下单。`increase-timeout` 只能减少触发重试的概率，不能消除缺陷（且任务明确指出“接口调用多于意图”本身不是根因）。
+
+已生成 `result.json`，`answer` 字段：
+```json
+{
+  "process_issue": "retry-without-idempotency",
+  "evidence": {"duplicate_orders": 8, "retried_intents": 8},
+  "control": "idempotency-key-per-intent"
+}
+```
+
+验证：数量关系全部自洽（重复订单 8、重试意图 8、失败 0），且 `result.json` 为合法 JSON。
+
+
+[stderr]

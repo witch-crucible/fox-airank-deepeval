@@ -1,0 +1,17 @@
+{
+  "case_id": "logic-cart-event-trace",
+  "status": "completed",
+  "summary": "分析 cart-events.json：seq=2 的 remove_item(sku-1) 于 10:00:00.050 到达，早于 seq=1 的 add_item(sku-1)（10:00:00.100 到达）。服务端按 received_at 顺序应用事件，remove 先作用于空购物车成为无效操作，add 随后残留，最终购物车错误地保留 sku-1（预期应为空）。乱序事件对 1 个（seq 1 与 seq 2 之间），受影响商品 1 个（sku-1）。问题根因是事件到达顺序与发起顺序不一致，应采用序列号强制按序应用。",
+  "changed_files": ["result.json"],
+  "verification": [
+    "node 脚本验证：按 seq 顺序应用得到预期购物车 []，按 received_at 顺序应用得到实际购物车 ['sku-1']；统计 seq_i < seq_j 且 received_i > received_j 的乱序对为 1（seq 1,2）；最终状态不一致的商品为 1（sku-1）"
+  ],
+  "answer": {
+    "process_issue": "out-of-order-event-application",
+    "evidence": {
+      "out_of_order_pairs": 1,
+      "affected_items": 1
+    },
+    "control": "sequence-number-enforcement"
+  }
+}

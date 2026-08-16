@@ -1,0 +1,23 @@
+{
+  "case_id": "logic-fragmented-business-rule",
+  "status": "completed",
+  "summary": "综合 fragments.md 全部沟通记录还原当前有效规则：国内订单按优惠后金额满 500 免运否则收 30；VIP 仅国内订单免运且不看金额；海外固定 80，不参与任何会员/满额活动（以周三、周四确认口径为准，推翻开发按原价总额判断的说法）。据此计算 orders.json 中 4 个订单运费：o1=30（优惠后 480<500），o2=0（大陆 VIP），o3=80（海外固定，VIP 不适用），o4=0（优惠后 510≥500）。",
+  "changed_files": ["result.json"],
+  "verification": [
+    "node -e '按还原规则（海外固定80；大陆VIP免运；其余按 subtotal-discount>=500 免运否则30）遍历 orders.json 输出运费' => {\"o1\":30,\"o2\":0,\"o3\":80,\"o4\":0}，与手工推算一致",
+    "逐条核对 fragments.md：周三产品确认门槛看优惠后金额、周四运营确认海外固定80且会员/满额不参与、周五验收以周三周四口径为准"
+  ],
+  "answer": {
+    "threshold_basis": "after_discount",
+    "mainland_threshold": 500,
+    "mainland_standard_shipping": 30,
+    "vip_mainland_free": true,
+    "overseas_shipping": 80,
+    "orders": {
+      "o1": 30,
+      "o2": 0,
+      "o3": 80,
+      "o4": 0
+    }
+  }
+}

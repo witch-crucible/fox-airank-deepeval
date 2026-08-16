@@ -1,0 +1,19 @@
+{
+  "case_id": "logic-comment-implementation",
+  "status": "completed",
+  "summary": "依据已确认的注释契约分析库存判断，确认 stock=0 被误判，并给出最小修正条件；未修改实现代码。",
+  "changed_files": [
+    "result.json"
+  ],
+  "verification": [
+    "node --input-type=module -e \"import('./inventory.js').then(({canAddToCart}) => { const cases = [[null,true],[0,false],[1,true]]; for (const [stock, expected] of cases) console.log(JSON.stringify({stock, actual: canAddToCart(stock), expected})); })\""
+  ],
+  "answer": {
+    "contract_violated": true,
+    "misclassified_values": [
+      "stock=0"
+    ],
+    "faulty_condition": "!stock",
+    "correct_condition": "stock === null"
+  }
+}

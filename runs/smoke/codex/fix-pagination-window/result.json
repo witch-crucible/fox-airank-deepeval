@@ -1,0 +1,14 @@
+{
+  "case_id": "fix-pagination-window",
+  "status": "completed",
+  "summary": "修复分页窗口的无效参数、页码限制、窗口长度、末端平移和偶数尺寸居中行为，并补充边界回归测试。",
+  "changed_files": [
+    "pagination.js",
+    "public-test.mjs",
+    "result.json"
+  ],
+  "verification": [
+    "npm test",
+    "git diff --check -- pagination.js public-test.mjs"
+  ]
+}

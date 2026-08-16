@@ -1,0 +1,15 @@
+{
+  "case_id": "logic-fragmented-business-rule",
+  "status": "completed",
+  "summary": "综合 fragments.md 还原运费规则：门槛按优惠后金额判断，国内满500免运否则30，VIP国内免运，海外固定80且不参与任何活动；据此计算4个订单运费。",
+  "changed_files": ["result.json"],
+  "verification": ["人工核对 fragments.md 各条口径（以周三、周四确认为准）", "逐单验算：o1 600-120=480<500→30；o2 VIP mainland→0；o3 overseas→80；o4 550-40=510>=500→0"],
+  "answer": {
+    "threshold_basis": "after_discount",
+    "mainland_threshold": 500,
+    "mainland_standard_shipping": 30,
+    "vip_mainland_free": true,
+    "overseas_shipping": 80,
+    "orders": {"o1": 30, "o2": 0, "o3": 80, "o4": 0}
+  }
+}

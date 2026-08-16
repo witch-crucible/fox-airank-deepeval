@@ -1,0 +1,7 @@
+{
+  "case_id": "fix-query-string",
+  "status": "completed",
+  "summary": "重写 toQueryString：跳过 null/undefined（保留 false、0、空串），数组展开为同名参数（空数组不输出），key/value 均用 encodeURIComponent 编码，key 按字典序排序，不修改输入对象。",
+  "changed_files": ["query.js"],
+  "verification": ["npm test（node public-test.mjs）通过：public test passed"]
+}

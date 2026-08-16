@@ -1,0 +1,17 @@
+{
+  "case_id": "logic-result-process",
+  "status": "completed",
+  "summary": "分析 checkout-run.json 数据，发现 100 次结账意图产生 108 次 API 调用和 108 个订单，其中 8 个意图各产生 2 个重复订单。根因是客户端超时重试缺乏幂等性，服务端重复处理了重试请求。",
+  "changed_files": [],
+  "verification": [
+    "checkout-run.json 数据分析完成"
+  ],
+  "answer": {
+    "process_issue": "retry-without-idempotency",
+    "evidence": {
+      "duplicate_orders": 8,
+      "retried_intents": 8
+    },
+    "control": "idempotency-key-per-intent"
+  }
+}

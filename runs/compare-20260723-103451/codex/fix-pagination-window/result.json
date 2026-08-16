@@ -1,0 +1,13 @@
+{
+  "case_id": "fix-pagination-window",
+  "status": "completed",
+  "summary": "修复 pageWindow 的空范围处理、current 和 size 钳制、边界窗口平移及偶数窗口居中偏置。",
+  "changed_files": [
+    "pagination.js",
+    "result.json"
+  ],
+  "verification": [
+    "npm test",
+    "node --input-type=module -（补充分页边界断言）"
+  ]
+}

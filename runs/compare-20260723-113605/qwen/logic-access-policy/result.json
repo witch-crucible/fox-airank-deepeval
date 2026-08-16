@@ -1,0 +1,14 @@
+{
+  "case_id": "logic-access-policy",
+  "status": "completed",
+  "summary": "分析 ACCESS_POLICY.md 与 permissions.js，发现 canEdit 函数在 submitted 状态下允许 editor 编辑，但策略规定 editor 在 submitted 状态下仅可查看。",
+  "changed_files": [],
+  "verification": ["对比权限策略声明与实现代码"],
+  "answer": {
+    "policy_matches_implementation": false,
+    "violating_role": "editor",
+    "violating_status": "submitted",
+    "violating_action": "edit",
+    "risk": "unauthorized-edit-of-submitted-order"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "case_id": "write-product-card",
+  "status": "completed",
+  "summary": "在 product-card.js 实现 renderProductCard：生成 <article class=\"product-card\" data-sku>，含 img(src=imageUrl, alt=name)、h2 产品名、¥整数价格、p 描述；有库存输出带 data-action=\"add-to-cart\" 的“加入购物车”按钮，无库存输出带 disabled 的“暂时缺货”按钮；sku/imageUrl/name/description 均经 HTML 转义（& < > \" '），纯字符串拼接，无 DOM/第三方库。",
+  "changed_files": ["product-card.js"],
+  "verification": [
+    "npm test（node public-test.mjs）通过：public test passed",
+    "node -e 手动渲染含 & < > \" ' 的输入及 stock:0 场景，确认转义正确且输出 disabled 的“暂时缺货”按钮"
+  ]
+}

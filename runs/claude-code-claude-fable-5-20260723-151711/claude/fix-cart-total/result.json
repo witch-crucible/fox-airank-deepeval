@@ -1,0 +1,7 @@
+{
+  "case_id": "fix-cart-total",
+  "status": "completed",
+  "summary": "重写 calculateCart：忽略数量<=0 的商品，价格/数量按整数截断后计算 subtotal；百分比优惠券限制在 0-100 并只作用于 subtotal，折扣四舍五入；免运费判断基于折后金额（>= 阈值免运费）；total 用 Math.max 保证不小于 0，且不修改输入对象。",
+  "changed_files": ["cart.js"],
+  "verification": ["npm test（node public-test.mjs，输出 public test passed）"]
+}

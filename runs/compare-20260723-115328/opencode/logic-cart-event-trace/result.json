@@ -1,0 +1,12 @@
+{
+  "case_id": "logic-cart-event-trace",
+  "status": "completed",
+  "summary": "分析 cart-events.json，发现 seq=1(add sku-1) 与 seq=2(remove sku-1) 到达顺序与发起顺序不一致，导致最终购物车状态错误（应为空，实际有 sku-1）。",
+  "changed_files": [],
+  "verification": ["按 received_at 排序模拟服务端事件应用"],
+  "answer": {
+    "process_issue": "out-of-order-event-application",
+    "evidence": {"out_of_order_pairs": 1, "affected_items": 1},
+    "control": "sequence-number-enforcement"
+  }
+}

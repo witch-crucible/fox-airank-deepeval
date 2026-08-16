@@ -1,0 +1,46 @@
+command=["claude", "-p", "--permission-mode", "auto", "--no-session-persistence", "阅读 TASK.md，独立完成任务并执行必要验证。最后必须按 TASK.md 要求生成 result.json。"]
+status=completed
+returncode=0
+elapsed_seconds=82.795
+
+[stdout]
+任务完成。
+
+## 修改内容
+
+**`query.js`** — 重写 `toQueryString`，签名不变，仅用标准 JavaScript：
+
+```javascript
+export function toQueryString(params) {
+  return Object.keys(params)
+    .sort()
+    .flatMap((key) => {
+      const value = params[key];
+      if (value === null || value === undefined) {
+        return [];
+      }
+      const values = Array.isArray(value) ? value : [value];
+      return values.map(
+        (item) => `${encodeURIComponent(key)}=${encodeURIComponent(item)}`
+      );
+    })
+    .join("&");
+}
+```
+
+原实现的 bug：`.filter(([, value]) => value)` 会误删 `false`/`0`/`""`，且未编码、未处理数组、未排序。
+
+## 满足的要求
+- ✅ 忽略 `null`/`undefined`，保留 `false`/`0`/`""`
+- ✅ 数组每元素一个同名参数，空数组不生成参数
+- ✅ key 和 value 均用 `encodeURIComponent` 编码
+- ✅ key 按字典序（`.sort()`）；用 `Object.keys` + 读取，未修改输入
+
+## 验证
+- `node public-test.mjs` → `public test passed`（`npm`/`node` 经由 shell 的 nvm 包装器损坏，已用显式 node 二进制运行）
+- 额外断言覆盖上述四类规则及"输入未被修改" → 全部通过
+
+`result.json` 已按 `RESULT_PROTOCOL.md` 生成。
+
+
+[stderr]

@@ -1,0 +1,10 @@
+{
+  "case_id": "write-product-filter",
+  "status": "completed",
+  "summary": "在 product-filter.js 中实现 filterProducts：query 去空格且忽略大小写并同时匹配 name/sku；categories 为空不过滤、否则精确匹配；价格边界含端点；inStockOnly 仅保留 stock > 0；支持 price-asc/price-desc/name-asc 稳定排序，未提供时保持原顺序；不修改 products、options 及其中对象，返回新数组。",
+  "changed_files": ["product-filter.js", "result.json"],
+  "verification": [
+    "npm test（node public-test.mjs）：public test passed",
+    "node 扩展自检脚本：覆盖 query 归一化、categories 空/非空、价格端点、inStockOnly、三种排序及值相等保持原顺序、返回新数组、无输入突变，全部通过"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "case_id": "logic-comment-implementation",
+  "status": "completed",
+  "summary": "分析 inventory.js 中 canAddToCart 函数与其注释契约的一致性：注释规定 stock===0 时应禁止加入购物车，但 `if (!stock) return true;` 对 stock===0 也返回 true（因为 !0 === true），与 stock===null 混淆，导致已售罄商品被错误允许加入购物车。stock=null 和 stock>0 两种情况均符合注释。未修改代码，仅做只读分析。",
+  "changed_files": [],
+  "verification": [
+    "静态阅读 inventory.js 源码，逐一核对注释三条契约（stock===null / stock===0 / stock>0）与代码分支的对应关系",
+    "手工代入 stock=0 求值：!stock -> !0 -> true，触发 return true，与注释「应禁止购买」矛盾，确认为契约违反"
+  ],
+  "answer": {
+    "contract_violated": true,
+    "misclassified_values": ["stock=0"],
+    "faulty_condition": "!stock",
+    "correct_condition": "stock === null"
+  }
+}

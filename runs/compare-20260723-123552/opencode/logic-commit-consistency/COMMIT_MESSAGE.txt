@@ -1,0 +1,3 @@
+fix(catalog): include locale and currency in product-list cache key
+
+Prevent localized names and converted prices from leaking between storefront requests.

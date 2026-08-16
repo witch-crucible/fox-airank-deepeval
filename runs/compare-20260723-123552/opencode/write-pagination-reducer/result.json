@@ -1,0 +1,7 @@
+{
+  "case_id": "write-pagination-reducer",
+  "status": "completed",
+  "summary": "实现 paginationReducer：SET_PAGE 限制到合法范围，SET_PAGE_SIZE 保持首条记录下标尽量不变且 pageSize 须为正整数，SET_TOTAL 限制非负并修正 page，RESET 重置状态，未知 action 返回原 state，返回新对象不修改输入",
+  "changed_files": ["pagination-reducer.js"],
+  "verification": ["npm test"]
+}

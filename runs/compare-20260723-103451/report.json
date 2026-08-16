@@ -1,0 +1,1163 @@
+{
+  "graded_at": "2026-07-23T03:16:02.661056+00:00",
+  "summary": {
+    "codex": {
+      "overall": 93.08,
+      "by_category": {
+        "code_correction": 100.0,
+        "code_generation": 100.0,
+        "logic_analysis": 87.14
+      }
+    },
+    "claude-code": {
+      "overall": 100.0,
+      "by_category": {
+        "code_correction": 100.0,
+        "code_generation": 100.0,
+        "logic_analysis": 100.0
+      }
+    },
+    "qwen": {
+      "overall": 2.31,
+      "by_category": {
+        "code_correction": 10.0,
+        "code_generation": 0.0,
+        "logic_analysis": 0.0
+      }
+    },
+    "opencode": {
+      "overall": 17.69,
+      "by_category": {
+        "code_correction": 10.0,
+        "code_generation": 0.0,
+        "logic_analysis": 28.57
+      }
+    }
+  },
+  "results": [
+    {
+      "case_id": "fix-cart-total",
+      "category": "code_correction",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-2",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-3",
+          "passed": true,
+          "detail": "通过"
+        }
+      ],
+      "tool": "codex"
+    },
+    {
+      "case_id": "fix-pagination-window",
+      "category": "code_correction",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-2",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-3",
+          "passed": true,
+          "detail": "通过"
+        }
+      ],
+      "tool": "codex"
+    },
+    {
+      "case_id": "fix-query-string",
+      "category": "code_correction",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-2",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-3",
+          "passed": true,
+          "detail": "通过"
+        }
+      ],
+      "tool": "codex"
+    },
+    {
+      "case_id": "write-pagination-reducer",
+      "category": "code_generation",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-2",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-3",
+          "passed": true,
+          "detail": "通过"
+        }
+      ],
+      "tool": "codex"
+    },
+    {
+      "case_id": "write-product-card",
+      "category": "code_generation",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-2",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-3",
+          "passed": true,
+          "detail": "通过"
+        }
+      ],
+      "tool": "codex"
+    },
+    {
+      "case_id": "write-product-filter",
+      "category": "code_generation",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-2",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-3",
+          "passed": true,
+          "detail": "通过"
+        }
+      ],
+      "tool": "codex"
+    },
+    {
+      "case_id": "logic-access-policy",
+      "category": "logic_analysis",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": true,
+          "detail": "实际答案: {'policy_matches_implementation': False, 'violating_role': 'editor', 'violating_status': 'submitted', 'violating_action': 'edit', 'risk': 'unauthorized-edit-of-submitted-order'}"
+        }
+      ],
+      "tool": "codex"
+    },
+    {
+      "case_id": "logic-async-search-race",
+      "category": "logic_analysis",
+      "score": 10.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": false,
+          "detail": "实际答案: {'contract_violated': True, 'unguarded_call': 'render(suggestions);', 'missing_condition': 'token === latestToken'}"
+        }
+      ],
+      "tool": "codex"
+    },
+    {
+      "case_id": "logic-cart-event-trace",
+      "category": "logic_analysis",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": true,
+          "detail": "实际答案: {'process_issue': 'out-of-order-event-application', 'evidence': {'out_of_order_pairs': 1, 'affected_items': 1}, 'control': 'sequence-number-enforcement'}"
+        }
+      ],
+      "tool": "codex"
+    },
+    {
+      "case_id": "logic-comment-implementation",
+      "category": "logic_analysis",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": true,
+          "detail": "实际答案: {'contract_violated': True, 'misclassified_values': ['stock=0'], 'faulty_condition': '!stock', 'correct_condition': 'stock === null'}"
+        }
+      ],
+      "tool": "codex"
+    },
+    {
+      "case_id": "logic-commit-consistency",
+      "category": "logic_analysis",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": true,
+          "detail": "实际答案: {'consistent': False, 'implemented_dimensions': ['currency'], 'missing_dimensions': ['locale'], 'risk': 'cross-locale-cache-collision'}"
+        }
+      ],
+      "tool": "codex"
+    },
+    {
+      "case_id": "logic-fragmented-business-rule",
+      "category": "logic_analysis",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": true,
+          "detail": "实际答案: {'threshold_basis': 'after_discount', 'mainland_threshold': 500, 'mainland_standard_shipping': 30, 'vip_mainland_free': True, 'overseas_shipping': 80, 'orders': {'o1': 30, 'o2': 0, 'o3': 80, 'o4': 0}}"
+        }
+      ],
+      "tool": "codex"
+    },
+    {
+      "case_id": "logic-result-process",
+      "category": "logic_analysis",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": true,
+          "detail": "实际答案: {'process_issue': 'retry-without-idempotency', 'evidence': {'duplicate_orders': 8, 'retried_intents': 8}, 'control': 'idempotency-key-per-intent'}"
+        }
+      ],
+      "tool": "codex"
+    },
+    {
+      "case_id": "fix-cart-total",
+      "category": "code_correction",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-2",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-3",
+          "passed": true,
+          "detail": "通过"
+        }
+      ],
+      "tool": "claude-code"
+    },
+    {
+      "case_id": "fix-pagination-window",
+      "category": "code_correction",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-2",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-3",
+          "passed": true,
+          "detail": "通过"
+        }
+      ],
+      "tool": "claude-code"
+    },
+    {
+      "case_id": "fix-query-string",
+      "category": "code_correction",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-2",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-3",
+          "passed": true,
+          "detail": "通过"
+        }
+      ],
+      "tool": "claude-code"
+    },
+    {
+      "case_id": "write-pagination-reducer",
+      "category": "code_generation",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-2",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-3",
+          "passed": true,
+          "detail": "通过"
+        }
+      ],
+      "tool": "claude-code"
+    },
+    {
+      "case_id": "write-product-card",
+      "category": "code_generation",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-2",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-3",
+          "passed": true,
+          "detail": "通过"
+        }
+      ],
+      "tool": "claude-code"
+    },
+    {
+      "case_id": "write-product-filter",
+      "category": "code_generation",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-2",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-3",
+          "passed": true,
+          "detail": "通过"
+        }
+      ],
+      "tool": "claude-code"
+    },
+    {
+      "case_id": "logic-access-policy",
+      "category": "logic_analysis",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": true,
+          "detail": "实际答案: {'policy_matches_implementation': False, 'violating_role': 'editor', 'violating_status': 'submitted', 'violating_action': 'edit', 'risk': 'unauthorized-edit-of-submitted-order'}"
+        }
+      ],
+      "tool": "claude-code"
+    },
+    {
+      "case_id": "logic-async-search-race",
+      "category": "logic_analysis",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": true,
+          "detail": "实际答案: {'contract_violated': True, 'unguarded_call': 'render(suggestions)', 'missing_condition': 'token === latestToken'}"
+        }
+      ],
+      "tool": "claude-code"
+    },
+    {
+      "case_id": "logic-cart-event-trace",
+      "category": "logic_analysis",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": true,
+          "detail": "实际答案: {'process_issue': 'out-of-order-event-application', 'evidence': {'out_of_order_pairs': 1, 'affected_items': 1}, 'control': 'sequence-number-enforcement'}"
+        }
+      ],
+      "tool": "claude-code"
+    },
+    {
+      "case_id": "logic-comment-implementation",
+      "category": "logic_analysis",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": true,
+          "detail": "实际答案: {'contract_violated': True, 'misclassified_values': ['stock=0'], 'faulty_condition': '!stock', 'correct_condition': 'stock === null'}"
+        }
+      ],
+      "tool": "claude-code"
+    },
+    {
+      "case_id": "logic-commit-consistency",
+      "category": "logic_analysis",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": true,
+          "detail": "实际答案: {'consistent': False, 'implemented_dimensions': ['currency'], 'missing_dimensions': ['locale'], 'risk': 'cross-locale-cache-collision'}"
+        }
+      ],
+      "tool": "claude-code"
+    },
+    {
+      "case_id": "logic-fragmented-business-rule",
+      "category": "logic_analysis",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": true,
+          "detail": "实际答案: {'threshold_basis': 'after_discount', 'mainland_threshold': 500, 'mainland_standard_shipping': 30, 'vip_mainland_free': True, 'overseas_shipping': 80, 'orders': {'o1': 30, 'o2': 0, 'o3': 80, 'o4': 0}}"
+        }
+      ],
+      "tool": "claude-code"
+    },
+    {
+      "case_id": "logic-result-process",
+      "category": "logic_analysis",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": true,
+          "detail": "实际答案: {'process_issue': 'retry-without-idempotency', 'evidence': {'duplicate_orders': 8, 'retried_intents': 8}, 'control': 'idempotency-key-per-intent'}"
+        }
+      ],
+      "tool": "claude-code"
+    },
+    {
+      "case_id": "fix-cart-total",
+      "category": "code_correction",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": false,
+          "detail": "node:internal/modules/run_main:123\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n    discount: 0,\n    shipping: 20,\n+   subtotal: 150,\n+   total: 170\n-   subtotal: 250,\n-   total: 270\n  }\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-eexmjayq/check.mjs:4:8 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: { subtotal: 150, discount: 0, shipping: 20, total: 170 },\n  expected: { subtotal: 250, discount: 0, shipping: 20, total: 270 },\n  operator: 'deepStrictEqual'\n}\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-2",
+          "passed": false,
+          "detail": "node:internal/modules/run_main:123\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n+   discount: 1250,\n+   shipping: 20,\n+   subtotal: 125,\n+   total: -1105\n-   discount: 25,\n-   shipping: 0,\n-   subtotal: 250,\n-   total: 225\n  }\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-2e5zdjj2/check.mjs:4:8 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: { subtotal: 125, discount: 1250, shipping: 20, total: -1105 },\n  expected: { subtotal: 250, discount: 25, shipping: 0, total: 225 },\n  operator: 'deepStrictEqual'\n}\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-3",
+          "passed": false,
+          "detail": "node:internal/modules/run_main:123\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n+   discount: 21000,\n+   shipping: 0,\n+   subtotal: 140,\n+   total: -20860\n-   discount: 80,\n-   shipping: 9,\n-   subtotal: 80,\n-   total: 9\n  }\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-ocxn1zwd/check.mjs:4:107 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: { subtotal: 140, discount: 21000, shipping: 0, total: -20860 },\n  expected: { subtotal: 80, discount: 80, shipping: 9, total: 9 },\n  operator: 'deepStrictEqual'\n}\n\nNode.js v20.20.2"
+        }
+      ],
+      "tool": "qwen"
+    },
+    {
+      "case_id": "fix-pagination-window",
+      "category": "code_correction",
+      "score": 30.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-2",
+          "passed": false,
+          "detail": "node:internal/modules/run_main:123\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n+   8,\n+   9\n-   6,\n-   7,\n-   8,\n-   9,\n-   10\n  ]\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-qiwfnu8p/check.mjs:4:67 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: [ 8, 9 ],\n  expected: [ 6, 7, 8, 9, 10 ],\n  operator: 'deepStrictEqual'\n}\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-3",
+          "passed": false,
+          "detail": "node:internal/modules/run_main:123\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    1,\n    2,\n-   3\n  ]\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-e85y9z_5/check.mjs:4:8 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: [ 1, 2 ],\n  expected: [ 1, 2, 3 ],\n  operator: 'deepStrictEqual'\n}\n\nNode.js v20.20.2"
+        }
+      ],
+      "tool": "qwen"
+    },
+    {
+      "case_id": "fix-query-string",
+      "category": "code_correction",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": false,
+          "detail": "node:internal/modules/run_main:123\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ 'q=dior bag&page=2'\n- 'page=2&q=dior%20bag'\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-yzx9124c/check.mjs:4:8 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 'q=dior bag&page=2',\n  expected: 'page=2&q=dior%20bag',\n  operator: 'strictEqual'\n}\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-2",
+          "passed": false,
+          "detail": "node:internal/modules/run_main:123\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ ''\n- 'a=false&b=0&c='\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-0vclzrhl/check.mjs:4:8 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: '',\n  expected: 'a=false&b=0&c=',\n  operator: 'strictEqual'\n}\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-3",
+          "passed": false,
+          "detail": "node:internal/modules/run_main:123\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ 'tag=silk scarf,bag&shoe&q=a=b'\n- 'q=a%3Db&tag=silk%20scarf&tag=bag%26shoe'\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-3yrvpns1/check.mjs:4:99 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 'tag=silk scarf,bag&shoe&q=a=b',\n  expected: 'q=a%3Db&tag=silk%20scarf&tag=bag%26shoe',\n  operator: 'strictEqual'\n}\n\nNode.js v20.20.2"
+        }
+      ],
+      "tool": "qwen"
+    },
+    {
+      "case_id": "write-pagination-reducer",
+      "category": "code_generation",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": false,
+          "detail": "file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/qwen/write-pagination-reducer/pagination-reducer.js?run=1784776561584:2\n  throw new Error(\"Not implemented\");\n        ^\n\nError: Not implemented\n    at Module.paginationReducer (file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/qwen/write-pagination-reducer/pagination-reducer.js?run=1784776561584:2:9)\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-46xl1tup/check.mjs:4:66\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-2",
+          "passed": false,
+          "detail": "file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/qwen/write-pagination-reducer/pagination-reducer.js?run=1784776561622:2\n  throw new Error(\"Not implemented\");\n        ^\n\nError: Not implemented\n    at Module.paginationReducer (file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/qwen/write-pagination-reducer/pagination-reducer.js?run=1784776561622:2:9)\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-avvyu5t8/check.mjs:4:27\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-3",
+          "passed": false,
+          "detail": "file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/qwen/write-pagination-reducer/pagination-reducer.js?run=1784776561658:2\n  throw new Error(\"Not implemented\");\n        ^\n\nError: Not implemented\n    at Module.paginationReducer (file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/qwen/write-pagination-reducer/pagination-reducer.js?run=1784776561658:2:9)\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-am9fnwb7/check.mjs:4:27\n\nNode.js v20.20.2"
+        }
+      ],
+      "tool": "qwen"
+    },
+    {
+      "case_id": "write-product-card",
+      "category": "code_generation",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": false,
+          "detail": "file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/qwen/write-product-card/product-card.js?run=1784776561695:2\n  throw new Error(\"Not implemented\");\n        ^\n\nError: Not implemented\n    at Module.renderProductCard (file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/qwen/write-product-card/product-card.js?run=1784776561695:2:9)\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-g75axeau/check.mjs:4:18\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-2",
+          "passed": false,
+          "detail": "file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/qwen/write-product-card/product-card.js?run=1784776561734:2\n  throw new Error(\"Not implemented\");\n        ^\n\nError: Not implemented\n    at Module.renderProductCard (file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/qwen/write-product-card/product-card.js?run=1784776561734:2:9)\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-uz6f_hbx/check.mjs:4:18\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-3",
+          "passed": false,
+          "detail": "file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/qwen/write-product-card/product-card.js?run=1784776561770:2\n  throw new Error(\"Not implemented\");\n        ^\n\nError: Not implemented\n    at Module.renderProductCard (file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/qwen/write-product-card/product-card.js?run=1784776561770:2:9)\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-_btx49xm/check.mjs:4:18\n\nNode.js v20.20.2"
+        }
+      ],
+      "tool": "qwen"
+    },
+    {
+      "case_id": "write-product-filter",
+      "category": "code_generation",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": false,
+          "detail": "file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/qwen/write-product-filter/product-filter.js?run=1784776561806:2\n  throw new Error(\"Not implemented\");\n        ^\n\nError: Not implemented\n    at Module.filterProducts (file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/qwen/write-product-filter/product-filter.js?run=1784776561806:2:9)\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-frrzhblc/check.mjs:4:155\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-2",
+          "passed": false,
+          "detail": "file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/qwen/write-product-filter/product-filter.js?run=1784776561845:2\n  throw new Error(\"Not implemented\");\n        ^\n\nError: Not implemented\n    at Module.filterProducts (file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/qwen/write-product-filter/product-filter.js?run=1784776561845:2:9)\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-8ig9dpb6/check.mjs:4:185\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-3",
+          "passed": false,
+          "detail": "file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/qwen/write-product-filter/product-filter.js?run=1784776561883:2\n  throw new Error(\"Not implemented\");\n        ^\n\nError: Not implemented\n    at Module.filterProducts (file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/qwen/write-product-filter/product-filter.js?run=1784776561883:2:9)\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-u5mm9rbm/check.mjs:4:179\n\nNode.js v20.20.2"
+        }
+      ],
+      "tool": "qwen"
+    },
+    {
+      "case_id": "logic-access-policy",
+      "category": "logic_analysis",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": false,
+          "detail": "实际答案: None"
+        }
+      ],
+      "tool": "qwen"
+    },
+    {
+      "case_id": "logic-async-search-race",
+      "category": "logic_analysis",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": false,
+          "detail": "实际答案: None"
+        }
+      ],
+      "tool": "qwen"
+    },
+    {
+      "case_id": "logic-cart-event-trace",
+      "category": "logic_analysis",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": false,
+          "detail": "实际答案: None"
+        }
+      ],
+      "tool": "qwen"
+    },
+    {
+      "case_id": "logic-comment-implementation",
+      "category": "logic_analysis",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": false,
+          "detail": "实际答案: None"
+        }
+      ],
+      "tool": "qwen"
+    },
+    {
+      "case_id": "logic-commit-consistency",
+      "category": "logic_analysis",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": false,
+          "detail": "实际答案: None"
+        }
+      ],
+      "tool": "qwen"
+    },
+    {
+      "case_id": "logic-fragmented-business-rule",
+      "category": "logic_analysis",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": false,
+          "detail": "实际答案: None"
+        }
+      ],
+      "tool": "qwen"
+    },
+    {
+      "case_id": "logic-result-process",
+      "category": "logic_analysis",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": false,
+          "detail": "实际答案: None"
+        }
+      ],
+      "tool": "qwen"
+    },
+    {
+      "case_id": "fix-cart-total",
+      "category": "code_correction",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": false,
+          "detail": "node:internal/modules/run_main:123\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n    discount: 0,\n    shipping: 20,\n+   subtotal: 150,\n+   total: 170\n-   subtotal: 250,\n-   total: 270\n  }\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-juf3miv9/check.mjs:4:8 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: { subtotal: 150, discount: 0, shipping: 20, total: 170 },\n  expected: { subtotal: 250, discount: 0, shipping: 20, total: 270 },\n  operator: 'deepStrictEqual'\n}\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-2",
+          "passed": false,
+          "detail": "node:internal/modules/run_main:123\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n+   discount: 1250,\n+   shipping: 20,\n+   subtotal: 125,\n+   total: -1105\n-   discount: 25,\n-   shipping: 0,\n-   subtotal: 250,\n-   total: 225\n  }\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-__wwgfqj/check.mjs:4:8 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: { subtotal: 125, discount: 1250, shipping: 20, total: -1105 },\n  expected: { subtotal: 250, discount: 25, shipping: 0, total: 225 },\n  operator: 'deepStrictEqual'\n}\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-3",
+          "passed": false,
+          "detail": "node:internal/modules/run_main:123\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n+   discount: 21000,\n+   shipping: 0,\n+   subtotal: 140,\n+   total: -20860\n-   discount: 80,\n-   shipping: 9,\n-   subtotal: 80,\n-   total: 9\n  }\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-58zn3xmu/check.mjs:4:107 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: { subtotal: 140, discount: 21000, shipping: 0, total: -20860 },\n  expected: { subtotal: 80, discount: 80, shipping: 9, total: 9 },\n  operator: 'deepStrictEqual'\n}\n\nNode.js v20.20.2"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "fix-pagination-window",
+      "category": "code_correction",
+      "score": 30.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-2",
+          "passed": false,
+          "detail": "node:internal/modules/run_main:123\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n+   8,\n+   9\n-   6,\n-   7,\n-   8,\n-   9,\n-   10\n  ]\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-qd865qef/check.mjs:4:67 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: [ 8, 9 ],\n  expected: [ 6, 7, 8, 9, 10 ],\n  operator: 'deepStrictEqual'\n}\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-3",
+          "passed": false,
+          "detail": "node:internal/modules/run_main:123\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    1,\n    2,\n-   3\n  ]\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-rgwut3zi/check.mjs:4:8 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: [ 1, 2 ],\n  expected: [ 1, 2, 3 ],\n  operator: 'deepStrictEqual'\n}\n\nNode.js v20.20.2"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "fix-query-string",
+      "category": "code_correction",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": false,
+          "detail": "node:internal/modules/run_main:123\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ 'q=dior bag&page=2'\n- 'page=2&q=dior%20bag'\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-rii5avoy/check.mjs:4:8 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 'q=dior bag&page=2',\n  expected: 'page=2&q=dior%20bag',\n  operator: 'strictEqual'\n}\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-2",
+          "passed": false,
+          "detail": "node:internal/modules/run_main:123\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ ''\n- 'a=false&b=0&c='\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-gpuz3rfb/check.mjs:4:8 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: '',\n  expected: 'a=false&b=0&c=',\n  operator: 'strictEqual'\n}\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-3",
+          "passed": false,
+          "detail": "node:internal/modules/run_main:123\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ 'tag=silk scarf,bag&shoe&q=a=b'\n- 'q=a%3Db&tag=silk%20scarf&tag=bag%26shoe'\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-t4_2h3jd/check.mjs:4:99 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 'tag=silk scarf,bag&shoe&q=a=b',\n  expected: 'q=a%3Db&tag=silk%20scarf&tag=bag%26shoe',\n  operator: 'strictEqual'\n}\n\nNode.js v20.20.2"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "write-pagination-reducer",
+      "category": "code_generation",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": false,
+          "detail": "file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/opencode/write-pagination-reducer/pagination-reducer.js?run=1784776562338:2\n  throw new Error(\"Not implemented\");\n        ^\n\nError: Not implemented\n    at Module.paginationReducer (file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/opencode/write-pagination-reducer/pagination-reducer.js?run=1784776562338:2:9)\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-0r42v5wi/check.mjs:4:66\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-2",
+          "passed": false,
+          "detail": "file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/opencode/write-pagination-reducer/pagination-reducer.js?run=1784776562377:2\n  throw new Error(\"Not implemented\");\n        ^\n\nError: Not implemented\n    at Module.paginationReducer (file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/opencode/write-pagination-reducer/pagination-reducer.js?run=1784776562377:2:9)\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-wmtpp76n/check.mjs:4:27\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-3",
+          "passed": false,
+          "detail": "file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/opencode/write-pagination-reducer/pagination-reducer.js?run=1784776562416:2\n  throw new Error(\"Not implemented\");\n        ^\n\nError: Not implemented\n    at Module.paginationReducer (file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/opencode/write-pagination-reducer/pagination-reducer.js?run=1784776562416:2:9)\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-krol2cv0/check.mjs:4:27\n\nNode.js v20.20.2"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "write-product-card",
+      "category": "code_generation",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": false,
+          "detail": "file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/opencode/write-product-card/product-card.js?run=1784776562455:2\n  throw new Error(\"Not implemented\");\n        ^\n\nError: Not implemented\n    at Module.renderProductCard (file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/opencode/write-product-card/product-card.js?run=1784776562455:2:9)\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-9d7mxdia/check.mjs:4:18\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-2",
+          "passed": false,
+          "detail": "file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/opencode/write-product-card/product-card.js?run=1784776562495:2\n  throw new Error(\"Not implemented\");\n        ^\n\nError: Not implemented\n    at Module.renderProductCard (file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/opencode/write-product-card/product-card.js?run=1784776562495:2:9)\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-xlz9_vfj/check.mjs:4:18\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-3",
+          "passed": false,
+          "detail": "file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/opencode/write-product-card/product-card.js?run=1784776562530:2\n  throw new Error(\"Not implemented\");\n        ^\n\nError: Not implemented\n    at Module.renderProductCard (file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/opencode/write-product-card/product-card.js?run=1784776562530:2:9)\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-2oqb6nng/check.mjs:4:18\n\nNode.js v20.20.2"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "write-product-filter",
+      "category": "code_generation",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": false,
+          "detail": "file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/opencode/write-product-filter/product-filter.js?run=1784776562566:2\n  throw new Error(\"Not implemented\");\n        ^\n\nError: Not implemented\n    at Module.filterProducts (file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/opencode/write-product-filter/product-filter.js?run=1784776562566:2:9)\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-r8p5liug/check.mjs:4:155\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-2",
+          "passed": false,
+          "detail": "file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/opencode/write-product-filter/product-filter.js?run=1784776562618:2\n  throw new Error(\"Not implemented\");\n        ^\n\nError: Not implemented\n    at Module.filterProducts (file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/opencode/write-product-filter/product-filter.js?run=1784776562618:2:9)\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-0i4h_ujb/check.mjs:4:185\n\nNode.js v20.20.2"
+        },
+        {
+          "name": "hidden-3",
+          "passed": false,
+          "detail": "file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/opencode/write-product-filter/product-filter.js?run=1784776562655:2\n  throw new Error(\"Not implemented\");\n        ^\n\nError: Not implemented\n    at Module.filterProducts (file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/opencode/write-product-filter/product-filter.js?run=1784776562655:2:9)\n    at file:///private/var/folders/xr/0tzcn4ts7k1210bwll57fncm0000gn/T/agent-bench-jz38y081/check.mjs:4:179\n\nNode.js v20.20.2"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "logic-access-policy",
+      "category": "logic_analysis",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": false,
+          "detail": "实际答案: None"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "logic-async-search-race",
+      "category": "logic_analysis",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": false,
+          "detail": "实际答案: None"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "logic-cart-event-trace",
+      "category": "logic_analysis",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": false,
+          "detail": "实际答案: None"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "logic-comment-implementation",
+      "category": "logic_analysis",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": false,
+          "detail": "实际答案: None"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "logic-commit-consistency",
+      "category": "logic_analysis",
+      "score": 0.0,
+      "protocol": {
+        "passed": false,
+        "detail": "缺少 result.json"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": false,
+          "detail": "实际答案: None"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "logic-fragmented-business-rule",
+      "category": "logic_analysis",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": true,
+          "detail": "实际答案: {'threshold_basis': 'after_discount', 'mainland_threshold': 500, 'mainland_standard_shipping': 30, 'vip_mainland_free': True, 'overseas_shipping': 80, 'orders': {'o1': 30, 'o2': 0, 'o3': 80, 'o4': 0}}"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "logic-result-process",
+      "category": "logic_analysis",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": true,
+          "detail": "实际答案: {'process_issue': 'retry-without-idempotency', 'evidence': {'duplicate_orders': 8, 'retried_intents': 8}, 'control': 'idempotency-key-per-intent'}"
+        }
+      ],
+      "tool": "opencode"
+    }
+  ]
+}

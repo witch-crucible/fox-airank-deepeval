@@ -1,0 +1,10 @@
+{
+  "case_id": "fix-query-string",
+  "status": "completed",
+  "summary": "修复 query.js 中 toQueryString：忽略 null/undefined 字段，保留 false/0/空字符串；数组元素展开为同名参数，空数组不生成参数；key 与 value 均使用 encodeURIComponent 编码；按 key 字典序排序且不修改输入对象。",
+  "changed_files": ["query.js"],
+  "verification": [
+    "npm test（node public-test.mjs）通过",
+    "手动验证边界用例：toQueryString({ b: [1,2], a: 0, z: null, y: undefined, c: false, d: '', e: [], f: 'a b&c' }) => 'a=0&b=1&b=2&c=false&d=&f=a%20b%26c'，并确认输入对象未被修改"
+  ]
+}

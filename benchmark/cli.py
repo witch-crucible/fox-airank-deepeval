@@ -17,6 +17,7 @@ from benchmark.report import render_report_html
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PROMPT = "阅读 TASK.md，独立完成任务并执行必要验证。最后必须按 TASK.md 要求生成 result.json。"
+MISSING = object()
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,8 @@ def select_cases(cases: list[Case], ids: list[str], categories: list[str]) -> li
         missing = requested - {case.id for case in selected}
         if missing:
             raise ValueError(f"找不到 case: {', '.join(sorted(missing))}")
+    if not selected:
+        raise ValueError("筛选条件没有匹配任何 case")
     return selected
 
 
@@ -62,6 +65,26 @@ def load_tool_config(path: Path) -> dict[str, dict[str, Any]]:
     return data
 
 
+def preflight_tools(
+    configs: dict[str, dict[str, Any]],
+    tools: Sequence[str],
+    workspace: str = "{workspace}",
+) -> None:
+    for tool in tools:
+        if tool not in configs:
+            raise ValueError(f"工具配置不存在: {tool}")
+        command = configs[tool]["command"]
+        if any(not isinstance(token, str) for token in command):
+            raise ValueError(f"工具 {tool} 的 command 必须是字符串数组")
+        executable = command[0]
+        if shutil.which(executable) is None:
+            raise ValueError(f"找不到工具命令: {executable}")
+        try:
+            [token.format(workspace=workspace, prompt=DEFAULT_PROMPT) for token in command]
+        except (KeyError, ValueError) as error:
+            raise ValueError(f"工具 {tool} 的命令占位符无效: {error}") from error
+
+
 def prepare(run_dir: Path, tools: list[str], cases: list[Case]) -> None:
     if run_dir.exists() and any(run_dir.iterdir()):
         raise ValueError(f"运行目录已存在且非空: {run_dir}")
@@ -69,7 +92,11 @@ def prepare(run_dir: Path, tools: list[str], cases: list[Case]) -> None:
         for case in cases:
             target = run_dir / tool / case.id
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(case.source, target)
+            shutil.copytree(
+                case.source,
+                target,
+                ignore=shutil.ignore_patterns("result.json", "agent.log", "execution.json"),
+            )
             (target / "AGENTS.md").write_text(
                 "# 评测工作区规则\n\n"
                 "只读取和修改当前目录，不得查看父目录、其他 case、评分器或其他工具结果。\n"
@@ -84,7 +111,7 @@ def prepare(run_dir: Path, tools: list[str], cases: list[Case]) -> None:
                 "  \"summary\": \"实际完成内容\",\n"
                 "  \"changed_files\": [\"实际修改或新增的相对路径\"],\n"
                 "  \"verification\": [\"实际执行的验证命令或检查\"]\n"
-                "}\n```\n\n不得伪造未执行的验证。逻辑题还必须保留 TASK.md 要求的 `answer` 字段。\n",
+                "}\n```\n\n不得伪造未执行的验证。逻辑题和手动测试题还必须保留 TASK.md 要求的 `answer` 字段。\n",
                 encoding="utf-8",
             )
     manifest = {
@@ -98,16 +125,18 @@ def prepare(run_dir: Path, tools: list[str], cases: list[Case]) -> None:
 
 def execute(run_dir: Path, tools: list[str], cases: list[Case], config_path: Path, timeout: int) -> None:
     configs = load_tool_config(config_path)
+    preflight_tools(configs, tools)
+    workspaces: dict[tuple[str, str], Path] = {}
     for tool in tools:
-        if tool not in configs:
-            raise ValueError(f"工具配置不存在: {tool}")
-        executable = configs[tool]["command"][0]
-        if shutil.which(executable) is None:
-            raise ValueError(f"找不到工具命令: {executable}")
         for case in cases:
             workspace = (run_dir / tool / case.id).resolve()
             if not workspace.is_dir():
                 raise ValueError(f"case 工作区不存在: {workspace}")
+            workspaces[(tool, case.id)] = workspace
+
+    for tool in tools:
+        for case in cases:
+            workspace = workspaces[(tool, case.id)]
             command = [
                 token.format(workspace=str(workspace), prompt=DEFAULT_PROMPT)
                 for token in configs[tool]["command"]
@@ -189,6 +218,18 @@ const solution = await import(pathToFileURL(process.argv[2]).href + "?run=" + Da
     return result.returncode == 0, detail[-1000:] if detail else ("通过" if result.returncode == 0 else "失败")
 
 
+def manual_answer_checks(actual: Any, expected: Any, path: str = "answer") -> list[dict[str, Any]]:
+    if isinstance(expected, dict) and expected:
+        checks = []
+        actual_dict = actual if isinstance(actual, dict) else {}
+        for key, value in expected.items():
+            checks.extend(manual_answer_checks(actual_dict.get(key, MISSING), value, f"{path}.{key}"))
+        return checks
+    passed = actual is not MISSING and actual == expected
+    detail = "缺少字段" if actual is MISSING else f"实际答案: {actual!r}"
+    return [{"name": path, "passed": passed, "detail": detail}]
+
+
 def grade_case(workspace: Path, case: Case, spec: dict[str, Any]) -> dict[str, Any]:
     protocol_ok, protocol_detail, result_data = validate_result(workspace, case.id)
     checks: list[dict[str, Any]] = []
@@ -196,19 +237,26 @@ def grade_case(workspace: Path, case: Case, spec: dict[str, Any]) -> dict[str, A
         passed = result_data is not None and result_data.get("answer") == spec["expected"]
         actual = result_data.get("answer") if result_data else None
         checks.append({"name": "answer", "passed": passed, "detail": f"实际答案: {actual!r}"})
+    elif spec["type"] == "manual":
+        actual = result_data.get("answer") if result_data else None
+        checks.extend(manual_answer_checks(actual, spec["expected"]))
     else:
         for index, check in enumerate(spec["checks"], 1):
             passed, detail = run_js_check(workspace, spec["file"], check)
             checks.append({"name": f"hidden-{index}", "passed": passed, "detail": detail})
     functional = sum(check["passed"] for check in checks) / len(checks) if checks else 0.0
     score = round(functional * 90 + (10 if protocol_ok else 0), 2)
-    return {
+    record = {
         "case_id": case.id,
         "category": case.category,
         "score": score,
         "protocol": {"passed": protocol_ok, "detail": protocol_detail},
         "checks": checks,
     }
+    if spec["type"] == "manual":
+        record["manual_score"] = round(functional * 10, 2)
+        record["answer"] = result_data.get("answer") if result_data else None
+    return record
 
 
 def grade(run_dir: Path, tools: list[str], cases: list[Case]) -> dict[str, Any]:

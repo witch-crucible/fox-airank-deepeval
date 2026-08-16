@@ -1,0 +1,296 @@
+{
+  "graded_at": "2026-07-23T06:37:15.590874+00:00",
+  "summary": {
+    "opencode": {
+      "overall": 93.08,
+      "by_category": {
+        "code_correction": 100.0,
+        "code_generation": 100.0,
+        "logic_analysis": 87.14
+      }
+    }
+  },
+  "results": [
+    {
+      "case_id": "fix-cart-total",
+      "category": "code_correction",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-2",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-3",
+          "passed": true,
+          "detail": "通过"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "fix-pagination-window",
+      "category": "code_correction",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-2",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-3",
+          "passed": true,
+          "detail": "通过"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "fix-query-string",
+      "category": "code_correction",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-2",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-3",
+          "passed": true,
+          "detail": "通过"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "write-pagination-reducer",
+      "category": "code_generation",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-2",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-3",
+          "passed": true,
+          "detail": "通过"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "write-product-card",
+      "category": "code_generation",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-2",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-3",
+          "passed": true,
+          "detail": "通过"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "write-product-filter",
+      "category": "code_generation",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "hidden-1",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-2",
+          "passed": true,
+          "detail": "通过"
+        },
+        {
+          "name": "hidden-3",
+          "passed": true,
+          "detail": "通过"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "logic-access-policy",
+      "category": "logic_analysis",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": true,
+          "detail": "实际答案: {'policy_matches_implementation': False, 'violating_role': 'editor', 'violating_status': 'submitted', 'violating_action': 'edit', 'risk': 'unauthorized-edit-of-submitted-order'}"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "logic-async-search-race",
+      "category": "logic_analysis",
+      "score": 10.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": false,
+          "detail": "实际答案: {'contract_violated': True, 'unguarded_call': 'render(suggestions);', 'missing_condition': 'token === latestToken'}"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "logic-cart-event-trace",
+      "category": "logic_analysis",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": true,
+          "detail": "实际答案: {'process_issue': 'out-of-order-event-application', 'evidence': {'out_of_order_pairs': 1, 'affected_items': 1}, 'control': 'sequence-number-enforcement'}"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "logic-comment-implementation",
+      "category": "logic_analysis",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": true,
+          "detail": "实际答案: {'contract_violated': True, 'misclassified_values': ['stock=0'], 'faulty_condition': '!stock', 'correct_condition': 'stock === null'}"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "logic-commit-consistency",
+      "category": "logic_analysis",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": true,
+          "detail": "实际答案: {'consistent': False, 'implemented_dimensions': ['currency'], 'missing_dimensions': ['locale'], 'risk': 'cross-locale-cache-collision'}"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "logic-fragmented-business-rule",
+      "category": "logic_analysis",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": true,
+          "detail": "实际答案: {'threshold_basis': 'after_discount', 'mainland_threshold': 500, 'mainland_standard_shipping': 30, 'vip_mainland_free': True, 'overseas_shipping': 80, 'orders': {'o1': 30, 'o2': 0, 'o3': 80, 'o4': 0}}"
+        }
+      ],
+      "tool": "opencode"
+    },
+    {
+      "case_id": "logic-result-process",
+      "category": "logic_analysis",
+      "score": 100.0,
+      "protocol": {
+        "passed": true,
+        "detail": "结果协议有效"
+      },
+      "checks": [
+        {
+          "name": "answer",
+          "passed": true,
+          "detail": "实际答案: {'process_issue': 'retry-without-idempotency', 'evidence': {'duplicate_orders': 8, 'retried_intents': 8}, 'control': 'idempotency-key-per-intent'}"
+        }
+      ],
+      "tool": "opencode"
+    }
+  ]
+}

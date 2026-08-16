@@ -1,0 +1,10 @@
+{
+  "case_id": "fix-query-string",
+  "status": "completed",
+  "summary": "重写 toQueryString：忽略 null/undefined 字段但保留 false、0、空字符串；数组逐元素展开为同名参数（空数组不生成参数，忽略数组中 null/undefined 元素）；key/value 均用 encodeURIComponent 编码；自身 key 按字典序处理且不修改输入对象。",
+  "changed_files": ["query.js", "result.json"],
+  "verification": [
+    "npm test（node public-test.mjs）通过：public test passed",
+    "node --input-type=module 内联断言覆盖 null/undefined 忽略、false/0/空字符串保留、数组展开、空数组、编码、字典序、输入不可变、数组内 null 元素忽略，全部通过"
+  ]
+}

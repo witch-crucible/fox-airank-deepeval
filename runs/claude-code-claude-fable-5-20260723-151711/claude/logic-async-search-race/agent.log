@@ -1,0 +1,18 @@
+command=["claude", "-p", "--permission-mode", "auto", "--no-session-persistence", "阅读 TASK.md，独立完成任务并执行必要验证。最后必须按 TASK.md 要求生成 result.json。"]
+status=completed
+returncode=0
+elapsed_seconds=75.548
+
+[stdout]
+完成。结论:代码违反注释契约,`result.json` 已按协议生成。
+
+- **偏差**:`search` 在 `await fetchSuggestions(query)` 之后无条件执行 `render(suggestions);`。虽然每次调用递增了 `latestToken` 并记录了本次的 `token`,但从未使用它做检查——早发起、晚返回的请求结果同样会被 render,直接违反"只有最新请求可以 render"的契约。
+- **最小修正条件**:在调用 render 前加保护 `token === latestToken`(即 `if (token === latestToken) render(suggestions);`)。未修改代码。
+- **验证**:用 Node 脚本并发调用 `search('a')`(慢,50ms)和 `search('ab')`(快,10ms),实际输出 `[["ab-new"],["a-old"]]`——过期结果在最新结果之后被渲染,竞态确凿复现。
+
+`result.json` 中 `answer` 字段严格为:`{"contract_violated": true, "unguarded_call": "render(suggestions);", "missing_condition": "token === latestToken"}`。
+
+(附注:本机 shell 里的 `node` 是坏掉的 nvm shim,报 `_load_nvm: command not found`;我改用 `~/.nvm/versions/node/v22.15.0/bin/node` 直接运行。)
+
+
+[stderr]

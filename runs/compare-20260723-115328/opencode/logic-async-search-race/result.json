@@ -1,0 +1,12 @@
+{
+  "case_id": "logic-async-search-race",
+  "status": "completed",
+  "summary": "分析 search.js，发现代码未检查 token 是否为最新即调用 render，违反注释中'只有最新一次请求的结果才允许调用 render'的契约。",
+  "changed_files": [],
+  "verification": ["对比代码实现与注释契约"],
+  "answer": {
+    "contract_violated": true,
+    "unguarded_call": "render(suggestions)",
+    "missing_condition": "token === latestToken"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "case_id": "write-pagination-reducer",
+  "status": "completed",
+  "summary": "实现 paginationReducer：SET_PAGE 将 page 夹取到 [1, 最后一页]（无数据时最后一页为 1）；SET_PAGE_SIZE 校验正整数并按当前首条记录零基下标重算 page；SET_TOTAL 将 total 规范为非负整数并向前修正 page；RESET 返回 { page: 1, pageSize, total: 0 }；未知 action 返回原 state，有效 action 返回新对象且不修改输入。",
+  "changed_files": ["pagination-reducer.js"],
+  "verification": ["npm test（node public-test.mjs）通过：public test passed"]
+}

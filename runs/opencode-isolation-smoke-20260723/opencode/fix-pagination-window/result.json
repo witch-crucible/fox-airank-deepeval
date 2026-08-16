@@ -1,0 +1,10 @@
+{
+  "case_id": "fix-pagination-window",
+  "status": "completed",
+  "summary": "修复 pagination.js 的 pageWindow：total 或 size 小于等于 0 时返回空数组；将 current 限制到 [1, total]、size 限制到 total；以 current 居中计算起点（偶数 size 时 current 位于中间两个位置靠右），并在靠近两端时平移窗口以保持目标长度。",
+  "changed_files": ["pagination.js", "result.json"],
+  "verification": [
+    "npm test（node public-test.mjs，断言 pageWindow(5, 10, 5) 等于 [3,4,5,6,7]，输出 public test passed）",
+    "node -e 边界用例脚本：覆盖 pageWindow(5,10,4)=[3,4,5,6]、两端平移、current 越界钳制、size 大于 total、total/size 小于等于 0 返回空数组等 22 个断言，输出 all edge cases passed"
+  ]
+}

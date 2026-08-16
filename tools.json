@@ -2,13 +2,14 @@
   "codex": {
     "command": ["codex", "exec", "--skip-git-repo-check", "--ephemeral", "-s", "workspace-write", "{prompt}"]
   },
-  "claude-code": {
+  "claude": {
     "command": ["claude", "-p", "--permission-mode", "auto", "--no-session-persistence", "{prompt}"]
   },
   "qwen": {
     "command": ["qwen", "-p", "--yolo", "{prompt}"]
   },
   "opencode": {
-    "command": ["opencode", "run", "--auto", "--model", "opencode/deepseek-v4-flash-free", "{prompt}"]
+    "agent": "build",
+    "command": ["opencode", "run", "--pure", "--auto", "--dir", "{workspace}", "--agent", "build", "{prompt}"]
   }
 }

@@ -1,0 +1,15 @@
+{
+  "case_id": "logic-result-process",
+  "status": "completed",
+  "summary": "分析 checkout-run.json 中的数量关系：checkout_intents=100，api_attempts=108，successful_api_responses=108，created_orders=108，unique_checkout_intent_ids_in_orders=100，intents_with_two_orders=8。retry_reason 说明客户端在收到 8 个首次请求的成功响应前就已超时，从而发起了重试；但服务端实际上两次请求都处理成功，各自创建了订单（108-100=8 笔重复订单，对应 8 个被重试的 intent）。接口调用数多于意图数本身只是现象，根因是重试请求没有携带幂等标识，导致同一个 checkout intent 的两次尝试被服务端当作两笔独立、都成功的交易，从而产生重复订单。最直接的控制措施是为每个 checkout intent 使用幂等键（idempotency key），使重试请求命中同一幂等键时被服务端识别为同一笔交易，不再重复创建订单。",
+  "changed_files": ["result.json"],
+  "verification": [
+    "python3 -c \"import json; d=json.load(open('checkout-run.json')); assert d['created_orders']-d['unique_checkout_intent_ids_in_orders']==8; assert d['intents_with_two_orders']==8; print('evidence verified: duplicate_orders=8, retried_intents=8')\"",
+    "python3 -c \"import json; json.load(open('result.json')); print('result.json is valid JSON')\""
+  ],
+  "answer": {
+    "process_issue": "retry-without-idempotency",
+    "evidence": {"duplicate_orders": 8, "retried_intents": 8},
+    "control": "idempotency-key-per-intent"
+  }
+}

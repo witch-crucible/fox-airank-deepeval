@@ -1,0 +1,14 @@
+{
+  "case_id": "logic-async-search-race",
+  "status": "completed",
+  "summary": "分析 search.js：注释契约要求只有最新发起的请求结果才能调用 render，更早发起但更晚返回的结果必须丢弃。但代码在 await fetchSuggestions(query) 返回后直接调用 render(suggestions)，未将本次请求的 token 与全局 latestToken 比对，因此过期请求的结果也会被渲染，违反契约。未修改代码，仅做只读分析。",
+  "changed_files": [],
+  "verification": [
+    "通读 search.js 全文，核对 render 调用前是否存在 token === latestToken 一类的判断（未发现）"
+  ],
+  "answer": {
+    "contract_violated": true,
+    "unguarded_call": "render(suggestions)",
+    "missing_condition": "token === latestToken"
+  }
+}

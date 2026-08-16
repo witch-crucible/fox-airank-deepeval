@@ -1,0 +1,646 @@
+command=["codex", "exec", "--skip-git-repo-check", "--ephemeral", "-s", "workspace-write", "阅读 TASK.md，独立完成任务并执行必要验证。最后必须按 TASK.md 要求生成 result.json。"]
+status=completed
+returncode=0
+elapsed_seconds=62.87
+
+[stdout]
+任务已完成：
+
+- 实现查询、分类、价格区间、库存筛选。
+- 实现三种稳定排序，并保持输入不可变。
+- `npm test` 通过。
+- 扩展边界及不可变性测试通过。
+- 已生成并校验 [result.json](/Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/codex/write-product-filter/result.json)。
+
+
+[stderr]
+OpenAI Codex v0.145.0
+--------
+workdir: /Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/codex/write-product-filter
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: workspace-write [workdir, /tmp, $TMPDIR]
+reasoning effort: low
+reasoning summaries: none
+session id: 019f8cd8-0e8f-7600-8fa9-4f176320ab25
+--------
+user
+阅读 TASK.md，独立完成任务并执行必要验证。最后必须按 TASK.md 要求生成 result.json。
+codex
+我会先读取当前目录的任务说明与现有文件，明确行为、成功标准和验证命令；随后只做最小必要修改，并按要求生成 `result.json`。
+exec
+/bin/zsh -lc "pwd && rg --files -g 'TASK.md' -g '"'!result.json'"' -g '*' | sed -n '1,120p' && sed -n '1,240p' TASK.md" in /Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/codex/write-product-filter
+ succeeded in 0ms:
+/Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/codex/write-product-filter
+case.json
+AGENTS.md
+TASK.md
+package.json
+RESULT_PROTOCOL.md
+product-filter.js
+public-test.mjs
+# 实现商品筛选与稳定排序
+
+在 `product-filter.js` 实现 `filterProducts(products, options)`：
+
+- options 可含 `query`、`categories`、`minPrice`、`maxPrice`、`inStockOnly`、`sortBy`。
+- query 去除首尾空格并忽略大小写，同时匹配 name 或 sku；categories 为空时不过滤，否则精确匹配分类。
+- 价格边界包含端点；`inStockOnly` 仅保留 stock > 0。
+- sortBy 支持 `price-asc`、`price-desc`、`name-asc`，未提供时保持原顺序；值相等时保持原始顺序。
+- 不得修改 products、options 或其中对象，返回新数组。
+
+只使用标准 JavaScript。执行 `npm test`，并按 `RESULT_PROTOCOL.md` 生成 `result.json`。
+
+codex
+成功标准已明确：筛选条件完整、排序稳定、输入完全不变且始终返回新数组。接下来我会检查现有实现、公开测试和结果协议，先运行测试确认当前缺口。
+exec
+/bin/zsh -lc "sed -n '1,260p' product-filter.js && sed -n '1,300p' public-test.mjs && sed -n '1,220p' package.json && sed -n '1,260p' RESULT_PROTOCOL.md && npm test" in /Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/codex/write-product-filter
+ exited 1 in 128ms:
+file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js:2
+  throw new Error("Not implemented");
+        ^
+
+Error: Not implemented
+    at filterProducts (file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js:2:9)
+    at file:///Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/codex/write-product-filter/public-test.mjs:8:18
+    at ModuleJob.run (node:internal/modules/esm/module_job:325:25)
+    at async ModuleLoader.import (node:internal/modules/esm/loader:606:24)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v20.20.2
+
+apply patch
+patch: completed
+/Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
+diff --git a/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js b/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
+index c7d80e0e7a4edd047be440a04cb17251b94b2163..8f87771f4684ea6d14f236f77a0de4e78f00f69f
+--- a/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
++++ b/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
+@@ -1,3 +1,56 @@
+ export function filterProducts(products, options = {}) {
+-  throw new Error("Not implemented");
++  const {
++    query,
++    categories,
++    minPrice,
++    maxPrice,
++    inStockOnly,
++    sortBy
++  } = options;
++  const normalizedQuery =
++    query === undefined ? "" : String(query).trim().toLowerCase();
++  const selectedCategories =
++    Array.isArray(categories) && categories.length > 0 ? categories : null;
++
++  const filtered = products.filter((product) => {
++    if (
++      normalizedQuery &&
++      !String(product.name).toLowerCase().includes(normalizedQuery) &&
++      !String(product.sku).toLowerCase().includes(normalizedQuery)
++    ) {
++      return false;
++    }
++    if (selectedCategories && !selectedCategories.includes(product.category)) {
++      return false;
++    }
++    if (minPrice !== undefined && product.price < minPrice) {
++      return false;
++    }
++    if (maxPrice !== undefined && product.price > maxPrice) {
++      return false;
++    }
++    if (inStockOnly && product.stock <= 0) {
++      return false;
++    }
++    return true;
++  });
++
++  const comparators = {
++    "price-asc": (left, right) => left.price - right.price,
++    "price-desc": (left, right) => right.price - left.price,
++    "name-asc": (left, right) => left.name.localeCompare(right.name)
++  };
++  const compare = comparators[sortBy];
++
++  if (!compare) {
++    return filtered;
++  }
++
++  return filtered
++    .map((product, index) => ({ product, index }))
++    .sort((left, right) => {
++      const order = compare(left.product, right.product);
++      return order === 0 ? left.index - right.index : order;
++    })
++    .map(({ product }) => product);
+ }
+
+diff --git a/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js b/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
+index c7d80e0e7a4edd047be440a04cb17251b94b2163..8f87771f4684ea6d14f236f77a0de4e78f00f69f
+--- a/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
++++ b/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
+@@ -1,3 +1,56 @@
+ export function filterProducts(products, options = {}) {
+-  throw new Error("Not implemented");
++  const {
++    query,
++    categories,
++    minPrice,
++    maxPrice,
++    inStockOnly,
++    sortBy
++  } = options;
++  const normalizedQuery =
++    query === undefined ? "" : String(query).trim().toLowerCase();
++  const selectedCategories =
++    Array.isArray(categories) && categories.length > 0 ? categories : null;
++
++  const filtered = products.filter((product) => {
++    if (
++      normalizedQuery &&
++      !String(product.name).toLowerCase().includes(normalizedQuery) &&
++      !String(product.sku).toLowerCase().includes(normalizedQuery)
++    ) {
++      return false;
++    }
++    if (selectedCategories && !selectedCategories.includes(product.category)) {
++      return false;
++    }
++    if (minPrice !== undefined && product.price < minPrice) {
++      return false;
++    }
++    if (maxPrice !== undefined && product.price > maxPrice) {
++      return false;
++    }
++    if (inStockOnly && product.stock <= 0) {
++      return false;
++    }
++    return true;
++  });
++
++  const comparators = {
++    "price-asc": (left, right) => left.price - right.price,
++    "price-desc": (left, right) => right.price - left.price,
++    "name-asc": (left, right) => left.name.localeCompare(right.name)
++  };
++  const compare = comparators[sortBy];
++
++  if (!compare) {
++    return filtered;
++  }
++
++  return filtered
++    .map((product, index) => ({ product, index }))
++    .sort((left, right) => {
++      const order = compare(left.product, right.product);
++      return order === 0 ? left.index - right.index : order;
++    })
++    .map(({ product }) => product);
+ }
+
+codex
+实现已完成，采用显式原始索引作为排序并列项的兜底，因此不依赖运行时排序稳定性；筛选和排序都只创建新数组，不写入商品或选项。现在运行公开测试，并补充覆盖边界、三种排序、稳定性和不可变性的检查。
+exec
+/bin/zsh -lc "npm test && node --input-type=module <<'NODE'
+import assert from 'node:assert/strict';
+import { filterProducts } from './product-filter.js';
+
+const products = [
+  { sku: 'B-2', name: 'beta', category: 'bag', price: 20, stock: 0 },
+  { sku: 'A-1', name: 'Alpha', category: 'shoe', price: 10, stock: 3 },
+  { sku: 'B-1', name: 'beta', category: 'bag', price: 20, stock: 1 },
+  { sku: 'C-1', name: 'Gamma', category: 'scarf', price: 30, stock: 2 }
+];
+const options = { query: '  B-  ', categories: ['bag'], minPrice: 20, maxPrice: 20, inStockOnly: true, sortBy: 'price-desc' };
+const productsSnapshot = structuredClone(products);
+const optionsSnapshot = structuredClone(options);
+assert.deepEqual(filterProducts(products, options), [products[2]]);
+assert.deepEqual(filterProducts(products, { categories: [] }), products);
+assert.notStrictEqual(filterProducts(products), products);
+assert.deepEqual(filterProducts(products, { sortBy: 'price-asc' }), [products[1], products[0], products[2], products[3]]);
+assert.deepEqual(filterProducts(products, { sortBy: 'price-desc' }), [products[3], products[0], products[2], products[1]]);
+assert.deepEqual(filterProducts(products, { sortBy: 'name-asc' }), [products[1], products[0], products[2], products[3]]);
+assert.deepEqual(products, productsSnapshot);
+assert.deepEqual(options, optionsSnapshot);
+console.log('extended checks passed');
+NODE" in /Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/codex/write-product-filter
+diff --git a/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js b/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
+index c7d80e0e7a4edd047be440a04cb17251b94b2163..8f87771f4684ea6d14f236f77a0de4e78f00f69f
+--- a/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
++++ b/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
+@@ -1,3 +1,56 @@
+ export function filterProducts(products, options = {}) {
+-  throw new Error("Not implemented");
++  const {
++    query,
++    categories,
++    minPrice,
++    maxPrice,
++    inStockOnly,
++    sortBy
++  } = options;
++  const normalizedQuery =
++    query === undefined ? "" : String(query).trim().toLowerCase();
++  const selectedCategories =
++    Array.isArray(categories) && categories.length > 0 ? categories : null;
++
++  const filtered = products.filter((product) => {
++    if (
++      normalizedQuery &&
++      !String(product.name).toLowerCase().includes(normalizedQuery) &&
++      !String(product.sku).toLowerCase().includes(normalizedQuery)
++    ) {
++      return false;
++    }
++    if (selectedCategories && !selectedCategories.includes(product.category)) {
++      return false;
++    }
++    if (minPrice !== undefined && product.price < minPrice) {
++      return false;
++    }
++    if (maxPrice !== undefined && product.price > maxPrice) {
++      return false;
++    }
++    if (inStockOnly && product.stock <= 0) {
++      return false;
++    }
++    return true;
++  });
++
++  const comparators = {
++    "price-asc": (left, right) => left.price - right.price,
++    "price-desc": (left, right) => right.price - left.price,
++    "name-asc": (left, right) => left.name.localeCompare(right.name)
++  };
++  const compare = comparators[sortBy];
++
++  if (!compare) {
++    return filtered;
++  }
++
++  return filtered
++    .map((product, index) => ({ product, index }))
++    .sort((left, right) => {
++      const order = compare(left.product, right.product);
++      return order === 0 ? left.index - right.index : order;
++    })
++    .map(({ product }) => product);
+ }
+
+ succeeded in 156ms:
+public test passed
+extended checks passed
+
+apply patch
+patch: completed
+/Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/codex/write-product-filter/result.json
+diff --git a/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js b/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
+index c7d80e0e7a4edd047be440a04cb17251b94b2163..8f87771f4684ea6d14f236f77a0de4e78f00f69f
+--- a/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
++++ b/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
+@@ -1,3 +1,56 @@
+ export function filterProducts(products, options = {}) {
+-  throw new Error("Not implemented");
++  const {
++    query,
++    categories,
++    minPrice,
++    maxPrice,
++    inStockOnly,
++    sortBy
++  } = options;
++  const normalizedQuery =
++    query === undefined ? "" : String(query).trim().toLowerCase();
++  const selectedCategories =
++    Array.isArray(categories) && categories.length > 0 ? categories : null;
++
++  const filtered = products.filter((product) => {
++    if (
++      normalizedQuery &&
++      !String(product.name).toLowerCase().includes(normalizedQuery) &&
++      !String(product.sku).toLowerCase().includes(normalizedQuery)
++    ) {
++      return false;
++    }
++    if (selectedCategories && !selectedCategories.includes(product.category)) {
++      return false;
++    }
++    if (minPrice !== undefined && product.price < minPrice) {
++      return false;
++    }
++    if (maxPrice !== undefined && product.price > maxPrice) {
++      return false;
++    }
++    if (inStockOnly && product.stock <= 0) {
++      return false;
++    }
++    return true;
++  });
++
++  const comparators = {
++    "price-asc": (left, right) => left.price - right.price,
++    "price-desc": (left, right) => right.price - left.price,
++    "name-asc": (left, right) => left.name.localeCompare(right.name)
++  };
++  const compare = comparators[sortBy];
++
++  if (!compare) {
++    return filtered;
++  }
++
++  return filtered
++    .map((product, index) => ({ product, index }))
++    .sort((left, right) => {
++      const order = compare(left.product, right.product);
++      return order === 0 ? left.index - right.index : order;
++    })
++    .map(({ product }) => product);
+ }
+diff --git a/runs/compare-20260723-103451/codex/write-product-filter/result.json b/runs/compare-20260723-103451/codex/write-product-filter/result.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..be9ef4c3a1f8870b7f87f088e426b83dd609a9a0
+--- /dev/null
++++ b/runs/compare-20260723-103451/codex/write-product-filter/result.json
+@@ -0,0 +1,13 @@
++{
++  "case_id": "write-product-filter",
++  "status": "completed",
++  "summary": "实现商品的查询、分类、价格与库存筛选，以及稳定的价格和名称排序；保证输入不被修改并始终返回新数组。",
++  "changed_files": [
++    "product-filter.js",
++    "result.json"
++  ],
++  "verification": [
++    "npm test",
++    "node --input-type=module（扩展断言：查询、空分类、价格端点、库存、三种排序、稳定性、新数组与输入不可变性）"
++  ]
++}
+
+diff --git a/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js b/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
+index c7d80e0e7a4edd047be440a04cb17251b94b2163..8f87771f4684ea6d14f236f77a0de4e78f00f69f
+--- a/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
++++ b/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
+@@ -1,3 +1,56 @@
+ export function filterProducts(products, options = {}) {
+-  throw new Error("Not implemented");
++  const {
++    query,
++    categories,
++    minPrice,
++    maxPrice,
++    inStockOnly,
++    sortBy
++  } = options;
++  const normalizedQuery =
++    query === undefined ? "" : String(query).trim().toLowerCase();
++  const selectedCategories =
++    Array.isArray(categories) && categories.length > 0 ? categories : null;
++
++  const filtered = products.filter((product) => {
++    if (
++      normalizedQuery &&
++      !String(product.name).toLowerCase().includes(normalizedQuery) &&
++      !String(product.sku).toLowerCase().includes(normalizedQuery)
++    ) {
++      return false;
++    }
++    if (selectedCategories && !selectedCategories.includes(product.category)) {
++      return false;
++    }
++    if (minPrice !== undefined && product.price < minPrice) {
++      return false;
++    }
++    if (maxPrice !== undefined && product.price > maxPrice) {
++      return false;
++    }
++    if (inStockOnly && product.stock <= 0) {
++      return false;
++    }
++    return true;
++  });
++
++  const comparators = {
++    "price-asc": (left, right) => left.price - right.price,
++    "price-desc": (left, right) => right.price - left.price,
++    "name-asc": (left, right) => left.name.localeCompare(right.name)
++  };
++  const compare = comparators[sortBy];
++
++  if (!compare) {
++    return filtered;
++  }
++
++  return filtered
++    .map((product, index) => ({ product, index }))
++    .sort((left, right) => {
++      const order = compare(left.product, right.product);
++      return order === 0 ? left.index - right.index : order;
++    })
++    .map(({ product }) => product);
+ }
+diff --git a/runs/compare-20260723-103451/codex/write-product-filter/result.json b/runs/compare-20260723-103451/codex/write-product-filter/result.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..be9ef4c3a1f8870b7f87f088e426b83dd609a9a0
+--- /dev/null
++++ b/runs/compare-20260723-103451/codex/write-product-filter/result.json
+@@ -0,0 +1,13 @@
++{
++  "case_id": "write-product-filter",
++  "status": "completed",
++  "summary": "实现商品的查询、分类、价格与库存筛选，以及稳定的价格和名称排序；保证输入不被修改并始终返回新数组。",
++  "changed_files": [
++    "product-filter.js",
++    "result.json"
++  ],
++  "verification": [
++    "npm test",
++    "node --input-type=module（扩展断言：查询、空分类、价格端点、库存、三种排序、稳定性、新数组与输入不可变性）"
++  ]
++}
+
+codex
+公开测试和扩展检查均已通过，`result.json` 已按协议生成。最后我会校验 JSON 可解析，并检查最终差异仅包含任务要求的两个文件。
+exec
+/bin/zsh -lc "node -e \"JSON.parse(require('fs').readFileSync('result.json', 'utf8')); console.log('result.json valid')\" && git diff -- product-filter.js result.json && git status --short" in /Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/codex/write-product-filter
+ succeeded in 0ms:
+result.json valid
+?? ../../../../.idea/
+?? ../../../../AGENTS.md
+?? ../../../../run_benchmark.py
+?? ../../
+
+diff --git a/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js b/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
+index c7d80e0e7a4edd047be440a04cb17251b94b2163..8f87771f4684ea6d14f236f77a0de4e78f00f69f
+--- a/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
++++ b/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
+@@ -1,3 +1,56 @@
+ export function filterProducts(products, options = {}) {
+-  throw new Error("Not implemented");
++  const {
++    query,
++    categories,
++    minPrice,
++    maxPrice,
++    inStockOnly,
++    sortBy
++  } = options;
++  const normalizedQuery =
++    query === undefined ? "" : String(query).trim().toLowerCase();
++  const selectedCategories =
++    Array.isArray(categories) && categories.length > 0 ? categories : null;
++
++  const filtered = products.filter((product) => {
++    if (
++      normalizedQuery &&
++      !String(product.name).toLowerCase().includes(normalizedQuery) &&
++      !String(product.sku).toLowerCase().includes(normalizedQuery)
++    ) {
++      return false;
++    }
++    if (selectedCategories && !selectedCategories.includes(product.category)) {
++      return false;
++    }
++    if (minPrice !== undefined && product.price < minPrice) {
++      return false;
++    }
++    if (maxPrice !== undefined && product.price > maxPrice) {
++      return false;
++    }
++    if (inStockOnly && product.stock <= 0) {
++      return false;
++    }
++    return true;
++  });
++
++  const comparators = {
++    "price-asc": (left, right) => left.price - right.price,
++    "price-desc": (left, right) => right.price - left.price,
++    "name-asc": (left, right) => left.name.localeCompare(right.name)
++  };
++  const compare = comparators[sortBy];
++
++  if (!compare) {
++    return filtered;
++  }
++
++  return filtered
++    .map((product, index) => ({ product, index }))
++    .sort((left, right) => {
++      const order = compare(left.product, right.product);
++      return order === 0 ? left.index - right.index : order;
++    })
++    .map(({ product }) => product);
+ }
+diff --git a/runs/compare-20260723-103451/codex/write-product-filter/result.json b/runs/compare-20260723-103451/codex/write-product-filter/result.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..be9ef4c3a1f8870b7f87f088e426b83dd609a9a0
+--- /dev/null
++++ b/runs/compare-20260723-103451/codex/write-product-filter/result.json
+@@ -0,0 +1,13 @@
++{
++  "case_id": "write-product-filter",
++  "status": "completed",
++  "summary": "实现商品的查询、分类、价格与库存筛选，以及稳定的价格和名称排序；保证输入不被修改并始终返回新数组。",
++  "changed_files": [
++    "product-filter.js",
++    "result.json"
++  ],
++  "verification": [
++    "npm test",
++    "node --input-type=module（扩展断言：查询、空分类、价格端点、库存、三种排序、稳定性、新数组与输入不可变性）"
++  ]
++}
+
+codex
+任务已完成：
+
+- 实现查询、分类、价格区间、库存筛选。
+- 实现三种稳定排序，并保持输入不可变。
+- `npm test` 通过。
+- 扩展边界及不可变性测试通过。
+- 已生成并校验 [result.json](/Users/ben/Code/test/test-ai-model/runs/compare-20260723-103451/codex/write-product-filter/result.json)。
+diff --git a/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js b/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
+index c7d80e0e7a4edd047be440a04cb17251b94b2163..8f87771f4684ea6d14f236f77a0de4e78f00f69f
+--- a/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
++++ b/runs/compare-20260723-103451/codex/write-product-filter/product-filter.js
+@@ -1,3 +1,56 @@
+ export function filterProducts(products, options = {}) {
+-  throw new Error("Not implemented");
++  const {
++    query,
++    categories,
++    minPrice,
++    maxPrice,
++    inStockOnly,
++    sortBy
++  } = options;
++  const normalizedQuery =
++    query === undefined ? "" : String(query).trim().toLowerCase();
++  const selectedCategories =
++    Array.isArray(categories) && categories.length > 0 ? categories : null;
++
++  const filtered = products.filter((product) => {
++    if (
++      normalizedQuery &&
++      !String(product.name).toLowerCase().includes(normalizedQuery) &&
++      !String(product.sku).toLowerCase().includes(normalizedQuery)
++    ) {
++      return false;
++    }
++    if (selectedCategories && !selectedCategories.includes(product.category)) {
++      return false;
++    }
++    if (minPrice !== undefined && product.price < minPrice) {
++      return false;
++    }
++    if (maxPrice !== undefined && product.price > maxPrice) {
++      return false;
++    }
++    if (inStockOnly && product.stock <= 0) {
++      return false;
++    }
++    return true;
++  });
++
++  const comparators = {
++    "price-asc": (left, right) => left.price - right.price,
++    "price-desc": (left, right) => right.price - left.price,
++    "name-asc": (left, right) => left.name.localeCompare(right.name)
++  };
++  const compare = comparators[sortBy];
++
++  if (!compare) {
++    return filtered;
++  }
++
++  return filtered
++    .map((product, index) => ({ product, index }))
++    .sort((left, right) => {
++      const order = compare(left.product, right.product);
++      return order === 0 ? left.index - right.index : order;
++    })
++    .map(({ product }) => product);
+ }
+diff --git a/runs/compare-20260723-103451/codex/write-product-filter/result.json b/runs/compare-20260723-103451/codex/write-product-filter/result.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..be9ef4c3a1f8870b7f87f088e426b83dd609a9a0
+--- /dev/null
++++ b/runs/compare-20260723-103451/codex/write-product-filter/result.json
+@@ -0,0 +1,13 @@
++{
++  "case_id": "write-product-filter",
++  "status": "completed",
++  "summary": "实现商品的查询、分类、价格与库存筛选，以及稳定的价格和名称排序；保证输入不被修改并始终返回新数组。",
++  "changed_files": [
++    "product-filter.js",
++    "result.json"
++  ],
++  "verification": [
++    "npm test",
++    "node --input-type=module（扩展断言：查询、空分类、价格端点、库存、三种排序、稳定性、新数组与输入不可变性）"
++  ]
++}
+
+tokens used
+29,122

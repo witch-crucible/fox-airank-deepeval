@@ -228,6 +228,7 @@ def render_report_html(report: dict[str, Any]) -> str:
         if (!item) return;
         const panel = create("section", "detail-panel");
         panel.append(create("h3", "", tool));
+        if (item.manual_score !== undefined) panel.append(create("p", "muted", `手动测试得分：${{formatScore(item.manual_score)}} / 10`));
         const checks = [{{ name: "结果协议", passed: Boolean(item.protocol?.passed), detail: item.protocol?.detail || "" }}, ...(item.checks || [])];
         checks.forEach(check => {{
           const row = create("div", "check");

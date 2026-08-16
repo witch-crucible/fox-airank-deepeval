@@ -1,0 +1,13 @@
+{
+  "case_id": "logic-comment-implementation",
+  "status": "completed",
+  "summary": "分析 inventory.js，发现 canAddToCart 中使用 !stock 判断，导致 stock=0 时被错误归类为'不限制库存'从而允许购买，违反注释中 stock===0 应禁止购买的契约。",
+  "changed_files": [],
+  "verification": ["对比代码实现与注释契约"],
+  "answer": {
+    "contract_violated": true,
+    "misclassified_values": ["stock=0"],
+    "faulty_condition": "if (!stock) return true;",
+    "correct_condition": "if (stock === null) return true;"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "case_id": "logic-commit-consistency",
+  "status": "completed",
+  "summary": "阅读 COMMIT_MESSAGE.txt 与 change.diff。commit 声明将 locale 和 currency 都加入 product-list 缓存键，以防止本地化名称与转换后价格在请求间泄漏。但 diff 仅将 currency 加入缓存键（productListCacheKey 增加 currency 参数与后缀），未加入 locale。因此 currency 维度已实现，locale 维度缺失；由于本地化名称仍会在不同 locale 间共享同一缓存键，存在 cross-locale-cache-collision 风险。声明未完整实现，不一致。",
+  "changed_files": ["result.json"],
+  "verification": ["cat COMMIT_MESSAGE.txt", "cat change.diff", "对比声明的 locale/currency 两维度与 diff 中实际修改的缓存键参数"],
+  "answer": {
+    "consistent": false,
+    "implemented_dimensions": ["currency"],
+    "missing_dimensions": ["locale"],
+    "risk": "cross-locale-cache-collision"
+  }
+}

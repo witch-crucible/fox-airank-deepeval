@@ -1,0 +1,10 @@
+{
+  "case_id": "write-pagination-reducer",
+  "status": "completed",
+  "summary": "在 pagination-reducer.js 实现 paginationReducer：SET_PAGE 将 page 夹在 1..lastPage（无数据时 lastPage 为 1）；SET_PAGE_SIZE 校验正整数，否则原样返回 state，有效时以当前第一条记录零基下标重算 page；SET_TOTAL 将 total 夹为非负整数并在超界时向前修正 page；RESET 返回 {page:1,pageSize,total:0}；未知 action 返回原 state 对象，有效 action 返回新对象且不修改输入。",
+  "changed_files": ["pagination-reducer.js"],
+  "verification": [
+    "/Users/ben/.nvm/versions/node/v24.11.1/bin/node public-test.mjs -> 'public test passed' (等价于 npm test，因 shell 的 nvm 包装函数损坏无法直接调用 npm)",
+    "额外用 node --input-type=module 运行覆盖各 action 的断言（夹取、无数据 lastPage=1、无效 pageSize 返回同一引用、按零基下标重算 page、SET_TOTAL 向前修正、RESET、未知 action 返回原对象、不修改输入）-> 'all extra assertions passed'"
+  ]
+}

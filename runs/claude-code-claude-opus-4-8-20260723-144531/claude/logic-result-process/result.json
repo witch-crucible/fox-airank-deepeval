@@ -1,0 +1,12 @@
+{
+  "case_id": "logic-result-process",
+  "status": "completed",
+  "summary": "从 checkout-run.json 反推：100 个结账意图却生成 108 个订单，8 个意图各有两个订单，失败意图为 0。客户端在收到 8 个首次成功响应前超时并重试这 8 个意图，因重试缺少幂等键，服务端重复处理同一意图，产生 8 个重复订单。核心问题为 retry-without-idempotency，最直接控制措施为按意图设置幂等键（idempotency-key-per-intent）。",
+  "changed_files": ["result.json"],
+  "verification": ["核对数量关系：created_orders 108 - unique_checkout_intent_ids_in_orders 100 = 8 = intents_with_two_orders = duplicate_orders；retried_intents 8 对应超时未收到响应的 8 个意图；failed_intents 0 排除丢请求/成功计数错误"],
+  "answer": {
+    "process_issue": "retry-without-idempotency",
+    "evidence": {"duplicate_orders": 8, "retried_intents": 8},
+    "control": "idempotency-key-per-intent"
+  }
+}

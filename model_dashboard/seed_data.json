@@ -1,0 +1,262 @@
+{
+  "meta": {
+    "title": "AI 模型能力测试",
+    "source_name": "模型能力测试-20260623-展示优化版.xlsx",
+    "source_updated_at": "2026-06-23",
+    "imported_at": "2026-08-13T00:00:00+08:00",
+    "model_test_weights": {
+      "correction": 3,
+      "generation": 3,
+      "logic": 7
+    }
+  },
+  "models": [
+    {
+      "id": "opencode-kimi-k3-max",
+      "tool": "OpenCode",
+      "model": "Kimi K3",
+      "reasoning_effort": "Max",
+      "scores": {"skill_call": null, "code_review": null, "logic_analysis": null, "function_fix": null, "manual_total": 0, "model_test_correction": 100, "model_test_generation": 100, "model_test_logic": 87.14, "model_test_total": 93.08, "arena_webdev": 1678, "composite_total": 1771.08},
+      "response_speed": "慢",
+      "supplement": "",
+      "notes": "实际体验一般",
+      "report_path": "",
+      "source": {"type": "excel", "name": "测试结果", "row": 2}
+    },
+    {
+      "id": "claude-code-fable-5-low",
+      "tool": "Claude Code",
+      "model": "Fable 5",
+      "reasoning_effort": "Low",
+      "scores": {"skill_call": null, "code_review": null, "logic_analysis": null, "function_fix": null, "manual_total": 0, "model_test_correction": 100, "model_test_generation": 100, "model_test_logic": 87.14, "model_test_total": 93.08, "arena_webdev": 1634, "composite_total": 1727.08},
+      "response_speed": "",
+      "supplement": "",
+      "notes": "",
+      "report_path": "",
+      "source": {"type": "excel", "name": "测试结果", "row": 3}
+    },
+    {
+      "id": "codex-gpt-5-6-sol-low",
+      "tool": "Codex",
+      "model": "GPT-5.6-Sol",
+      "reasoning_effort": "Low",
+      "scores": {"skill_call": null, "code_review": null, "logic_analysis": null, "function_fix": null, "manual_total": 0, "model_test_correction": 100, "model_test_generation": 100, "model_test_logic": 87.14, "model_test_total": 93.08, "arena_webdev": 1630, "composite_total": 1723.08},
+      "response_speed": "快",
+      "supplement": "",
+      "notes": "",
+      "report_path": "",
+      "source": {"type": "excel", "name": "测试结果", "row": 4}
+    },
+    {
+      "id": "claude-code-claude-opus-4-8-extra-high",
+      "tool": "Claude Code",
+      "model": "Claude Opus 4.8",
+      "reasoning_effort": "Extra High",
+      "scores": {"skill_call": 10, "code_review": 8, "logic_analysis": 8, "function_fix": 8, "manual_total": 34, "model_test_correction": 100, "model_test_generation": 100, "model_test_logic": 87.14, "model_test_total": 93.08, "arena_webdev": 1565, "composite_total": 1692.08},
+      "response_speed": "慢",
+      "supplement": "",
+      "notes": "",
+      "report_path": "/Users/ben/Code/test/test-ai-model/runs/claude-code-claude-opus-4-8-20260723-144531/report.html",
+      "source": {"type": "excel", "name": "测试结果", "row": 5}
+    },
+    {
+      "id": "claude-code-claude-sonnet-5-high",
+      "tool": "Claude Code",
+      "model": "Claude Sonnet 5",
+      "reasoning_effort": "High",
+      "scores": {"skill_call": null, "code_review": null, "logic_analysis": null, "function_fix": null, "manual_total": 0, "model_test_correction": 100, "model_test_generation": 100, "model_test_logic": 100, "model_test_total": 100, "arena_webdev": 1544, "composite_total": 1644},
+      "response_speed": "",
+      "supplement": "",
+      "notes": "",
+      "report_path": "",
+      "source": {"type": "excel", "name": "测试结果", "row": 6}
+    },
+    {
+      "id": "claude-glm-5-2-bailian",
+      "tool": "Claude",
+      "model": "GLM-5.2（百炼）",
+      "reasoning_effort": "",
+      "scores": {"skill_call": 9, "code_review": 7, "logic_analysis": 1, "function_fix": 7, "manual_total": 24, "model_test_correction": null, "model_test_generation": null, "model_test_logic": null, "model_test_total": null, "arena_webdev": 1592, "composite_total": 1616},
+      "response_speed": "慢",
+      "supplement": "",
+      "notes": "",
+      "report_path": "",
+      "source": {"type": "excel", "name": "测试结果", "row": 7}
+    },
+    {
+      "id": "qoder-qwen3-7-max",
+      "tool": "Qoder",
+      "model": "Qwen3.7",
+      "reasoning_effort": "Max",
+      "scores": {"skill_call": 9, "code_review": 7, "logic_analysis": 7, "function_fix": 7, "manual_total": 30, "model_test_correction": null, "model_test_generation": null, "model_test_logic": null, "model_test_total": null, "arena_webdev": 1515, "composite_total": 1545},
+      "response_speed": "快",
+      "supplement": "",
+      "notes": "用于训练模型",
+      "report_path": "",
+      "source": {"type": "excel", "name": "测试结果", "row": 8}
+    },
+    {
+      "id": "codex-qwen3-7-bailian-max",
+      "tool": "Codex",
+      "model": "Qwen3.7（百炼）",
+      "reasoning_effort": "Max",
+      "scores": {"skill_call": 9, "code_review": 7, "logic_analysis": 1, "function_fix": 7, "manual_total": 24, "model_test_correction": null, "model_test_generation": null, "model_test_logic": null, "model_test_total": null, "arena_webdev": 1515, "composite_total": 1539},
+      "response_speed": "快",
+      "supplement": "",
+      "notes": "",
+      "report_path": "",
+      "source": {"type": "excel", "name": "测试结果", "row": 9}
+    },
+    {
+      "id": "qwen-code-hy3-free",
+      "tool": "Qwen Code",
+      "model": "HY3 Free",
+      "reasoning_effort": "",
+      "scores": {"skill_call": null, "code_review": null, "logic_analysis": null, "function_fix": null, "manual_total": 0, "model_test_correction": 10, "model_test_generation": 0, "model_test_logic": 0, "model_test_total": 2.31, "arena_webdev": 1527, "composite_total": 1529.31},
+      "response_speed": "",
+      "supplement": "",
+      "notes": "",
+      "report_path": "",
+      "source": {"type": "excel", "name": "测试结果", "row": 10}
+    },
+    {
+      "id": "codex-gpt-5-5-high",
+      "tool": "Codex",
+      "model": "GPT-5.5",
+      "reasoning_effort": "High",
+      "scores": {"skill_call": 10, "code_review": 8, "logic_analysis": 9, "function_fix": 9, "manual_total": 36, "model_test_correction": null, "model_test_generation": null, "model_test_logic": null, "model_test_total": null, "arena_webdev": 1483, "composite_total": 1519},
+      "response_speed": "快",
+      "supplement": "",
+      "notes": "",
+      "report_path": "",
+      "source": {"type": "excel", "name": "测试结果", "row": 11}
+    },
+    {
+      "id": "opencode-deepseek-v4-pro",
+      "tool": "OpenCode",
+      "model": "DeepSeek V4 Pro",
+      "reasoning_effort": "",
+      "scores": {"skill_call": null, "code_review": null, "logic_analysis": null, "function_fix": null, "manual_total": null, "model_test_correction": null, "model_test_generation": null, "model_test_logic": null, "model_test_total": null, "arena_webdev": null, "composite_total": null},
+      "response_speed": "",
+      "supplement": "",
+      "notes": "",
+      "report_path": "",
+      "source": {"type": "excel", "name": "测试结果", "row": 12}
+    },
+    {
+      "id": "qwen-code-gemini-3-1-flash-lite-free",
+      "tool": "Qwen Code",
+      "model": "Gemini 3.1 Flash-Lite Free",
+      "reasoning_effort": "",
+      "scores": {"skill_call": null, "code_review": null, "logic_analysis": null, "function_fix": null, "manual_total": 0, "model_test_correction": 43.33, "model_test_generation": 0, "model_test_logic": 87.14, "model_test_total": 56.92, "arena_webdev": 1253, "composite_total": 1309.92},
+      "response_speed": "",
+      "supplement": "",
+      "notes": "",
+      "report_path": "",
+      "source": {"type": "excel", "name": "测试结果", "row": 13}
+    },
+    {
+      "id": "codex-ollama-qwen3-coder-480b-cloud-high",
+      "tool": "Codex（Ollama 注入）",
+      "model": "Qwen3-Coder 480B Cloud",
+      "reasoning_effort": "High",
+      "scores": {"skill_call": 0, "code_review": 0, "logic_analysis": 1, "function_fix": 1, "manual_total": 2, "model_test_correction": null, "model_test_generation": null, "model_test_logic": null, "model_test_total": null, "arena_webdev": 1281, "composite_total": 1283},
+      "response_speed": "快",
+      "supplement": "",
+      "notes": "",
+      "report_path": "",
+      "source": {"type": "excel", "name": "测试结果", "row": 14}
+    },
+    {
+      "id": "qoder-lightweight-low",
+      "tool": "Qoder",
+      "model": "轻量模型",
+      "reasoning_effort": "Low",
+      "scores": {"skill_call": 9, "code_review": 7, "logic_analysis": 6, "function_fix": 7, "manual_total": 29, "model_test_correction": null, "model_test_generation": null, "model_test_logic": null, "model_test_total": null, "arena_webdev": null, "composite_total": 29},
+      "response_speed": "快",
+      "supplement": "",
+      "notes": "",
+      "report_path": "",
+      "source": {"type": "excel", "name": "测试结果", "row": 15}
+    },
+    {
+      "id": "opencode-nemotron-3-ultra-free",
+      "tool": "OpenCode",
+      "model": "Nemotron 3 Ultra Free",
+      "reasoning_effort": "",
+      "scores": {"skill_call": null, "code_review": null, "logic_analysis": null, "function_fix": null, "manual_total": 0, "model_test_correction": 10, "model_test_generation": 0, "model_test_logic": 28.57, "model_test_total": 17.69, "arena_webdev": null, "composite_total": 17.69},
+      "response_speed": "",
+      "supplement": "",
+      "notes": "",
+      "report_path": "",
+      "source": {"type": "excel", "name": "测试结果", "row": 16}
+    },
+    {
+      "id": "devin-devin",
+      "tool": "Devin",
+      "model": "Devin",
+      "reasoning_effort": "",
+      "scores": {"skill_call": 7, "code_review": 2, "logic_analysis": 2, "function_fix": 2, "manual_total": 13, "model_test_correction": null, "model_test_generation": null, "model_test_logic": null, "model_test_total": null, "arena_webdev": null, "composite_total": 13},
+      "response_speed": "",
+      "supplement": "",
+      "notes": "",
+      "report_path": "",
+      "source": {"type": "excel", "name": "测试结果", "row": 17}
+    },
+    {
+      "id": "kiro-kiro",
+      "tool": "Kiro",
+      "model": "Kiro",
+      "reasoning_effort": "",
+      "scores": {"skill_call": 6, "code_review": 2, "logic_analysis": 2, "function_fix": 2, "manual_total": 12, "model_test_correction": null, "model_test_generation": null, "model_test_logic": null, "model_test_total": null, "arena_webdev": null, "composite_total": 12},
+      "response_speed": "",
+      "supplement": "",
+      "notes": "散热差",
+      "report_path": "",
+      "source": {"type": "excel", "name": "测试结果", "row": 18}
+    },
+    {
+      "id": "qwen-code-ornith-9b-ollama",
+      "tool": "Qwen Code",
+      "model": "Ornith 9B（Ollama）",
+      "reasoning_effort": "",
+      "scores": {"skill_call": 1, "code_review": 1, "logic_analysis": 0, "function_fix": 1, "manual_total": 3, "model_test_correction": null, "model_test_generation": null, "model_test_logic": null, "model_test_total": null, "arena_webdev": null, "composite_total": 3},
+      "response_speed": "",
+      "supplement": "",
+      "notes": "",
+      "report_path": "",
+      "source": {"type": "excel", "name": "测试结果", "row": 19}
+    },
+    {
+      "id": "qwen-code-step-3-5-flash-free",
+      "tool": "Qwen Code",
+      "model": "Step 3.5 Flash Free",
+      "reasoning_effort": "",
+      "scores": {"skill_call": null, "code_review": null, "logic_analysis": null, "function_fix": null, "manual_total": 0, "model_test_correction": null, "model_test_generation": null, "model_test_logic": null, "model_test_total": null, "arena_webdev": null, "composite_total": 0},
+      "response_speed": "",
+      "supplement": "",
+      "notes": "不可用",
+      "report_path": "",
+      "source": {"type": "excel", "name": "测试结果", "row": 20}
+    },
+    {
+      "id": "opencode-deepseek-v4-flash-free",
+      "tool": "OpenCode",
+      "model": "DeepSeek V4 Flash Free",
+      "reasoning_effort": "",
+      "scores": {"skill_call": null, "code_review": null, "logic_analysis": null, "function_fix": null, "manual_total": 0, "model_test_correction": null, "model_test_generation": null, "model_test_logic": null, "model_test_total": null, "arena_webdev": null, "composite_total": 0},
+      "response_speed": "",
+      "supplement": "",
+      "notes": "",
+      "report_path": "",
+      "source": {"type": "excel", "name": "测试结果", "row": 21}
+    }
+  ],
+  "pricing": [
+    {"tool": "Codex", "plans": [{"name": "Plus", "price_cny_month": 135}, {"name": "Pro 5x", "price_cny_month": 677}, {"name": "Pro 20x", "price_cny_month": 1354}], "notes": "", "official_url": "https://chatgpt.com/codex/pricing/"},
+    {"tool": "Claude Code", "plans": [{"name": "Pro", "price_cny_month": 135}, {"name": "Max 5x", "price_cny_month": 846}, {"name": "Max 20x", "price_cny_month": 1692}], "notes": "App Store 价格较高", "official_url": "https://claude.com/pricing"},
+    {"tool": "GLM-5.2", "plans": [{"name": "标准", "price_cny_month": 110}, {"name": "Pro 5x", "price_cny_month": 439}, {"name": "Max 20x", "price_cny_month": 975}], "notes": "", "official_url": "https://z.ai/subscribe"},
+    {"tool": "Qwen3.7", "plans": [{"name": "标准", "price_cny_month": 198}, {"name": "高级 4x", "price_cny_month": 698}, {"name": "至尊 10x", "price_cny_month": 1398}], "notes": "", "official_url": "https://www.aliyun.com/benefit/scene/ai-discount"},
+    {"tool": "OpenCode", "plans": [{"name": "Go", "price_cny_month": 67.5}], "notes": "", "official_url": ""}
+  ]
+}

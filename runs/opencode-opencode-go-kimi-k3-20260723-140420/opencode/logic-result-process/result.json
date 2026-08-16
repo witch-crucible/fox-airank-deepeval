@@ -1,0 +1,20 @@
+{
+  "case_id": "logic-result-process",
+  "status": "completed",
+  "summary": "分析 checkout-run.json：100 个结账意图产生 108 次 API 尝试与 108 个订单，唯一意图 ID 仅 100 个，8 个意图各有 2 个订单。重试（客户端超时）发生时服务端已成功处理首次请求，但因重试未携带幂等标识导致重复下单。判定问题为 retry-without-idempotency，控制措施为 idempotency-key-per-intent。",
+  "answer": {
+    "process_issue": "retry-without-idempotency",
+    "evidence": {
+      "duplicate_orders": 8,
+      "retried_intents": 8
+    },
+    "control": "idempotency-key-per-intent"
+  },
+  "changed_files": ["result.json"],
+  "verification": [
+    "数量关系核对：api_attempts(108) - checkout_intents(100) = 8 个重试意图",
+    "数量关系核对：created_orders(108) - unique_checkout_intent_ids_in_orders(100) = 8 个重复订单，与 intents_with_two_orders(8) 一致",
+    "failed_intents=0 且 successful_api_responses=108，排除 lost-checkout-requests 与 incorrect-success-count",
+    "python3 -m json.tool result.json 校验 JSON 格式"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "case_id": "logic-async-search-race",
+  "status": "completed",
+  "summary": "分析 search.js：注释契约要求只有最新发起的请求结果才允许调用 render，过期返回的结果必须丢弃。代码虽用 token = ++latestToken 记录了请求序号，但 await 之后无条件执行 render(suggestions);，缺少 token === latestToken 的守卫，存在异步竞态。已通过竞态实验复现：先发起、晚返回的 OLD_RESULT 仍调用了 render。未修改代码。",
+  "changed_files": ["result.json"],
+  "verification": [
+    "node --input-type=module -e 竞态实验：search('old', 慢50ms) 与 search('new', 快10ms) 并发，render 实际调用 [\"NEW_RESULT\",\"OLD_RESULT\"]，而契约仅允许 [\"NEW_RESULT\"]，证明过期结果未被丢弃，契约被违反"
+  ],
+  "answer": {
+    "contract_violated": true,
+    "unguarded_call": "render(suggestions);",
+    "missing_condition": "token === latestToken"
+  }
+}

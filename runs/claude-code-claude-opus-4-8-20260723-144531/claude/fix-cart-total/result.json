@@ -1,0 +1,7 @@
+{
+  "case_id": "fix-cart-total",
+  "status": "completed",
+  "summary": "修复 cart.js 的 calculateCart：忽略数量<=0的商品并按整数处理价格与数量；subtotal 为有效商品 price*quantity 之和；百分比优惠券仅作用于 subtotal，percent 限制在 0-100，折扣四舍五入到整数；shipping 依据折后金额判断（>=阈值免运费，否则收 shippingFee）；total 通过 Math.max(0,...) 保证不小于0；仅读取输入字段，不修改输入对象；保持函数签名和返回字段不变。",
+  "changed_files": ["cart.js"],
+  "verification": ["node public-test.mjs（等价于 npm test，输出 'public test passed'）", "运行覆盖忽略非正数量、百分比四舍五入、percent 上下限钳制、折后金额免运费阈值、total 不为负、输入对象未被修改等场景的额外断言，全部通过"]
+}

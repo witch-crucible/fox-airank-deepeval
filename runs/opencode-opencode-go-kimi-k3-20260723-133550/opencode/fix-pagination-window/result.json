@@ -1,0 +1,11 @@
+{
+  "case_id": "fix-pagination-window",
+  "status": "completed",
+  "summary": "审查并验证 pagination.js 的 pageWindow 实现：total/size<=0 返回空数组；current 限制到 [1,total]，size 上限为 total；offset=floor(size/2) 使奇数窗口居中、偶数窗口 current 位于中间两个位置靠右（pageWindow(5,10,4)=[3,4,5,6]）；靠近两端时平移窗口保持目标长度；函数签名保持不变。实现已满足 TASK.md 全部要求，无需修改代码。",
+  "changed_files": [],
+  "verification": [
+    "npm test（public-test.mjs 通过）",
+    "node 规格检查：空数组边界、current/size 截断、奇偶窗口居中位置、两端平移保持长度",
+    "node 穷举检查：total 1..12 × size 1..14 × current -2..total+2，校验窗口长度=min(size,total)、连续、在 [1,total] 内、包含 clamp 后 current、未受端点限制时 current 索引为 floor(len/2)"
+  ]
+}

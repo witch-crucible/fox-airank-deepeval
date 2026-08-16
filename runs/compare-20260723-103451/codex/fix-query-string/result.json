@@ -1,0 +1,13 @@
+{
+  "case_id": "fix-query-string",
+  "status": "completed",
+  "summary": "修复查询参数序列化：按字典序处理自身 key，过滤 null 和 undefined，保留其他假值，展开数组，并对 key 和 value 使用 encodeURIComponent 编码。",
+  "changed_files": [
+    "query.js",
+    "result.json"
+  ],
+  "verification": [
+    "npm test",
+    "node --input-type=module 边界断言：假值、数组、空数组、特殊字符编码、排序、自身属性及输入不变"
+  ]
+}

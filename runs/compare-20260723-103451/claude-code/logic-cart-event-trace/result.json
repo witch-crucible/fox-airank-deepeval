@@ -1,0 +1,15 @@
+{
+  "case_id": "logic-cart-event-trace",
+  "status": "completed",
+  "summary": "对比按 seq（客户端发起顺序）与按 received_at（服务端应用顺序）重放 cart-events.json 的购物车终态：seq1(add sku-1, received .100) 与 seq2(remove sku-1, received .050) 到达顺序颠倒，导致服务端先执行 remove 后执行 add，使 sku-1 错误残留在购物车中；seq3/seq4（sku-2 的 add/remove）到达顺序与发起顺序一致，未受影响。共发现 1 对乱序事件（seq1↔seq2），影响 1 个商品（sku-1）。",
+  "changed_files": ["result.json"],
+  "verification": [
+    "python3 脚本分别按 seq 排序与按 received_at 排序重放事件模拟购物车状态，intended_final={}，actual_final={'sku-1'}，差异商品为 sku-1",
+    "python3 脚本枚举所有 seq 对，统计 received_at 顺序与 seq 顺序相反的逆序对，得到 1 对：(seq1, seq2)"
+  ],
+  "answer": {
+    "process_issue": "out-of-order-event-application",
+    "evidence": {"out_of_order_pairs": 1, "affected_items": 1},
+    "control": "sequence-number-enforcement"
+  }
+}

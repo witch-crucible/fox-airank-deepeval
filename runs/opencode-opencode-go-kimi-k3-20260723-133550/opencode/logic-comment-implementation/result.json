@@ -1,0 +1,13 @@
+{
+  "case_id": "logic-comment-implementation",
+  "status": "completed",
+  "summary": "分析 inventory.js，代码使用 !stock 判断是否允许购买，将 stock=0（应禁止）错误归类为允许，违反注释契约。",
+  "changed_files": [],
+  "verification": [],
+  "answer": {
+    "contract_violated": true,
+    "misclassified_values": ["stock=0"],
+    "faulty_condition": "!stock",
+    "correct_condition": "stock === null"
+  }
+}

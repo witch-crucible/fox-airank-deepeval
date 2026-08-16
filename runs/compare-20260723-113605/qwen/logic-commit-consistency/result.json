@@ -1,0 +1,13 @@
+{
+  "case_id": "logic-commit-consistency",
+  "status": "completed",
+  "summary": "分析 COMMIT_MESSAGE.txt 与 change.diff，commit 声明同时包含 locale 和 currency，但 diff 仅实现了 currency，缺少 locale 维度。",
+  "changed_files": [],
+  "verification": ["对比 commit 声明与代码变更"],
+  "answer": {
+    "consistent": false,
+    "implemented_dimensions": ["currency"],
+    "missing_dimensions": ["locale"],
+    "risk": "cross-locale-cache-collision"
+  }
+}
