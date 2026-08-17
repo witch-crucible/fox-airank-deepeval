@@ -118,5 +118,17 @@
       "const h=solution.renderProductCard({sku:'B',imageUrl:'/b.jpg',name:'Out',price:1,description:'None',stock:0}); assert.match(h,/<button[^>]*disabled[^>]*>/); assert.ok(h.includes('>暂时缺货</button>')); assert.ok(!h.includes('data-action=\"add-to-cart\"'));",
       "const h=solution.renderProductCard({sku:'\" onmouseover=\"x',imageUrl:'x\" onerror=\"x',name:'<script>x</script>',price:2,description:\"A & B 'quote'\",stock:1}); assert.ok(!h.includes('<script>')); assert.ok(h.includes('&lt;script&gt;x&lt;/script&gt;')); assert.ok(h.includes('A &amp; B')); assert.ok(h.includes('&quot;')); assert.ok(h.includes('&#39;') || h.includes('&#x27;'));"
     ]
+  },
+  "write-plane-shooter": {
+    "type": "javascript",
+    "file": "game-logic.js",
+    "checks": [
+      "const {createGameState,movePlayer}=solution; const s=createGameState({width:400,height:600,random:()=>0.5}); assert.equal(s.player.x,180); movePlayer(s,-999); assert.equal(s.player.x,0); movePlayer(s,999); assert.equal(s.player.x,360);",
+      "const {createGameState,shoot,update}=solution; const s=createGameState({width:400,height:600,random:()=>0.5}); shoot(s); assert.equal(s.bullets.length,1); const y0=s.bullets[0].y; shoot(s); assert.equal(s.bullets.length,1); update(s,0.3); shoot(s); assert.equal(s.bullets.length,2); update(s,0.016); assert.ok(s.bullets.every(b=>b.y<y0));",
+      "const {createGameState,update}=solution; const s=createGameState({width:400,height:600,random:()=>0.5}); update(s,2.0); assert.ok(s.enemies.length>=2); assert.ok(s.enemies.every(e=>e.x>=0&&e.x<=400-e.w)); const before=new Map(s.enemies.map(e=>[e,e.y])); update(s,0.1); for(const [e,y] of before){ if(s.enemies.includes(e)) assert.ok(e.y>y); }",
+      "const {createGameState,update}=solution; const s=createGameState({width:400,height:600,random:()=>0.5}); s.enemies.push({x:178,y:100,w:32,h:32,speed:0,score:10}); s.bullets.push({x:178,y:100,w:4,h:12,speed:320}); update(s,0.016); assert.equal(s.enemies.length,0); assert.equal(s.bullets.length,0); assert.equal(s.score,10);",
+      "const {createGameState,update,restart}=solution; const s=createGameState({width:400,height:600,random:()=>0.5}); for(let i=0;i<3;i++){ s.enemies.push({x:s.player.x,y:s.player.y,w:32,h:32,speed:0,score:10}); update(s,0.016); } assert.equal(s.player.lives,0); assert.equal(s.status,'gameover'); assert.equal(s.score,0); restart(s); assert.equal(s.player.lives,3); assert.equal(s.score,0); assert.equal(s.status,'playing'); assert.equal(s.bullets.length,0); assert.equal(s.enemies.length,0);",
+      "import fs from 'node:fs'; const html=fs.readFileSync('index.html','utf-8'); assert.ok(html.includes('<canvas')); assert.ok(html.includes('<script')); const game=fs.readFileSync('game.js','utf-8'); assert.ok(game.includes('game-logic.js'));"
+    ]
   }
 }

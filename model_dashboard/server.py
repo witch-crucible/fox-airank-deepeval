@@ -34,7 +34,7 @@ LLM_STATS_URL = "https://llm-stats.com/"
 LLM_STATS_INDEX_URL = "https://api.zeroeval.com/leaderboard/indexes/compact?payloadVersion=2"
 MODEL_TEST_WEIGHTS = {
     "correction": 3,
-    "generation": 3,
+    "generation": 4,
     "logic": 7,
 }
 SCORE_FIELDS = {

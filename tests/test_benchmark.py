@@ -70,18 +70,23 @@ class BenchmarkTests(unittest.TestCase):
 
     def test_reference_solutions_score_full_marks(self):
         cases = load_cases()
-        self.assertEqual(len(cases), 13)
+        self.assertEqual(len(cases), 14)
         with tempfile.TemporaryDirectory() as directory:
             run_dir = Path(directory) / "run"
             prepare(run_dir, ["reference"], cases)
             specs = json.loads((ROOT / "benchmark" / "specs.json").read_text(encoding="utf-8"))
             reference_files = {
-                "fix-cart-total": ("cart.js", "cart.js"),
-                "fix-query-string": ("query.js", "query.js"),
-                "fix-pagination-window": ("pagination.js", "pagination.js"),
-                "write-product-filter": ("product-filter.js", "product-filter.js"),
-                "write-pagination-reducer": ("pagination-reducer.js", "pagination-reducer.js"),
-                "write-product-card": ("product-card.js", "product-card.js"),
+                "fix-cart-total": [("cart.js", "cart.js")],
+                "fix-query-string": [("query.js", "query.js")],
+                "fix-pagination-window": [("pagination.js", "pagination.js")],
+                "write-product-filter": [("product-filter.js", "product-filter.js")],
+                "write-pagination-reducer": [("pagination-reducer.js", "pagination-reducer.js")],
+                "write-product-card": [("product-card.js", "product-card.js")],
+                "write-plane-shooter": [
+                    ("game-logic.js", "game-logic.js"),
+                    ("game.js", "game.js"),
+                    ("index.html", "index.html"),
+                ],
             }
             for case in cases:
                 workspace = run_dir / "reference" / case.id
@@ -95,10 +100,10 @@ class BenchmarkTests(unittest.TestCase):
                 if specs[case.id]["type"] == "logic":
                     result["answer"] = specs[case.id]["expected"]
                 else:
-                    source_name, target_name = reference_files[case.id]
-                    source = ROOT / "tests" / "reference" / source_name
-                    (workspace / target_name).write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
-                    result["changed_files"].append(target_name)
+                    for source_name, target_name in reference_files[case.id]:
+                        source = ROOT / "tests" / "reference" / source_name
+                        (workspace / target_name).write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+                        result["changed_files"].append(target_name)
                 (workspace / "result.json").write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
             report = grade(run_dir, ["reference"], cases)
             self.assertEqual(report["summary"]["reference"]["overall"], 100.0)

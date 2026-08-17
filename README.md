@@ -2,11 +2,11 @@
 
 比较 Codex、Claude Code、Qwen Code、OpenCode、Qoder 等代码代理工具在真实项目工作流中的能力，而非直接调用模型 API。
 
-共 13 个前端 JavaScript case，分三类：
+共 14 个前端 JavaScript case，分三类：
 
 - `logic_analysis`（7 个）：从沟通记录、diff、注释、日志等零散材料反推业务规则或实现缺陷（含竞态、访问策略漂移、事件乱序等场景）。
 - `code_correction`（3 个）：修复购物车金额、查询参数、分页边界缺陷。
-- `code_generation`（3 个）：实现商品筛选、分页 reducer、安全商品卡片。
+- `code_generation`（4 个）：实现商品筛选、分页 reducer、安全商品卡片、像素风打飞机小游戏。
 
 每个工具在独立副本中读取 `TASK.md`、修改文件、生成 `result.json`；评分器再运行不会复制到工作区的隐藏检查。功能检查占 90 分，结果文件协议占 10 分。
 
@@ -107,7 +107,7 @@ python3 run_benchmark.py --category manual_test --tool codex
 
 ## 验证项目自身
 
-参考解会完整跑过 13 个 case 的评分规则：
+参考解会完整跑过 14 个 case 的评分规则：
 
 ```bash
 python3 -m unittest discover -s tests -v
@@ -153,5 +153,5 @@ python3 -m model_dashboard.server
 看板计算口径：
 
 - 人工测试总分是 Skill 调用、代码评审、逻辑分析、功能修复四项之和。
-- ModelTest 总分按当前 case 数量加权：代码修正 3、代码生成 3、逻辑分析 7。
+- ModelTest 总分按当前 case 数量加权：代码修正 3、代码生成 4、逻辑分析 7。
 - 原表综合分沿用 Excel 公式：人工测试总分 + ModelTest 总分 + Arena WebDev。三者量纲不同，因此只用于还原原表排序，不代表归一化能力分。
