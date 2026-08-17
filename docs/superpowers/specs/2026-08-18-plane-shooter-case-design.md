@@ -54,7 +54,7 @@ state 结构（TASK.md 必须写明，隐藏检查直接操作这些字段）：
   score: 0,
   status: "playing" | "gameover",
   cooldown: 0,                   // 射击冷却，0.3s
-  spawnTimer: 0,                 // 敌机生成计时，间隔 0.8s
+  spawnTimer: 0.8,               // 敌机生成计时，初始 0.8s，之后每 0.8s 生成一架
   rng: random                    // 注入的随机函数
 }
 ```
@@ -72,6 +72,7 @@ state 结构（TASK.md 必须写明，隐藏检查直接操作这些字段）：
   - AABB 碰撞（`a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y`）：
     - 子弹-敌机：敌机移除、`score += enemy.score`、子弹移除。
     - 敌机-玩家：敌机移除、`player.lives -= 1`；`lives <= 0` 时 `status = "gameover"`。
+  - 执行顺序固定为：cooldown → 子弹移动 → 敌机生成 → 敌机移动 → 碰撞（契约与参考解一致）。
 - `restart(state)`：原地重置为初始状态（保留 width/height/rng），`lives = 3, score = 0, bullets = [], enemies = [], status = "playing"`。
 
 ## 隐藏检查（benchmark/specs.json）
