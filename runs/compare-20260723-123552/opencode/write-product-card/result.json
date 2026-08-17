@@ -1,7 +1,0 @@
-{
-  "case_id": "write-product-card",
-  "status": "completed",
-  "summary": "实现 renderProductCard：返回 <article data-sku> 卡片 HTML，包含 <img>/<h2>/<p>/<button>，HMTL 转义 &<>\"'，有库存显示'加入购物车'+data-action，无库存显示'暂时缺货'+disabled",
-  "changed_files": ["product-card.js"],
-  "verification": ["npm test"]
-}

@@ -1,7 +1,0 @@
-{
-  "case_id": "fix-cart-total",
-  "status": "completed",
-  "summary": "修复 calculateCart：使用 price*quantity 计算小计，过滤零数量商品，折扣四舍五入，按折后金额判断运费，total 不低于 0",
-  "changed_files": ["cart.js"],
-  "verification": ["npm test"]
-}

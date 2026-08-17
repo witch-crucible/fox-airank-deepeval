@@ -1,6 +1,0 @@
-[
-  {"seq": 1, "type": "add_item", "item_id": "sku-1", "sent_at": "2026-07-10T10:00:00.000Z", "received_at": "2026-07-10T10:00:00.100Z"},
-  {"seq": 2, "type": "remove_item", "item_id": "sku-1", "sent_at": "2026-07-10T10:00:00.200Z", "received_at": "2026-07-10T10:00:00.050Z"},
-  {"seq": 3, "type": "add_item", "item_id": "sku-2", "sent_at": "2026-07-10T10:00:00.300Z", "received_at": "2026-07-10T10:00:00.310Z"},
-  {"seq": 4, "type": "remove_item", "item_id": "sku-2", "sent_at": "2026-07-10T10:00:00.400Z", "received_at": "2026-07-10T10:00:00.410Z"}
-]

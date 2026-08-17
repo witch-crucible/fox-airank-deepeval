@@ -1,7 +1,0 @@
-{
-  "case_id": "write-product-filter",
-  "status": "completed",
-  "summary": "实现 filterProducts：query 去空格忽略大小写匹配 name/sku，categories 精确匹配，minPrice/maxPrice 包含端点，inStockOnly 保留 stock>0，sortBy 支持 price-asc/price-desc/name-asc，不修改输入返回新数组",
-  "changed_files": ["product-filter.js"],
-  "verification": ["npm test"]
-}

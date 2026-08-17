@@ -1,7 +1,0 @@
-{
-  "case_id": "fix-query-string",
-  "status": "completed",
-  "summary": "修复 toQueryString：忽略 null/undefined 但保留 false/0/空字符串，数组元素生成同名参数，空数组跳过，key 和 value 使用 encodeURIComponent 编码，key 按字典序排列，不修改输入",
-  "changed_files": ["query.js"],
-  "verification": ["npm test"]
-}

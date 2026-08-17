@@ -1,7 +1,0 @@
-{
-  "case_id": "fix-pagination-window",
-  "status": "completed",
-  "summary": "修复 pageWindow：处理 total/size 非正数返回空数组，将 current 限制到 [1,total]，size 限制不超过 total，偶数 size 时 current 位于右侧居中位置，窗口靠边时平移保持长度",
-  "changed_files": ["pagination.js"],
-  "verification": ["npm test"]
-}

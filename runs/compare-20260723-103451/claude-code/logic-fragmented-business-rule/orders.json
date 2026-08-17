@@ -1,7 +1,0 @@
-[
-  {"id":"o1","region":"mainland","vip":false,"subtotal":600,"discount":120},
-  {"id":"o2","region":"mainland","vip":true,"subtotal":100,"discount":0},
-  {"id":"o3","region":"overseas","vip":true,"subtotal":900,"discount":200},
-  {"id":"o4","region":"mainland","vip":false,"subtotal":550,"discount":40}
-]
-

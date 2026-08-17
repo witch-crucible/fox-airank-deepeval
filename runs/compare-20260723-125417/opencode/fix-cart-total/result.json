@@ -1,7 +1,0 @@
-{
-  "case_id": "fix-cart-total",
-  "status": "completed",
-  "summary": "已验证 calculateCart 实现，所有公开测试和规格测试通过。支持忽略数量≤0的商品、百分比优惠券、折后运费判断、总价非负、输入不修改。",
-  "changed_files": [],
-  "verification": ["npm test (public-test.mjs)", "node -e 规格检查"]
-}

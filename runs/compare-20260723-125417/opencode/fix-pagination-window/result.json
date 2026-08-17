@@ -1,7 +1,0 @@
-{
-  "case_id": "fix-pagination-window",
-  "status": "completed",
-  "summary": "已验证 pageWindow 实现，所有公开测试和规格测试通过。支持空数组返回、current/size 边界限制、current 居中、偶窗口右中位置。",
-  "changed_files": [],
-  "verification": ["npm test (public-test.mjs)", "node -e 规格检查"]
-}

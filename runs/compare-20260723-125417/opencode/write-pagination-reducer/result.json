@@ -1,7 +1,0 @@
-{
-  "case_id": "write-pagination-reducer",
-  "status": "completed",
-  "summary": "已验证 paginationReducer 实现，所有公开测试和规格测试通过。支持 SET_PAGE/SET_PAGE_SIZE/SET_TOTAL/RESET 动作及未知 action 原样返回，输入不修改。",
-  "changed_files": [],
-  "verification": ["npm test (public-test.mjs)", "node -e 规格检查"]
-}

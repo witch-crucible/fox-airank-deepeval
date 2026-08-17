@@ -1,7 +1,0 @@
-{
-  "case_id": "write-product-filter",
-  "status": "completed",
-  "summary": "已验证 filterProducts 实现，所有公开测试和规格测试通过。支持 query/categories/minPrice/maxPrice/inStockOnly/sortBy 筛选排序，输入不修改。",
-  "changed_files": [],
-  "verification": ["npm test (public-test.mjs)", "node -e 规格检查"]
-}
