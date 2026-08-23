@@ -17,10 +17,13 @@ from model_dashboard.server import (
     SameOriginRedirectHandler,
     DashboardStore,
     calculate_scores,
+    collect_watch_snapshot,
     create_server,
     fetch_json,
+    main,
     normalize_agent_usage_entry,
     normalize_model,
+    parse_agent_usage_csv,
     resolve_static_path,
     url_origin,
     normalize_arena_webdev_rows,
@@ -246,8 +249,14 @@ class ModelDashboardTests(unittest.TestCase):
                     self.assertIn("/static/brand/favicon.svg", html)
                     self.assertIn("增加模型", html)
                     self.assertIn("录入使用人数", html)
+                    self.assertIn("导入使用人数 CSV", html)
+                    self.assertIn("更多数据操作", html)
+                    self.assertIn("section-nav", html)
+                    self.assertIn("panel-kicker", html)
                     self.assertIn("Agent 使用人数", html)
                     self.assertIn("/api/agent-usage", html)
+                    self.assertIn("/api/agent-usage/import", html)
+                    self.assertIn("openAgentUsageImportDialog", html)
                     self.assertIn("看板模式", html)
                     self.assertIn("表格模式", html)
                     self.assertIn("按归档状态筛选", html)
@@ -257,10 +266,15 @@ class ModelDashboardTests(unittest.TestCase):
                     self.assertIn('本地更新', html)
                     self.assertIn('role="status"', html)
                     self.assertNotIn('<main id="app" aria-live=', html)
+                    self.assertIn("同步三方数据", html)
+                    self.assertIn("sync-all-leaderboards", html)
+                    self.assertIn("runAllLeaderboardSyncs", html)
+                    self.assertIn("按来源单独同步", html)
                     self.assertIn("同步 Arena 前 30", html)
                     self.assertIn("同步 AA 完整榜", html)
                     self.assertNotIn("同步 AA 前 30", html)
                     self.assertIn("同步 LLM Stats 前 30", html)
+                    self.assertNotIn(">同步榜单</summary>", html)
                     self.assertIn("能力排名", html)
                     self.assertIn("Agent 排名", html)
                     self.assertIn("Model 排名", html)
@@ -749,6 +763,68 @@ class ModelDashboardTests(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=3)
 
+    def test_parse_agent_usage_csv_supports_chinese_headers_and_last_row_wins(self):
+        entries = parse_agent_usage_csv(
+            "\ufeff工具,使用人数,备注\n"
+            'Claude Code,"1,000",初版\n'
+            "Codex,800,\n"
+            "claude code,1500,覆盖\n"
+            ",,\n"
+        )
+        self.assertEqual(len(entries), 2)
+        by_tool = {entry["tool"].casefold(): entry for entry in entries}
+        self.assertEqual(by_tool["claude code"]["user_count"], 1500)
+        self.assertEqual(by_tool["claude code"]["notes"], "覆盖")
+        self.assertEqual(by_tool["codex"]["user_count"], 800)
+
+        with self.assertRaisesRegex(DashboardError, "表头需包含"):
+            parse_agent_usage_csv("name,score\nCodex,1\n")
+        with self.assertRaisesRegex(DashboardError, "第 2 行"):
+            parse_agent_usage_csv("tool,user_count\nCodex,-3\n")
+        with self.assertRaisesRegex(DashboardError, "没有有效的使用人数数据行"):
+            parse_agent_usage_csv("tool,user_count\n,,\n")
+
+    def test_http_imports_agent_usage_csv_and_overwrites_same_tool(self):
+        with tempfile.TemporaryDirectory() as directory:
+            server = create_server("127.0.0.1", 0, data_path=Path(directory) / "dashboard.json")
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_port}"
+            try:
+                self._post_json(
+                    f"{base_url}/api/agent-usage",
+                    {"tool": "Codex", "user_count": 10, "notes": "旧值"},
+                )
+                result = self._post_json(
+                    f"{base_url}/api/agent-usage/import",
+                    {
+                        "csv": (
+                            "tool,user_count,notes\n"
+                            "Codex,120,CSV 覆盖\n"
+                            "Claude Code,90,\n"
+                        )
+                    },
+                )
+                self.assertEqual(result["received"], 2)
+                self.assertEqual(result["created"], 1)
+                self.assertEqual(result["updated"], 1)
+
+                with urlopen(f"{base_url}/api/models", timeout=3) as response:
+                    data = json.load(response)
+                usage = {entry["tool"]: entry for entry in data["agent_usage"]}
+                self.assertEqual(usage["Codex"]["user_count"], 120)
+                self.assertEqual(usage["Codex"]["notes"], "CSV 覆盖")
+                self.assertEqual(usage["Claude Code"]["user_count"], 90)
+
+                with self.assertRaises(HTTPError) as raised:
+                    self._post_json(f"{base_url}/api/agent-usage/import", {"csv": "tool,user_count\n"})
+                self.assertEqual(raised.exception.code, 400)
+                raised.exception.close()
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=3)
+
     def test_seed_data_matches_excel_source(self):
         try:
             from openpyxl import load_workbook
@@ -775,6 +851,38 @@ class ModelDashboardTests(unittest.TestCase):
             has_component = any(value is not None for value in source_scores.values())
             expected_composite = row[13] if has_component else None
             self.assertEqual(model["scores"]["composite_total"], expected_composite)
+
+    def test_collect_watch_snapshot_tracks_python_and_ignores_local_data(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            watched = root / "server.py"
+            ignored = root / "data.local.json"
+            cached = root / "__pycache__" / "server.cpython-312.pyc"
+            static_html = root / "static" / "index.html"
+            cached.parent.mkdir()
+            static_html.parent.mkdir()
+            watched.write_text("print('ok')\n", encoding="utf-8")
+            ignored.write_text("{}\n", encoding="utf-8")
+            cached.write_bytes(b"cache")
+            static_html.write_text("<html></html>\n", encoding="utf-8")
+
+            snapshot = collect_watch_snapshot(root)
+            self.assertIn(str(watched.resolve()), snapshot)
+            self.assertNotIn(str(ignored.resolve()), snapshot)
+            self.assertNotIn(str(cached.resolve()), snapshot)
+            self.assertNotIn(str(static_html.resolve()), snapshot)
+
+            watched.write_text("print('changed')\n", encoding="utf-8")
+            os.utime(watched, ns=(snapshot[str(watched.resolve())] + 1_000_000, snapshot[str(watched.resolve())] + 1_000_000))
+            updated = collect_watch_snapshot(root)
+            self.assertNotEqual(snapshot[str(watched.resolve())], updated[str(watched.resolve())])
+
+    def test_main_reload_flag_delegates_to_run_with_reload(self):
+        with patch("model_dashboard.server.run_with_reload") as mocked_reload:
+            main(["--reload", "--host", "0.0.0.0", "--port", "9000", "--data", "/tmp/dashboard.json"])
+        mocked_reload.assert_called_once_with(
+            ["--host", "0.0.0.0", "--port", "9000", "--data", "/tmp/dashboard.json"]
+        )
 
     @staticmethod
     def _post_json(url, payload):

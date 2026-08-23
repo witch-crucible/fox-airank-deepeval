@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import argparse
 import copy
+import csv
+import io
 import json
 import os
 import re
+import subprocess
+import sys
 import threading
+import time
 import uuid
 from datetime import datetime, timezone
 from http import HTTPStatus
@@ -222,6 +227,96 @@ def normalize_agent_usage_entry(raw: Any) -> dict[str, Any]:
         "notes": optional_text(raw.get("notes"), "notes", 500),
         "updated_at": utc_now(),
     }
+
+
+AGENT_USAGE_TOOL_HEADERS = {
+    "tool",
+    "agent",
+    "name",
+    "工具",
+    "ai编程工具",
+    "ai 编程工具",
+    "编程工具",
+}
+AGENT_USAGE_COUNT_HEADERS = {
+    "user_count",
+    "users",
+    "count",
+    "user count",
+    "使用人数",
+    "人数",
+}
+AGENT_USAGE_NOTES_HEADERS = {
+    "notes",
+    "note",
+    "remark",
+    "comment",
+    "备注",
+}
+
+
+def _normalize_csv_header(value: str) -> str:
+    return re.sub(r"\s+", " ", value.strip()).casefold()
+
+
+def parse_agent_usage_csv(text: str) -> list[dict[str, Any]]:
+    """解析使用人数 CSV；同名工具以文件中靠后的行为准。"""
+    if not isinstance(text, str) or not text.strip():
+        raise DashboardError("CSV 内容不能为空")
+    sample = text.lstrip("\ufeff")
+    try:
+        reader = csv.DictReader(io.StringIO(sample))
+    except csv.Error as error:
+        raise DashboardError(f"CSV 解析失败：{error}") from error
+    if not reader.fieldnames:
+        raise DashboardError("CSV 缺少表头")
+
+    column_map: dict[str, str] = {}
+    for field in reader.fieldnames:
+        if field is None:
+            continue
+        header = _normalize_csv_header(field)
+        if header in AGENT_USAGE_TOOL_HEADERS and "tool" not in column_map:
+            column_map["tool"] = field
+        elif header in AGENT_USAGE_COUNT_HEADERS and "user_count" not in column_map:
+            column_map["user_count"] = field
+        elif header in AGENT_USAGE_NOTES_HEADERS and "notes" not in column_map:
+            column_map["notes"] = field
+    if "tool" not in column_map or "user_count" not in column_map:
+        raise DashboardError("CSV 表头需包含工具列和使用人数列（如 tool,user_count 或 工具,使用人数）")
+
+    entries: list[dict[str, Any]] = []
+    index_by_tool: dict[str, int] = {}
+    try:
+        rows = list(reader)
+    except csv.Error as error:
+        raise DashboardError(f"CSV 解析失败：{error}") from error
+
+    for line_no, row in enumerate(rows, start=2):
+        if not isinstance(row, dict):
+            continue
+        cells = [(row.get(field) or "").strip() for field in reader.fieldnames if field is not None]
+        if not any(cells):
+            continue
+        tool = (row.get(column_map["tool"]) or "").strip()
+        count_raw = (row.get(column_map["user_count"]) or "").strip().replace(",", "")
+        notes = (row.get(column_map["notes"]) or "").strip() if "notes" in column_map else ""
+        try:
+            entry = normalize_agent_usage_entry(
+                {"tool": tool, "user_count": count_raw, "notes": notes}
+            )
+        except DashboardError as error:
+            raise DashboardError(f"第 {line_no} 行：{error}") from error
+        key = entry["tool"].casefold()
+        if key in index_by_tool:
+            entries[index_by_tool[key]] = entry
+        else:
+            index_by_tool[key] = len(entries)
+            entries.append(entry)
+
+    if not entries:
+        raise DashboardError("CSV 没有有效的使用人数数据行")
+    return entries
 
 
 def normalize_model(raw: Any, source: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -700,6 +795,35 @@ class DashboardStore:
             self.write(data)
         return entry, True
 
+    def import_agent_usage(self, entries: list[dict[str, Any]]) -> dict[str, int]:
+        if not entries:
+            raise DashboardError("没有可导入的使用人数")
+        created = 0
+        updated = 0
+        with self._lock:
+            data = self.read()
+            usage = data.get("agent_usage")
+            if not isinstance(usage, list):
+                usage = []
+                data["agent_usage"] = usage
+            index_by_tool: dict[str, int] = {}
+            for index, current in enumerate(usage):
+                if isinstance(current, dict) and current.get("tool"):
+                    index_by_tool[str(current["tool"]).casefold()] = index
+            for raw in entries:
+                entry = normalize_agent_usage_entry(raw)
+                key = entry["tool"].casefold()
+                if key in index_by_tool:
+                    usage[index_by_tool[key]] = entry
+                    updated += 1
+                else:
+                    index_by_tool[key] = len(usage)
+                    usage.append(entry)
+                    created += 1
+            data.setdefault("meta", {})["updated_at"] = utc_now()
+            self.write(data)
+        return {"created": created, "updated": updated, "received": len(entries)}
+
     def set_model_archived(self, model_id: str, archived: bool) -> dict[str, Any]:
         with self._lock:
             data = self.read()
@@ -932,6 +1056,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 status = HTTPStatus.CREATED if created else HTTPStatus.OK
                 self._send_json(status, {"entry": entry, "created": created})
                 return
+            if path == "/api/agent-usage/import":
+                self._import_agent_usage(payload)
+                return
             if path.startswith("/api/models/") and path.endswith("/archive"):
                 model_id = unquote(path.removeprefix("/api/models/").removesuffix("/archive").strip("/"))
                 if not model_id:
@@ -977,6 +1104,16 @@ class DashboardHandler(BaseHTTPRequestHandler):
         )
         result = self.dashboard_store.import_models(models, bool(payload.get("overwrite")))
         self._send_json(HTTPStatus.OK, {**result, "received": len(models)})
+
+    def _import_agent_usage(self, payload: Any) -> None:
+        if not isinstance(payload, dict):
+            raise DashboardError("请求数据必须是对象")
+        csv_text = payload.get("csv")
+        if not isinstance(csv_text, str):
+            raise DashboardError("csv 必须是字符串")
+        entries = parse_agent_usage_csv(csv_text)
+        result = self.dashboard_store.import_agent_usage(entries)
+        self._send_json(HTTPStatus.OK, result)
 
     def _import_arena_webdev(self, payload: Any) -> None:
         if not isinstance(payload, dict):
@@ -1051,12 +1188,122 @@ def create_server(
     return server
 
 
+RELOAD_EXTENSIONS = {".py"}
+RELOAD_IGNORE_NAMES = {"data.local.json"}
+
+
+def collect_watch_snapshot(root: Path = ROOT) -> dict[str, int]:
+    """收集热更新监听文件的 mtime 快照；忽略本地数据与缓存。"""
+    snapshot: dict[str, int] = {}
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        if "__pycache__" in path.parts or path.name.startswith("."):
+            continue
+        if path.name in RELOAD_IGNORE_NAMES:
+            continue
+        if path.suffix not in RELOAD_EXTENSIONS:
+            continue
+        try:
+            snapshot[str(path.resolve())] = path.stat().st_mtime_ns
+        except OSError:
+            continue
+    return snapshot
+
+
+def _stop_process(process: subprocess.Popen[Any]) -> None:
+    if process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5)
+
+
+def _format_changed_paths(paths: list[str]) -> str:
+    labels: list[str] = []
+    for path in paths:
+        try:
+            labels.append(str(Path(path).relative_to(ROOT)))
+        except ValueError:
+            labels.append(path)
+    return ", ".join(labels) or "未知文件"
+
+
+def run_with_reload(child_argv: list[str], poll_interval: float = 0.5) -> None:
+    """父进程监听代码变更，自动重启子服务进程。"""
+    env = os.environ.copy()
+    env.setdefault("PYTHONUNBUFFERED", "1")
+    command = [sys.executable, "-m", "model_dashboard.server", *child_argv]
+    print("热更新已启用：监听 model_dashboard/**/*.py（改动后自动重启）", flush=True)
+    process = subprocess.Popen(command, env=env)
+    snapshot = collect_watch_snapshot(ROOT)
+    try:
+        while True:
+            time.sleep(poll_interval)
+            current = collect_watch_snapshot(ROOT)
+            if current != snapshot:
+                changed = sorted(
+                    path
+                    for path in set(current) | set(snapshot)
+                    if current.get(path) != snapshot.get(path)
+                )
+                print(
+                    f"检测到代码变更，正在重启… ({_format_changed_paths(changed)})",
+                    flush=True,
+                )
+                _stop_process(process)
+                process = subprocess.Popen(command, env=env)
+                snapshot = current
+                continue
+            if process.poll() is None:
+                continue
+            exit_code = process.returncode
+            if exit_code == 0:
+                return
+            print(
+                f"服务进程异常退出（code={exit_code}），等待下次代码变更后重启…",
+                flush=True,
+            )
+            while True:
+                time.sleep(poll_interval)
+                current = collect_watch_snapshot(ROOT)
+                if current != snapshot:
+                    snapshot = current
+                    process = subprocess.Popen(command, env=env)
+                    break
+    except KeyboardInterrupt:
+        print("\n看板已停止", flush=True)
+    finally:
+        _stop_process(process)
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="模型能力台")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--data", type=Path, default=DEFAULT_DATA_PATH)
+    parser.add_argument(
+        "--reload",
+        action="store_true",
+        help="开发模式：监听代码变更并自动重启服务",
+    )
     args = parser.parse_args(argv)
+    if args.reload:
+        run_with_reload(
+            [
+                "--host",
+                args.host,
+                "--port",
+                str(args.port),
+                "--data",
+                str(args.data),
+            ]
+        )
+        return
+
     server = create_server(args.host, args.port, args.data)
     print(f"模型能力台：http://{args.host}:{server.server_port}")
     print(f"本地数据：{args.data}")
