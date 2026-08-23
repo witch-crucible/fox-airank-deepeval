@@ -48,7 +48,7 @@ class ModelDashboardTests(unittest.TestCase):
                     "indexScore": score,
                     "evals": [
                         {"datasetIndexName": "deep-swe", "mean": {"reward": score - 0.01}},
-                        {"datasetIndexName": "terminal-bench-v2", "mean": {"reward": score + 0.02}},
+                        {"datasetIndexName": "terminal-bench-v2.1", "mean": {"reward": score + 0.02}},
                         {"datasetIndexName": "swe-atlas-qna", "mean": {"reward": score - 0.01}},
                     ],
                     "mean": {"costUsd": index / 10, "agentWallTimeSec": index * 100},
@@ -164,6 +164,35 @@ class ModelDashboardTests(unittest.TestCase):
         with self.assertRaisesRegex(DashboardError, "缺少榜单数据"):
             normalize_artificial_analysis_html("<html></html>")
 
+    def test_artificial_analysis_rows_select_all_beyond_top_30(self):
+        models = normalize_artificial_analysis_html(self._artificial_analysis_document(count=35))
+        self.assertEqual(len(models), 35)
+        self.assertEqual(models[0]["tool"], "Agent 1")
+        self.assertEqual(models[0]["model"], "Model 1")
+        self.assertEqual(models[-1]["tool"], "Agent 35")
+        self.assertEqual(models[-1]["model"], "Model 35")
+        self.assertEqual(models[-1]["source"]["rank"], 35)
+        for model in models:
+            self.assertEqual(model["source"]["type"], "artificial_analysis")
+            scores = model["scores"]
+            self.assertIsInstance(scores["artificial_analysis_index"], (int, float))
+            self.assertIsInstance(scores["aa_deep_swe"], (int, float))
+            self.assertIsInstance(scores["aa_terminal_bench_v2"], (int, float))
+            self.assertIsInstance(scores["aa_swe_atlas_qna"], (int, float))
+
+        truncated = normalize_artificial_analysis_html(self._artificial_analysis_document(count=35), limit=30)
+        self.assertEqual(len(truncated), 30)
+        self.assertEqual(truncated[-1]["source"]["rank"], 30)
+
+    def test_artificial_analysis_accepts_legacy_terminal_bench_v2_key(self):
+        document = self._artificial_analysis_document(count=1).replace(
+            "terminal-bench-v2.1",
+            "terminal-bench-v2",
+        )
+        models = normalize_artificial_analysis_html(document)
+        self.assertEqual(len(models), 1)
+        self.assertIsInstance(models[0]["scores"]["aa_terminal_bench_v2"], (int, float))
+
     def test_llm_stats_indexes_normalize_official_rank_and_scores(self):
         models = normalize_llm_stats_indexes(self._llm_stats_document())
         self.assertEqual(len(models), 3)
@@ -178,6 +207,14 @@ class ModelDashboardTests(unittest.TestCase):
 
         with self.assertRaisesRegex(DashboardError, "缺少 general 总榜"):
             normalize_llm_stats_indexes({})
+
+    def test_llm_stats_indexes_keep_only_top_30(self):
+        models = normalize_llm_stats_indexes(self._llm_stats_document(count=35))
+        self.assertEqual(len(models), 30)
+        self.assertEqual(models[0]["model"], "LLM 1")
+        self.assertEqual(models[-1]["model"], "LLM 30")
+        self.assertEqual(models[-1]["source"]["rank"], 30)
+        self.assertEqual(models[-1]["source"]["source_id"], "llm-30")
 
     def test_http_page_add_model_and_import_third_party_data(self):
         third_party_document = {
@@ -221,8 +258,22 @@ class ModelDashboardTests(unittest.TestCase):
                     self.assertIn('role="status"', html)
                     self.assertNotIn('<main id="app" aria-live=', html)
                     self.assertIn("同步 Arena 前 30", html)
-                    self.assertIn("同步 AA 编程榜", html)
-                    self.assertIn("同步 LLM Stats", html)
+                    self.assertIn("同步 AA 完整榜", html)
+                    self.assertNotIn("同步 AA 前 30", html)
+                    self.assertIn("同步 LLM Stats 前 30", html)
+                    self.assertIn("能力排名", html)
+                    self.assertIn("Agent 排名", html)
+                    self.assertIn("Model 排名", html)
+                    self.assertIn("function renderRankings(models)", html)
+                    self.assertIn("function bestAgentEntries(models)", html)
+                    self.assertIn("function scoredModels(models)", html)
+                    self.assertIn("function appendRankingRows(chart, ranked, titleFn, subtitleFn)", html)
+                    self.assertIn("ranking-split", html)
+                    self.assertIn("按 AI 编程工具聚合，取该指标最佳成绩", html)
+                    self.assertIn("按模型配置逐条比较当前指标", html)
+                    self.assertIn("配对模型：", html)
+                    self.assertIn("配对 Agent：", html)
+                    self.assertIn("空白不按 0 分处理", html)
                     self.assertIn('data-view="table"', html)
                     self.assertIn("function sourceHref(model)", html)
                     self.assertIn("function sourceBadge(model)", html)
@@ -511,7 +562,11 @@ class ModelDashboardTests(unittest.TestCase):
                 thread.join(timeout=3)
 
     def test_http_syncs_artificial_analysis_ranking_without_overwriting_other_models(self):
-        documents = [self._artificial_analysis_document(), self._artificial_analysis_document(score_offset=5)]
+        documents = [
+            self._artificial_analysis_document(),
+            self._artificial_analysis_document(score_offset=5),
+            self._artificial_analysis_document(count=35),
+        ]
         fetched = []
 
         def fake_text_fetcher(url):
@@ -533,14 +588,24 @@ class ModelDashboardTests(unittest.TestCase):
                 self.assertEqual(first, {"created": 3, "updated": 0, "removed": 0, "received": 3})
                 second = self._post_json(f"{base_url}/api/import/artificial-analysis", {})
                 self.assertEqual(second, {"created": 0, "updated": 3, "removed": 0, "received": 3})
-                self.assertEqual(fetched, [ARTIFICIAL_ANALYSIS_URL, ARTIFICIAL_ANALYSIS_URL])
+
+                select_all = self._post_json(f"{base_url}/api/import/artificial-analysis", {})
+                self.assertEqual(select_all, {"created": 32, "updated": 3, "removed": 0, "received": 35})
+                self.assertEqual(
+                    fetched,
+                    [ARTIFICIAL_ANALYSIS_URL, ARTIFICIAL_ANALYSIS_URL, ARTIFICIAL_ANALYSIS_URL],
+                )
 
                 with urlopen(f"{base_url}/api/models", timeout=3) as response:
                     data = json.load(response)
                 aa_models = [model for model in data["models"] if model["source"]["type"] == "artificial_analysis"]
-                self.assertEqual(len(aa_models), 3)
-                self.assertEqual(aa_models[0]["scores"]["artificial_analysis_index"], 74)
-                self.assertEqual(len(data["models"]), 23)
+                non_aa = [model for model in data["models"] if model["source"]["type"] != "artificial_analysis"]
+                self.assertEqual(len(aa_models), 35)
+                self.assertGreater(len(aa_models), 30)
+                self.assertEqual(aa_models[0]["scores"]["artificial_analysis_index"], 69)
+                self.assertEqual(aa_models[-1]["source"]["rank"], 35)
+                self.assertEqual(len(non_aa), 20)
+                self.assertEqual(len(data["models"]), 55)
             finally:
                 server.shutdown()
                 server.server_close()

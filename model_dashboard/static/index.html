@@ -249,6 +249,35 @@
 
     .chart { padding: 4px 22px 22px; }
 
+    .ranking-split {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 28px;
+      padding: 0 22px 22px;
+    }
+
+    .ranking-split-col {
+      min-width: 0;
+      padding: 14px 14px 8px;
+      border: 1px solid rgba(223, 228, 223, .95);
+      border-radius: 14px;
+      background: #fbfcf8;
+    }
+
+    .ranking-split-col h3 {
+      margin: 0;
+      font-size: 15px;
+      letter-spacing: -.02em;
+    }
+
+    .ranking-split-col > p {
+      margin: 4px 0 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .ranking-split-col .chart { padding: 0; }
+
     .ranking-row {
       display: grid;
       grid-template-columns: 28px minmax(130px, 1fr) minmax(180px, 2fr) 64px;
@@ -257,6 +286,12 @@
       min-height: 46px;
       padding: 0 7px;
       border-radius: 9px;
+    }
+
+    .ranking-split-col .ranking-row {
+      grid-template-columns: 28px minmax(88px, 1.1fr) minmax(48px, 1.2fr) 52px;
+      gap: 8px;
+      padding: 0 2px;
     }
 
     .ranking-row + .ranking-row { border-top: 1px solid rgba(223, 228, 223, .7); border-radius: 0; }
@@ -269,8 +304,13 @@
     .ranking-row:first-child .bar-fill { background: var(--gold); }
     .bar-value { text-align: right; font: 720 13px ui-monospace, SFMono-Regular, Menlo, monospace; }
 
-    .coverage { padding: 0 24px 22px; }
-    .coverage-item { margin-bottom: 19px; }
+    .coverage {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px 22px;
+      padding: 0 24px 10px;
+    }
+    .coverage-item { margin-bottom: 0; }
     .coverage-line { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 7px; }
     .coverage-line strong { font-size: 13px; }
     .coverage-line span { color: var(--muted); font-size: 12px; }
@@ -417,6 +457,7 @@
       .hero, .dashboard-grid { grid-template-columns: 1fr; }
       .metric-strip { grid-template-columns: repeat(2, 1fr); }
       .panel-wide { grid-column: auto; }
+      .ranking-split { grid-template-columns: 1fr; }
       .hero { align-items: start; }
       .topbar { align-items: flex-start; }
       .topbar-actions { flex-wrap: wrap; }
@@ -438,7 +479,8 @@
       .metric { min-height: 104px; padding: 14px 14px 14px 16px; }
       .metric-value { font-size: 26px; }
       .panel-header { padding: 18px 16px 12px; flex-direction: column; }
-      .chart, .coverage, .toolbar, .capability-grid, .pricing-grid { padding-left: 16px; padding-right: 16px; }
+      .chart, .coverage, .toolbar, .capability-grid, .pricing-grid, .ranking-split { padding-left: 16px; padding-right: 16px; }
+      .ranking-split-col { padding: 12px 10px 6px; }
       .table-pagination { align-items: stretch; flex-direction: column; }
       .pagination-controls { justify-content: space-between; }
       .ranking-row { grid-template-columns: 24px minmax(110px, 1fr) 55px; padding: 0 4px; }
@@ -468,8 +510,8 @@
           <summary>同步榜单</summary>
           <div class="sync-menu-popover">
             <button class="btn btn-quiet" id="sync-arena" type="button">同步 Arena 前 30</button>
-            <button class="btn btn-quiet" id="sync-artificial-analysis" type="button">同步 AA 编程榜</button>
-            <button class="btn btn-quiet" id="sync-llm-stats" type="button">同步 LLM Stats</button>
+            <button class="btn btn-quiet" id="sync-artificial-analysis" type="button">同步 AA 完整榜</button>
+            <button class="btn btn-quiet" id="sync-llm-stats" type="button">同步 LLM Stats 前 30</button>
           </div>
         </details>
         <button class="btn btn-quiet" id="open-import" type="button">接入数据</button>
@@ -791,7 +833,7 @@
 
       const grid = el("div", "dashboard-grid");
       grid.append(
-        renderRanking(models),
+        renderRankings(models),
         renderCoverage(models),
         renderCapability(models),
         renderAgentUsage(Array.isArray(data.agent_usage) ? data.agent_usage : []),
@@ -892,9 +934,62 @@
       return header;
     }
 
-    function renderRanking(models) {
-      const panel = el("section", "panel");
-      const header = panelHeader("模型排名", "只比较当前指标有数据的模型；空白不按 0 分处理");
+    function scoredModels(models) {
+      return models.filter(model => model.scores?.[state.metric] !== null && model.scores?.[state.metric] !== undefined);
+    }
+
+    function appendRankingRows(chart, ranked, titleFn, subtitleFn) {
+      const max = Math.max(...ranked.map(entry => Number(entry.scores[state.metric])), 1);
+      ranked.forEach((entry, index) => {
+        const row = el("div", "ranking-row");
+        const name = el("div", "rank-name", titleFn(entry));
+        const subtitle = subtitleFn(entry);
+        if (subtitle) name.append(el("small", "", subtitle));
+        const track = el("div", "bar-track");
+        const fill = el("div", "bar-fill");
+        fill.style.width = `${Math.max(2, Number(entry.scores[state.metric]) / max * 100)}%`;
+        track.append(fill);
+        row.append(
+          el("div", "rank-number", String(index + 1).padStart(2, "0")),
+          name,
+          track,
+          el("div", "bar-value", number(entry.scores[state.metric]))
+        );
+        chart.append(row);
+      });
+      if (!ranked.length) chart.append(el("div", "empty", "当前指标暂无数据"));
+    }
+
+    function bestAgentEntries(models) {
+      const bestByAgent = new Map();
+      scoredModels(models).forEach(model => {
+        const key = String(model.tool || "").toLocaleLowerCase("en-US");
+        const current = bestByAgent.get(key);
+        const score = Number(model.scores[state.metric]);
+        if (!current || score > Number(current.scores[state.metric])) {
+          bestByAgent.set(key, model);
+        }
+      });
+      return [...bestByAgent.values()]
+        .sort((a, b) => Number(b.scores[state.metric]) - Number(a.scores[state.metric]) || String(a.tool).localeCompare(String(b.tool), "zh-CN"))
+        .slice(0, 10);
+    }
+
+    function renderRankingColumn(title, subtitle, ranked, titleFn, subtitleFn) {
+      const column = el("div", "ranking-split-col");
+      column.append(el("h3", "", title), el("p", "", subtitle));
+      const chart = el("div", "chart");
+      appendRankingRows(chart, ranked, titleFn, subtitleFn);
+      column.append(chart);
+      return column;
+    }
+
+    function renderRankings(models) {
+      const panel = el("section", "panel panel-wide");
+      const header = panelHeader(
+        "能力排名",
+        "参照 Artificial Analysis Coding Agents：拆成 Agent（编程工具）与 Model（模型配置）两榜；空白不按 0 分处理"
+      );
       const segmented = el("div", "segmented");
       Object.entries(metricLabels).forEach(([value, label]) => {
         const button = el("button", "", label);
@@ -905,36 +1000,43 @@
       });
       header.append(segmented);
       panel.append(header);
-      const chart = el("div", "chart");
-      const ranked = models
-        .filter(model => model.scores?.[state.metric] !== null && model.scores?.[state.metric] !== undefined)
-        .sort((a, b) => b.scores[state.metric] - a.scores[state.metric])
+
+      const modelRanked = scoredModels(models)
+        .slice()
+        .sort((a, b) => Number(b.scores[state.metric]) - Number(a.scores[state.metric]) || String(a.model).localeCompare(String(b.model), "zh-CN"))
         .slice(0, 10);
-      const max = Math.max(...ranked.map(model => Number(model.scores[state.metric])), 1);
-      ranked.forEach((model, index) => {
-        const row = el("div", "ranking-row");
-        const name = el("div", "rank-name", model.model);
-        name.append(el("small", "", `${model.tool}${model.reasoning_effort ? ` · ${model.reasoning_effort}` : ""}`));
-        const track = el("div", "bar-track");
-        const fill = el("div", "bar-fill");
-        fill.style.width = `${Math.max(2, Number(model.scores[state.metric]) / max * 100)}%`;
-        track.append(fill);
-        row.append(el("div", "rank-number", String(index + 1).padStart(2, "0")), name, track, el("div", "bar-value", number(model.scores[state.metric])));
-        chart.append(row);
-      });
-      if (!ranked.length) chart.append(el("div", "empty", "当前指标暂无数据"));
-      panel.append(chart);
+      const agentRanked = bestAgentEntries(models);
+      const split = el("div", "ranking-split");
+      split.append(
+        renderRankingColumn(
+          "Agent 排名",
+          "按 AI 编程工具聚合，取该指标最佳成绩",
+          agentRanked,
+          entry => entry.tool,
+          entry => `配对模型：${entry.model}${entry.reasoning_effort ? ` · ${entry.reasoning_effort}` : ""}`
+        ),
+        renderRankingColumn(
+          "Model 排名",
+          "按模型配置逐条比较当前指标",
+          modelRanked,
+          entry => entry.model,
+          entry => `配对 Agent：${entry.tool}${entry.reasoning_effort ? ` · ${entry.reasoning_effort}` : ""}`
+        )
+      );
+      panel.append(split);
       return panel;
     }
 
     function renderCoverage(models) {
-      const panel = el("aside", "panel");
+      const panel = el("aside", "panel panel-wide");
       panel.append(panelHeader("数据覆盖", "每个评价体系的已填模型占比"));
       const body = el("div", "coverage");
       [
         ["人工测试", "manual_total"],
         ["ModelTest", "model_test_total"],
-        ["Arena WebDev", "arena_webdev"]
+        ["Arena WebDev", "arena_webdev"],
+        ["AA Coding Index", "artificial_analysis_index"],
+        ["LLM Stats", "llm_stats_score"]
       ].forEach(([label, field]) => {
         const count = models.filter(model => model.scores?.[field] !== null && model.scores?.[field] !== undefined).length;
         const ratio = models.length ? count / models.length : 0;
@@ -1044,7 +1146,7 @@
             ["工具 / 模型", "identity", "text"], ["推理强度", "reasoning_effort", "text"], ["榜单排名", "rank", "number", "asc"],
             ["Skill 调用", "skill_call", "number"], ["代码评审", "code_review", "number"], ["逻辑分析", "logic_analysis", "number"], ["功能修复", "function_fix", "number"], ["人工总分", "manual_total", "number"],
             ["代码修正", "model_test_correction", "number"], ["代码生成", "model_test_generation", "number"], ["ModelTest 逻辑", "model_test_logic", "number"], ["ModelTest 总分", "model_test_total", "number"],
-            ["Arena", "arena_webdev", "number"], ["AA Index", "artificial_analysis_index", "number"], ["DeepSWE", "aa_deep_swe", "number"], ["Terminal-Bench v2", "aa_terminal_bench_v2", "number"], ["SWE-Atlas-QnA", "aa_swe_atlas_qna", "number"],
+            ["Arena", "arena_webdev", "number"], ["AA Index", "artificial_analysis_index", "number"], ["DeepSWE", "aa_deep_swe", "number"], ["Terminal-Bench v2.1", "aa_terminal_bench_v2", "number"], ["SWE-Atlas-QnA", "aa_swe_atlas_qna", "number"],
             ["LLM Stats", "llm_stats_score", "number"], ["Reasoning", "llm_stats_reasoning", "number"], ["Code", "llm_stats_code", "number"], ["Agents", "llm_stats_agents", "number"], ["原表综合", "composite_total", "number"],
             ["速度", "response_speed", "text"], ["来源", "source", "text"], ["备注", "notes", "text"], ["操作", "", "text"]
           ]
@@ -1238,7 +1340,7 @@
       try {
         const result = await api("/api/import/artificial-analysis", { method: "POST", body: "{}" });
         await loadData();
-        showToast(`AA 编程榜已同步：新增 ${result.created}，更新 ${result.updated}，移除 ${result.removed}`);
+        showToast(`AA 完整榜已同步：新增 ${result.created}，更新 ${result.updated}，移除 ${result.removed}`);
       } catch (error) {
         showToast(error.message, true);
       } finally {
@@ -1254,7 +1356,7 @@
       try {
         const result = await api("/api/import/llm-stats", { method: "POST", body: "{}" });
         await loadData();
-        showToast(`LLM Stats 已同步：新增 ${result.created}，更新 ${result.updated}，移除 ${result.removed}`);
+        showToast(`LLM Stats 前 30 已同步：新增 ${result.created}，更新 ${result.updated}，移除 ${result.removed}`);
       } catch (error) {
         showToast(error.message, true);
       } finally {

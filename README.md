@@ -120,9 +120,9 @@ python3 -m compileall -q benchmark model_dashboard tests run_benchmark.py
 
 页面右上角的“同步 Arena 前 30”会主动读取 [Arena WebDev 榜单](https://arena.ai/leaderboard/code/webdev) 的官方 `webdev/latest` 数据集快照，并同步当前 Overall 前 30 名。重复同步只替换上一次 Arena 同步记录，不会覆盖 Excel、手工或其他第三方记录；若官方数据不足 30 条则拒绝写入，保留上一次完整结果。
 
-“同步 AA 编程榜”会主动读取 [Artificial Analysis Coding Agents](https://artificialanalysis.ai/agents/coding-agents) 官方页面嵌入的完整榜单，保存 Coding Agent Index 排名、总分，以及 DeepSWE、Terminal-Bench v2、SWE-Atlas-QnA 三项分数。同步记录还保留官方记录 ID、Agent、模型、指数版本、每任务成本和运行时间；重复同步只替换上一次 Artificial Analysis 记录。该指数使用独立字段，不参与原表综合分。
+“同步 AA 完整榜”会主动读取 [Artificial Analysis Coding Agents](https://artificialanalysis.ai/agents/coding-agents) 官方页面嵌入的完整榜单（select all，不截断为前 30），保存 Coding Agent Index 排名、总分，以及 DeepSWE、Terminal-Bench v2.1、SWE-Atlas-QnA 三项分数。同步记录还保留官方记录 ID、Agent、模型、指数版本、每任务成本和运行时间；重复同步只替换上一次 Artificial Analysis 记录，不会覆盖 Excel、手工或其他来源。该指数使用独立字段，不参与原表综合分。看板能力排名区按 Agent（编程工具聚合）与 Model（模型配置逐条）两路展示当前指标得分及配对信息。
 
-“同步 LLM Stats”会主动读取 [LLM Stats](https://llm-stats.com/) 官网使用的公开 `general` 指数榜单，保存官网排名、LLM Stats Score，以及 Reasoning、Code、Agents 三个主要分项。同步记录还保留官方模型 ID、组织、14 天排名变化和参与评测数；重复同步只替换上一次 LLM Stats 记录，接口数据无效时保留已有结果。LLM Stats 分数使用独立字段，不参与原表综合分。
+“同步 LLM Stats 前 30”会主动读取 [LLM Stats](https://llm-stats.com/) 官网使用的公开 `general` 指数榜单，只同步当前前 30 名，并保存官网排名、LLM Stats Score，以及 Reasoning、Code、Agents 三个主要分项。同步记录还保留官方模型 ID、组织、14 天排名变化和参与评测数；重复同步只替换上一次 LLM Stats 记录，不会覆盖 Excel、手工或其他来源；接口数据无效时保留已有结果。LLM Stats 分数使用独立字段，不参与原表综合分。
 
 直接启动（无需安装额外依赖）：
 

@@ -35,7 +35,8 @@ ARENA_DATASET_URL = (
     "?dataset=lmarena-ai%2Fleaderboard-dataset"
     "&config=webdev&split=latest&offset=0&length=100"
 )
-ARENA_TOP_LIMIT = 30
+LEADERBOARD_TOP_LIMIT = 30
+ARENA_TOP_LIMIT = LEADERBOARD_TOP_LIMIT
 ARTIFICIAL_ANALYSIS_URL = "https://artificialanalysis.ai/agents/coding-agents"
 LLM_STATS_URL = "https://llm-stats.com/"
 LLM_STATS_INDEX_URL = "https://api.zeroeval.com/leaderboard/indexes/compact?payloadVersion=2"
@@ -378,7 +379,15 @@ def normalize_arena_webdev_rows(
     return models
 
 
-def normalize_artificial_analysis_html(document: str) -> list[dict[str, Any]]:
+def normalize_artificial_analysis_html(
+    document: str,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
+    """Parse Artificial Analysis Coding Agents HTML.
+
+    Default product path is select-all (full Coding Agent Index). Pass ``limit``
+    only when a caller intentionally wants a truncated subset (e.g. tests).
+    """
     if not isinstance(document, str) or "indexScore" not in document:
         raise DashboardError("Artificial Analysis Coding Agents 页面缺少榜单数据")
 
@@ -423,6 +432,10 @@ def normalize_artificial_analysis_html(document: str) -> list[dict[str, Any]]:
     ranked_rows = sorted(rows.values(), key=lambda row: (-float(row["indexScore"]), row["id"]))
     if not ranked_rows:
         raise DashboardError("Artificial Analysis Coding Agents 页面未解析到有效排名")
+    if limit is not None:
+        if limit <= 0:
+            raise DashboardError("Artificial Analysis Coding Agents 截断条数无效")
+        ranked_rows = ranked_rows[:limit]
 
     fetched_at = utc_now()
     models = []
@@ -434,9 +447,14 @@ def normalize_artificial_analysis_html(document: str) -> list[dict[str, Any]]:
             if isinstance(item, dict) and isinstance(item.get("mean"), dict)
         }
         index_score = round(float(row["indexScore"]) * 100, 4)
+        # Official page currently emits terminal-bench-v2.1; keep v2 as a fallback
+        # for older fixtures / cached HTML.
+        terminal_bench = eval_scores.get("terminal-bench-v2.1")
+        if terminal_bench is None:
+            terminal_bench = eval_scores.get("terminal-bench-v2")
         component_scores = {
             "aa_deep_swe": eval_scores.get("deep-swe"),
-            "aa_terminal_bench_v2": eval_scores.get("terminal-bench-v2"),
+            "aa_terminal_bench_v2": terminal_bench,
             "aa_swe_atlas_qna": eval_scores.get("swe-atlas-qna"),
         }
         scores = {"artificial_analysis_index": index_score}
@@ -468,7 +486,10 @@ def normalize_artificial_analysis_html(document: str) -> list[dict[str, Any]]:
     return models
 
 
-def normalize_llm_stats_indexes(document: Any) -> list[dict[str, Any]]:
+def normalize_llm_stats_indexes(
+    document: Any,
+    limit: int = LEADERBOARD_TOP_LIMIT,
+) -> list[dict[str, Any]]:
     if not isinstance(document, dict):
         raise DashboardError("LLM Stats 数据格式无效")
     general = document.get("general")
@@ -508,9 +529,10 @@ def normalize_llm_stats_indexes(document: Any) -> list[dict[str, Any]]:
         validated_rows.append((rank, source_id, model_name, score, row))
 
     validated_rows.sort(key=lambda item: (item[0], item[1]))
+    selected = validated_rows[:limit]
     fetched_at = utc_now()
     models = []
-    for rank, source_id, model_name, score, row in validated_rows:
+    for rank, source_id, model_name, score, row in selected:
         organization = optional_text(row.get("organization_name"), "organization_name", 100)
         scores = {
             "llm_stats_score": score,
