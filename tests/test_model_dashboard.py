@@ -19,7 +19,9 @@ from model_dashboard.server import (
     calculate_scores,
     create_server,
     fetch_json,
+    normalize_agent_usage_entry,
     normalize_model,
+    resolve_static_path,
     url_origin,
     normalize_arena_webdev_rows,
     normalize_artificial_analysis_html,
@@ -202,8 +204,13 @@ class ModelDashboardTests(unittest.TestCase):
             try:
                 with urlopen(f"{base_url}/", timeout=3) as response:
                     html = response.read().decode("utf-8")
-                    self.assertIn("AI 模型能力测试", html)
+                    self.assertIn("模型能力台", html)
+                    self.assertIn("/static/brand/mark.svg", html)
+                    self.assertIn("/static/brand/favicon.svg", html)
                     self.assertIn("增加模型", html)
+                    self.assertIn("录入使用人数", html)
+                    self.assertIn("Agent 使用人数", html)
+                    self.assertIn("/api/agent-usage", html)
                     self.assertIn("看板模式", html)
                     self.assertIn("表格模式", html)
                     self.assertIn("按归档状态筛选", html)
@@ -217,7 +224,25 @@ class ModelDashboardTests(unittest.TestCase):
                     self.assertIn("同步 AA 编程榜", html)
                     self.assertIn("同步 LLM Stats", html)
                     self.assertIn('data-view="table"', html)
+                    self.assertIn("function sourceHref(model)", html)
+                    self.assertIn("function sourceBadge(model)", html)
+                    self.assertIn("打开来源：", html)
+                    self.assertIn("function pricingPlanGroups(item)", html)
+                    self.assertIn("IDE Plan", html)
+                    self.assertIn("Code Plan", html)
+                    self.assertIn("ide_plans", html)
+                    self.assertIn("code_plans", html)
                     self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
+
+                with urlopen(f"{base_url}/static/brand/mark.svg", timeout=3) as response:
+                    mark = response.read().decode("utf-8")
+                    self.assertIn('viewBox="0 0 32 32"', mark)
+                    self.assertIn("#245b45", mark)
+                    self.assertIn("image/svg+xml", response.headers["Content-Type"])
+
+                with self.assertRaises(HTTPError) as blocked:
+                    urlopen(f"{base_url}/static/../seed_data.json", timeout=3)
+                self.assertEqual(blocked.exception.code, 404)
 
                 created = self._post_json(
                     f"{base_url}/api/models",
@@ -311,6 +336,16 @@ class ModelDashboardTests(unittest.TestCase):
             with self.subTest(url=url):
                 with self.assertRaisesRegex(DashboardError, "URL 端口无效"):
                     url_origin(url)
+
+    def test_resolve_static_path_allows_brand_assets_and_blocks_traversal(self):
+        mark = resolve_static_path("/static/brand/mark.svg")
+        self.assertIsNotNone(mark)
+        assert mark is not None
+        self.assertEqual(mark.name, "mark.svg")
+        self.assertIsNone(resolve_static_path("/static/../seed_data.json"))
+        self.assertIsNone(resolve_static_path("/static/index.html"))
+        self.assertIsNone(resolve_static_path("/static/brand/"))
+        self.assertIsNone(resolve_static_path("/static/brand/missing.svg"))
 
     def test_archive_rejects_duplicate_legacy_ids_without_modifying_data(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -565,6 +600,84 @@ class ModelDashboardTests(unittest.TestCase):
                 self.assertEqual(raised.exception.code, 400)
                 error = json.loads(raised.exception.read().decode("utf-8"))
                 self.assertEqual(error["error"], "AI 编程工具不能为空")
+                raised.exception.close()
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=3)
+
+    def test_normalize_agent_usage_entry_requires_non_negative_count(self):
+        entry = normalize_agent_usage_entry(
+            {"tool": "  Claude Code  ", "user_count": 1200, "notes": "内部统计"}
+        )
+        self.assertEqual(entry["tool"], "Claude Code")
+        self.assertEqual(entry["user_count"], 1200)
+        self.assertEqual(entry["notes"], "内部统计")
+        self.assertTrue(entry["updated_at"])
+
+        with self.assertRaisesRegex(DashboardError, "AI 编程工具不能为空"):
+            normalize_agent_usage_entry({"tool": " ", "user_count": 1})
+        with self.assertRaisesRegex(DashboardError, "使用人数不能为空"):
+            normalize_agent_usage_entry({"tool": "Codex", "user_count": None})
+        with self.assertRaisesRegex(DashboardError, "使用人数不能为负数"):
+            normalize_agent_usage_entry({"tool": "Codex", "user_count": -1})
+        with self.assertRaisesRegex(DashboardError, "user_count 必须是数字"):
+            normalize_agent_usage_entry({"tool": "Codex", "user_count": "很多"})
+
+    def test_store_upserts_agent_usage_by_case_insensitive_tool(self):
+        with tempfile.TemporaryDirectory() as directory:
+            data_path = Path(directory) / "dashboard.json"
+            data_path.write_text(json.dumps({"meta": {}, "models": []}), encoding="utf-8")
+            store = DashboardStore(data_path=data_path)
+
+            created, is_new = store.upsert_agent_usage({"tool": "Claude Code", "user_count": 10})
+            self.assertTrue(is_new)
+            self.assertEqual(created["user_count"], 10)
+
+            updated, is_new = store.upsert_agent_usage(
+                {"tool": "claude code", "user_count": 25, "notes": "季度统计"}
+            )
+            self.assertFalse(is_new)
+            self.assertEqual(updated["tool"], "claude code")
+            self.assertEqual(updated["user_count"], 25)
+
+            data = json.loads(data_path.read_text(encoding="utf-8"))
+            self.assertEqual(len(data["agent_usage"]), 1)
+            self.assertEqual(data["agent_usage"][0]["user_count"], 25)
+            self.assertEqual(data["agent_usage"][0]["notes"], "季度统计")
+            self.assertTrue(data["meta"]["updated_at"])
+
+    def test_http_upserts_agent_usage_and_exposes_it_on_models_payload(self):
+        with tempfile.TemporaryDirectory() as directory:
+            server = create_server("127.0.0.1", 0, data_path=Path(directory) / "dashboard.json")
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_port}"
+            try:
+                created = self._post_json(
+                    f"{base_url}/api/agent-usage",
+                    {"tool": "Codex", "user_count": 88, "notes": "试点"},
+                )
+                self.assertTrue(created["created"])
+                self.assertEqual(created["entry"]["tool"], "Codex")
+                self.assertEqual(created["entry"]["user_count"], 88)
+
+                updated = self._post_json(
+                    f"{base_url}/api/agent-usage",
+                    {"tool": "codex", "user_count": 120},
+                )
+                self.assertFalse(updated["created"])
+                self.assertEqual(updated["entry"]["user_count"], 120)
+
+                with urlopen(f"{base_url}/api/models", timeout=3) as response:
+                    data = json.load(response)
+                self.assertEqual(len(data["agent_usage"]), 1)
+                self.assertEqual(data["agent_usage"][0]["tool"], "codex")
+                self.assertEqual(data["agent_usage"][0]["user_count"], 120)
+
+                with self.assertRaises(HTTPError) as raised:
+                    self._post_json(f"{base_url}/api/agent-usage", {"tool": "Codex", "user_count": -3})
+                self.assertEqual(raised.exception.code, 400)
                 raised.exception.close()
             finally:
                 server.shutdown()

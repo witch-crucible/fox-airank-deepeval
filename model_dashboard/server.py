@@ -20,8 +20,15 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 ROOT = Path(__file__).resolve().parent
 SEED_PATH = ROOT / "seed_data.json"
 DEFAULT_DATA_PATH = ROOT / "data.local.json"
-INDEX_PATH = ROOT / "static" / "index.html"
+STATIC_ROOT = ROOT / "static"
+INDEX_PATH = STATIC_ROOT / "index.html"
 MAX_BODY_BYTES = 2 * 1024 * 1024
+STATIC_CONTENT_TYPES = {
+    ".svg": "image/svg+xml; charset=utf-8",
+    ".png": "image/png",
+    ".ico": "image/x-icon",
+    ".webp": "image/webp",
+}
 ARENA_WEBDEV_URL = "https://arena.ai/leaderboard/code/webdev"
 ARENA_DATASET_URL = (
     "https://datasets-server.huggingface.co/rows"
@@ -109,6 +116,25 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def resolve_static_path(request_path: str) -> Path | None:
+    """将 /static/... 映射到 STATIC_ROOT；拒绝目录穿越与未允许后缀。"""
+    if not request_path.startswith("/static/"):
+        return None
+    relative = unquote(request_path.removeprefix("/static/"))
+    if not relative or relative.endswith("/") or "\\" in relative:
+        return None
+    candidate = (STATIC_ROOT / relative).resolve()
+    try:
+        candidate.relative_to(STATIC_ROOT.resolve())
+    except ValueError:
+        return None
+    if candidate.suffix.casefold() not in STATIC_CONTENT_TYPES:
+        return None
+    if not candidate.is_file():
+        return None
+    return candidate
+
+
 def optional_number(value: Any, field: str) -> float | int | None:
     if value is None or value == "":
         return None
@@ -176,6 +202,25 @@ def optional_text(value: Any, field: str, max_length: int = 500) -> str:
     if len(text) > max_length:
         raise DashboardError(f"{field} 最长 {max_length} 个字符")
     return text
+
+
+def normalize_agent_usage_entry(raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        raise DashboardError("使用人数数据必须是对象")
+    tool = optional_text(raw.get("tool"), "tool", 100)
+    if not tool:
+        raise DashboardError("AI 编程工具不能为空")
+    user_count = optional_number(raw.get("user_count"), "user_count")
+    if user_count is None:
+        raise DashboardError("使用人数不能为空")
+    if user_count < 0:
+        raise DashboardError("使用人数不能为负数")
+    return {
+        "tool": tool,
+        "user_count": user_count,
+        "notes": optional_text(raw.get("notes"), "notes", 500),
+        "updated_at": utc_now(),
+    }
 
 
 def normalize_model(raw: Any, source: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -613,6 +658,26 @@ class DashboardStore:
             self.write(data)
         return model
 
+    def upsert_agent_usage(self, raw: Any) -> tuple[dict[str, Any], bool]:
+        entry = normalize_agent_usage_entry(raw)
+        with self._lock:
+            data = self.read()
+            usage = data.get("agent_usage")
+            if not isinstance(usage, list):
+                usage = []
+                data["agent_usage"] = usage
+            key = entry["tool"].casefold()
+            for index, current in enumerate(usage):
+                if isinstance(current, dict) and str(current.get("tool", "")).casefold() == key:
+                    usage[index] = entry
+                    data.setdefault("meta", {})["updated_at"] = utc_now()
+                    self.write(data)
+                    return entry, False
+            usage.append(entry)
+            data.setdefault("meta", {})["updated_at"] = utc_now()
+            self.write(data)
+        return entry, True
+
     def set_model_archived(self, model_id: str, archived: bool) -> dict[str, Any]:
         with self._lock:
             data = self.read()
@@ -818,12 +883,19 @@ class DashboardHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/":
             self._send_bytes(HTTPStatus.OK, INDEX_PATH.read_bytes(), "text/html; charset=utf-8")
-        elif path == "/api/models":
+            return
+        if path == "/api/models":
             self._send_json(HTTPStatus.OK, self.dashboard_store.read())
-        elif path == "/api/health":
+            return
+        if path == "/api/health":
             self._send_json(HTTPStatus.OK, {"status": "ok"})
-        else:
-            self._send_json(HTTPStatus.NOT_FOUND, {"error": "页面不存在"})
+            return
+        static_path = resolve_static_path(path)
+        if static_path is not None:
+            content_type = STATIC_CONTENT_TYPES[static_path.suffix.casefold()]
+            self._send_bytes(HTTPStatus.OK, static_path.read_bytes(), content_type)
+            return
+        self._send_json(HTTPStatus.NOT_FOUND, {"error": "页面不存在"})
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
@@ -832,6 +904,11 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if path == "/api/models":
                 model = self.dashboard_store.add_model(payload)
                 self._send_json(HTTPStatus.CREATED, {"model": model})
+                return
+            if path == "/api/agent-usage":
+                entry, created = self.dashboard_store.upsert_agent_usage(payload)
+                status = HTTPStatus.CREATED if created else HTTPStatus.OK
+                self._send_json(status, {"entry": entry, "created": created})
                 return
             if path.startswith("/api/models/") and path.endswith("/archive"):
                 model_id = unquote(path.removeprefix("/api/models/").removesuffix("/archive").strip("/"))
@@ -953,13 +1030,13 @@ def create_server(
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="AI 模型能力看板")
+    parser = argparse.ArgumentParser(description="模型能力台")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--data", type=Path, default=DEFAULT_DATA_PATH)
     args = parser.parse_args(argv)
     server = create_server(args.host, args.port, args.data)
-    print(f"AI 模型能力看板：http://{args.host}:{server.server_port}")
+    print(f"模型能力台：http://{args.host}:{server.server_port}")
     print(f"本地数据：{args.data}")
     try:
         server.serve_forever()

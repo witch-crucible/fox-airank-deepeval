@@ -253,10 +253,10 @@
     }
   ],
   "pricing": [
-    {"tool": "Codex", "plans": [{"name": "Plus", "price_cny_month": 135}, {"name": "Pro 5x", "price_cny_month": 677}, {"name": "Pro 20x", "price_cny_month": 1354}], "notes": "", "official_url": "https://chatgpt.com/codex/pricing/"},
-    {"tool": "Claude Code", "plans": [{"name": "Pro", "price_cny_month": 135}, {"name": "Max 5x", "price_cny_month": 846}, {"name": "Max 20x", "price_cny_month": 1692}], "notes": "App Store 价格较高", "official_url": "https://claude.com/pricing"},
-    {"tool": "GLM-5.2", "plans": [{"name": "标准", "price_cny_month": 110}, {"name": "Pro 5x", "price_cny_month": 439}, {"name": "Max 20x", "price_cny_month": 975}], "notes": "", "official_url": "https://z.ai/subscribe"},
-    {"tool": "Qwen3.7", "plans": [{"name": "标准", "price_cny_month": 198}, {"name": "高级 4x", "price_cny_month": 698}, {"name": "至尊 10x", "price_cny_month": 1398}], "notes": "", "official_url": "https://www.aliyun.com/benefit/scene/ai-discount"},
-    {"tool": "OpenCode", "plans": [{"name": "Go", "price_cny_month": 67.5}], "notes": "", "official_url": ""}
+    {"tool": "Codex", "ide_plans": [], "code_plans": [{"name": "Plus", "price_cny_month": 135}, {"name": "Pro 5x", "price_cny_month": 677}, {"name": "Pro 20x", "price_cny_month": 1354}], "notes": "", "official_url": "https://chatgpt.com/codex/pricing/"},
+    {"tool": "Claude Code", "ide_plans": [], "code_plans": [{"name": "Pro", "price_cny_month": 135}, {"name": "Max 5x", "price_cny_month": 846}, {"name": "Max 20x", "price_cny_month": 1692}], "notes": "App Store 价格较高", "official_url": "https://claude.com/pricing"},
+    {"tool": "GLM-5.2", "ide_plans": [], "code_plans": [{"name": "标准", "price_cny_month": 110}, {"name": "Pro 5x", "price_cny_month": 439}, {"name": "Max 20x", "price_cny_month": 975}], "notes": "", "official_url": "https://z.ai/subscribe"},
+    {"tool": "Qwen3.7", "ide_plans": [], "code_plans": [{"name": "标准", "price_cny_month": 198}, {"name": "高级 4x", "price_cny_month": 698}, {"name": "至尊 10x", "price_cny_month": 1398}], "notes": "", "official_url": "https://www.aliyun.com/benefit/scene/ai-discount"},
+    {"tool": "OpenCode", "ide_plans": [], "code_plans": [{"name": "Go", "price_cny_month": 67.5}], "notes": "", "official_url": ""}
   ]
 }

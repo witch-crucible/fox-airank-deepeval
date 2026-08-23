@@ -3,7 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AI 模型能力测试</title>
+  <title>模型能力台</title>
+  <link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.svg">
   <style>
     :root {
       color-scheme: light;
@@ -62,16 +64,11 @@
     .brand { display: flex; align-items: center; gap: 12px; }
 
     .brand-mark {
-      display: grid;
+      display: block;
       width: 38px;
       height: 38px;
-      place-items: center;
       border-radius: 12px;
-      background: var(--green);
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,.16);
-      color: white;
-      font-weight: 800;
-      letter-spacing: -.04em;
+      box-shadow: 0 6px 16px rgba(36, 91, 69, 0.18);
     }
 
     .brand-name { font-size: 15px; font-weight: 760; }
@@ -317,7 +314,9 @@
     td strong { display: block; }
     td small { color: var(--muted); }
 
-    .badge { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 8px; border-radius: 99px; background: var(--green-soft); color: var(--green); font-size: 11px; font-weight: 720; }
+    .badge { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 8px; border-radius: 99px; background: var(--green-soft); color: var(--green); font-size: 11px; font-weight: 720; text-decoration: none; }
+    a.badge:hover { filter: brightness(0.96); text-decoration: underline; text-underline-offset: 2px; }
+    a.badge:focus-visible { outline: 2px solid rgba(36, 91, 69, .35); outline-offset: 2px; }
     .badge-third { background: var(--gold-soft); color: #825712; }
     .badge-empty { background: #eceeeb; color: var(--muted); }
     .note-cell { max-width: 260px; color: var(--muted); white-space: normal; }
@@ -339,11 +338,25 @@
     .heat-cell[data-level="medium"] { background: #8dab96; color: #12372a; }
     .heat-cell[data-level="low"] { background: var(--gold-soft); color: #765315; }
 
-    .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; padding: 0 24px 24px; }
+    .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; padding: 0 24px 24px; }
     .price-card { padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: white; }
     .price-card h3 { margin-bottom: 12px; }
+    .plan-group { margin-top: 10px; }
+    .plan-group:first-of-type { margin-top: 0; }
+    .plan-group-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 2px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 720;
+      letter-spacing: .01em;
+    }
     .plan { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
     .plan strong { font-variant-numeric: tabular-nums; }
+    .plan-empty { color: var(--muted); font-size: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
     .price-card p { margin: 8px 0 0; color: var(--muted); font-size: 11px; }
 
     .empty { padding: 36px; text-align: center; color: var(--muted); }
@@ -440,7 +453,7 @@
   <div class="app-shell">
     <header class="topbar">
       <div class="brand">
-        <div class="brand-mark" aria-hidden="true">AI</div>
+        <img class="brand-mark" src="/static/brand/mark.svg" width="38" height="38" alt="" aria-hidden="true">
         <div>
           <div class="brand-name">模型能力台</div>
           <div class="brand-meta">Coding agent benchmark observatory</div>
@@ -460,6 +473,7 @@
           </div>
         </details>
         <button class="btn btn-quiet" id="open-import" type="button">接入数据</button>
+        <button class="btn btn-quiet" id="open-agent-usage" type="button">录入使用人数</button>
         <button class="btn btn-primary" id="open-model" type="button">＋ 增加模型</button>
       </div>
     </header>
@@ -499,6 +513,24 @@
       </div>
       <p class="form-error" id="model-error" role="alert"></p>
       <div class="dialog-actions"><button class="btn" type="button" data-close="model-dialog">取消</button><button class="btn btn-primary" type="submit">保存模型</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="agent-usage-dialog" aria-labelledby="agent-usage-dialog-title">
+    <div class="dialog-head">
+      <div><h2 id="agent-usage-dialog-title">录入 Agent 使用人数</h2><div class="brand-meta">按 AI 编程工具汇总，同名工具会覆盖更新</div></div>
+      <button class="icon-btn" type="button" data-close="agent-usage-dialog" aria-label="关闭">×</button>
+    </div>
+    <form id="agent-usage-form">
+      <div class="form-grid">
+        <div class="field"><label for="usage-tool">AI 编程工具 *</label><input id="usage-tool" name="tool" list="usage-tool-options" required maxlength="100" placeholder="例如 Claude Code" autocomplete="off"></div>
+        <div class="field"><label for="usage-count">使用人数 *</label><input id="usage-count" name="user_count" type="number" required min="0" step="1" placeholder="例如 1200"></div>
+        <div class="field field-full"><label for="usage-notes">备注</label><input id="usage-notes" name="notes" maxlength="500" placeholder="统计口径、时间范围或来源"></div>
+        <p class="field-hint field-full">工具名大小写不敏感；再次录入同一工具会覆盖人数。</p>
+      </div>
+      <datalist id="usage-tool-options"></datalist>
+      <p class="form-error" id="agent-usage-error" role="alert"></p>
+      <div class="dialog-actions"><button class="btn" type="button" data-close="agent-usage-dialog">取消</button><button class="btn btn-primary" type="submit">保存人数</button></div>
     </form>
   </dialog>
 
@@ -595,6 +627,32 @@
     function sourceLabel(model) {
       const sourceType = model.source?.type || "manual";
       return sourceType === "arena_webdev" ? "Arena" : sourceType === "artificial_analysis" ? "AA Coding" : sourceType === "llm_stats" ? "LLM Stats" : sourceType === "third_party" ? model.source?.name || "第三方" : sourceType === "excel" ? "Excel" : "手工";
+    }
+
+    function sourceHref(model) {
+      const raw = String(model.source?.url || "").trim();
+      if (!raw) return "";
+      try {
+        const parsed = new URL(raw);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+        return parsed.href;
+      } catch {
+        return "";
+      }
+    }
+
+    function sourceBadge(model) {
+      const sourceType = model.source?.type || "manual";
+      const external = ["third_party", "arena_webdev", "artificial_analysis", "llm_stats"].includes(sourceType);
+      const href = sourceHref(model);
+      const badge = el(href ? "a" : "span", `badge ${external ? "badge-third" : ""}`, sourceLabel(model));
+      if (href) {
+        badge.href = href;
+        badge.target = "_blank";
+        badge.rel = "noreferrer";
+        badge.title = `打开来源：${href}`;
+      }
+      return badge;
     }
 
     function sortValue(model, key) {
@@ -732,8 +790,98 @@
       });
 
       const grid = el("div", "dashboard-grid");
-      grid.append(renderRanking(models), renderCoverage(models), renderCapability(models), renderTable(tools), renderPricing(data.pricing || []));
+      grid.append(
+        renderRanking(models),
+        renderCoverage(models),
+        renderCapability(models),
+        renderAgentUsage(Array.isArray(data.agent_usage) ? data.agent_usage : []),
+        renderTable(tools),
+        renderPricing(data.pricing || [])
+      );
       app.append(hero, metrics, grid);
+    }
+
+    function openAgentUsageDialog(entry) {
+      const form = document.getElementById("agent-usage-form");
+      const error = document.getElementById("agent-usage-error");
+      const options = document.getElementById("usage-tool-options");
+      error.textContent = "";
+      form.reset();
+      const tools = [...new Set((state.data?.models || []).map(model => model.tool).filter(Boolean))].sort((a, b) => a.localeCompare(b, "zh-CN"));
+      options.replaceChildren(...tools.map(tool => new Option(tool, tool)));
+      if (entry) {
+        form.elements.tool.value = entry.tool || "";
+        form.elements.user_count.value = entry.user_count ?? "";
+        form.elements.notes.value = entry.notes || "";
+      }
+      document.getElementById("agent-usage-dialog").showModal();
+      form.elements.tool.focus();
+    }
+
+    function renderAgentUsage(entries) {
+      const panel = el("section", "panel panel-wide");
+      const valid = entries
+        .filter(entry => entry && typeof entry.tool === "string" && entry.tool.trim() && entry.user_count !== null && entry.user_count !== undefined)
+        .slice()
+        .sort((a, b) => Number(b.user_count) - Number(a.user_count) || a.tool.localeCompare(b.tool, "zh-CN"));
+      const totalUsers = valid.reduce((sum, entry) => sum + Number(entry.user_count || 0), 0);
+      const header = panelHeader(
+        "Agent 使用人数",
+        valid.length
+          ? `手工录入 · ${valid.length} 个工具 · 合计 ${number(totalUsers, 0)} 人`
+          : "按 AI 编程工具手工录入使用人数；同名工具再次保存会覆盖"
+      );
+      const actions = el("div", "segmented");
+      const addButton = el("button", "", "录入 / 更新");
+      addButton.type = "button";
+      addButton.addEventListener("click", () => openAgentUsageDialog());
+      actions.append(addButton);
+      header.append(actions);
+      panel.append(header);
+
+      if (!valid.length) {
+        const empty = el("div", "empty", "尚未录入使用人数");
+        const hint = el("p", "field-hint", "点击右上角「录入使用人数」或本面板按钮开始填写。");
+        hint.style.textAlign = "center";
+        hint.style.paddingBottom = "24px";
+        panel.append(empty, hint);
+        return panel;
+      }
+
+      const chart = el("div", "chart");
+      const max = Math.max(...valid.map(entry => Number(entry.user_count)), 1);
+      valid.forEach((entry, index) => {
+        const row = el("div", "ranking-row");
+        row.style.cursor = "pointer";
+        row.title = "点击编辑";
+        row.tabIndex = 0;
+        row.setAttribute("role", "button");
+        row.setAttribute("aria-label", `编辑 ${entry.tool} 使用人数`);
+        const open = () => openAgentUsageDialog(entry);
+        row.addEventListener("click", open);
+        row.addEventListener("keydown", event => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            open();
+          }
+        });
+        const name = el("div", "rank-name", entry.tool);
+        if (entry.notes) name.append(el("small", "", entry.notes));
+        else if (entry.updated_at) name.append(el("small", "", `更新于 ${dateTime(entry.updated_at)}`));
+        const track = el("div", "bar-track");
+        const fill = el("div", "bar-fill");
+        fill.style.width = `${Math.max(2, Number(entry.user_count) / max * 100)}%`;
+        track.append(fill);
+        row.append(
+          el("div", "rank-number", String(index + 1).padStart(2, "0")),
+          name,
+          track,
+          el("div", "bar-value", number(entry.user_count, 0))
+        );
+        chart.append(row);
+      });
+      panel.append(chart);
+      return panel;
     }
 
     function panelHeader(title, subtitle) {
@@ -951,17 +1099,13 @@
         if (model.archived === true) row.classList.add("archived-row");
         const identity = el("td");
         identity.append(el("strong", "", model.model), el("small", "", model.tool));
-        const sourceType = model.source?.type || "manual";
-        const external = ["third_party", "arena_webdev", "artificial_analysis", "llm_stats"].includes(sourceType);
-        const badgeText = sourceLabel(model);
-        const badge = el("span", `badge ${external ? "badge-third" : ""}`, badgeText);
         row.append(identity, el("td", "", model.reasoning_effort || "—"), el("td", "number", number(model.source?.rank, 0)));
         const fields = full
           ? ["skill_call", "code_review", "logic_analysis", "function_fix", "manual_total", "model_test_correction", "model_test_generation", "model_test_logic", "model_test_total", "arena_webdev", "artificial_analysis_index", "aa_deep_swe", "aa_terminal_bench_v2", "aa_swe_atlas_qna", "llm_stats_score", "llm_stats_reasoning", "llm_stats_code", "llm_stats_agents", "composite_total"]
           : ["manual_total", "model_test_total", "arena_webdev", "artificial_analysis_index", "llm_stats_score", "composite_total"];
         fields.forEach(field => row.append(el("td", "number", number(model.scores?.[field]))));
         row.append(el("td", "", model.response_speed || "—"));
-        const sourceCell = el("td"); sourceCell.append(badge); row.append(sourceCell);
+        const sourceCell = el("td"); sourceCell.append(sourceBadge(model)); row.append(sourceCell);
         row.append(el("td", "note-cell", model.notes || model.supplement || "—"));
         if (full) {
           const actionCell = el("td");
@@ -1024,20 +1168,42 @@
       focusTarget?.focus();
     }
 
+    function pricingPlanGroups(item) {
+      const idePlans = Array.isArray(item.ide_plans) ? item.ide_plans : [];
+      const codePlans = Array.isArray(item.code_plans)
+        ? item.code_plans
+        : (Array.isArray(item.plans) ? item.plans : []);
+      return [
+        { key: "ide", label: "IDE Plan", plans: idePlans },
+        { key: "code", label: "Code Plan", plans: codePlans }
+      ];
+    }
+
+    function appendPlanGroup(card, group) {
+      const section = el("div", "plan-group");
+      section.append(el("div", "plan-group-title", group.label));
+      if (!group.plans.length) {
+        section.append(el("div", "plan-empty", "暂无"));
+      } else {
+        group.plans.forEach(plan => {
+          const row = el("div", "plan");
+          row.append(el("span", "", plan.name || "—"), el("strong", "", `¥${number(plan.price_cny_month)}`));
+          section.append(row);
+        });
+      }
+      card.append(section);
+    }
+
     function renderPricing(pricing) {
       const panel = el("section", "panel panel-wide");
-      panel.append(panelHeader("订阅费用快照", "人民币 / 月；沿用 Excel 中的套餐数据，价格可能随时间变化"));
+      panel.append(panelHeader("订阅费用快照", "人民币 / 月；按工具区分 IDE Plan 与 Code Plan，价格可能随时间变化"));
       const grid = el("div", "pricing-grid");
       pricing.forEach(item => {
         const card = el("article", "price-card");
         const title = item.official_url ? el("a", "", item.tool) : el("span", "", item.tool);
         if (item.official_url) { title.href = item.official_url; title.target = "_blank"; title.rel = "noreferrer"; }
         const heading = el("h3"); heading.append(title); card.append(heading);
-        item.plans.forEach(plan => {
-          const row = el("div", "plan");
-          row.append(el("span", "", plan.name), el("strong", "", `¥${number(plan.price_cny_month)}`));
-          card.append(row);
-        });
+        pricingPlanGroups(item).forEach(group => appendPlanGroup(card, group));
         if (item.notes) card.append(el("p", "", item.notes));
         grid.append(card);
       });
@@ -1046,6 +1212,7 @@
     }
 
     document.getElementById("open-model").addEventListener("click", () => document.getElementById("model-dialog").showModal());
+    document.getElementById("open-agent-usage").addEventListener("click", () => openAgentUsageDialog());
     document.getElementById("open-import").addEventListener("click", () => document.getElementById("import-dialog").showModal());
     document.getElementById("sync-arena").addEventListener("click", async event => {
       const button = event.currentTarget;
@@ -1126,6 +1293,29 @@
         document.getElementById("model-dialog").close();
         await loadData();
         showToast(`已增加 ${payload.model}`);
+      } catch (requestError) {
+        error.textContent = requestError.message;
+      } finally { submit.disabled = false; }
+    });
+
+    document.getElementById("agent-usage-form").addEventListener("submit", async event => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const error = document.getElementById("agent-usage-error");
+      error.textContent = "";
+      const submit = form.querySelector("[type=submit]");
+      submit.disabled = true;
+      const payload = {
+        tool: form.elements.tool.value,
+        user_count: optionalFormNumber(form, "user_count"),
+        notes: form.elements.notes.value
+      };
+      try {
+        const result = await api("/api/agent-usage", { method: "POST", body: JSON.stringify(payload) });
+        form.reset();
+        document.getElementById("agent-usage-dialog").close();
+        await loadData();
+        showToast(result.created ? `已录入 ${payload.tool} 使用人数` : `已更新 ${payload.tool} 使用人数`);
       } catch (requestError) {
         error.textContent = requestError.message;
       } finally { submit.disabled = false; }
