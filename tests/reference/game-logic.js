@@ -1,3 +1,7 @@
+export function rectsOverlap(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
 export function createGameState(options = {}) {
   const width = options.width ?? 480;
   const height = options.height ?? 640;
@@ -62,13 +66,7 @@ export function update(state, dt) {
   for (let i = state.bullets.length - 1; i >= 0; i -= 1) {
     const bullet = state.bullets[i];
     for (const enemy of state.enemies) {
-      if (
-        !hitEnemies.has(enemy) &&
-        bullet.x < enemy.x + enemy.w &&
-        bullet.x + bullet.w > enemy.x &&
-        bullet.y < enemy.y + enemy.h &&
-        bullet.y + bullet.h > enemy.y
-      ) {
+      if (!hitEnemies.has(enemy) && rectsOverlap(bullet, enemy)) {
         hitEnemies.add(enemy);
         state.score += enemy.score;
         state.bullets.splice(i, 1);
@@ -84,12 +82,7 @@ export function update(state, dt) {
       continue;
     }
     const { player } = state;
-    if (
-      enemy.x < player.x + player.w &&
-      enemy.x + enemy.w > player.x &&
-      enemy.y < player.y + player.h &&
-      enemy.y + enemy.h > player.y
-    ) {
+    if (rectsOverlap(enemy, player)) {
       state.enemies.splice(i, 1);
       player.lives -= 1;
       if (player.lives <= 0) state.status = "gameover";

@@ -5,7 +5,7 @@
  * stock > 0 表示可售，应允许购买。
  */
 export function canAddToCart(stock) {
-  if (!stock) return true;
+  if (stock === null || stock === undefined) return true;
+  if (stock === 0) return false;
   return stock > 0;
 }
-

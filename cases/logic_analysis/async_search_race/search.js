@@ -9,5 +9,5 @@ let latestToken = 0;
 export async function search(query, fetchSuggestions, render) {
   const token = ++latestToken;
   const suggestions = await fetchSuggestions(query);
-  render(suggestions);
+  if (token === latestToken) render(suggestions);
 }

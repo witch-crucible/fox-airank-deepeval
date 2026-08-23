@@ -1246,7 +1246,7 @@ OpenCode,450,社区公开数据</pre>
       if (!raw) return "";
       try {
         const parsed = new URL(raw);
-        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+        if (parsed.protocol !== "https:" || !parsed.hostname || parsed.username || parsed.password) return "";
         return parsed.href;
       } catch {
         return "";
@@ -1261,7 +1261,7 @@ OpenCode,450,社区公开数据</pre>
       if (href) {
         badge.href = href;
         badge.target = "_blank";
-        badge.rel = "noreferrer";
+        badge.rel = "noopener noreferrer";
         badge.title = `打开来源：${href}`;
       }
       return badge;
@@ -1331,7 +1331,8 @@ OpenCode,450,社区公开数据</pre>
 
     function filteredModels() {
       const query = state.search.trim().toLocaleLowerCase("zh-CN");
-      return state.data.models.filter(model => {
+      const models = Array.isArray(state.data?.models) ? state.data.models : [];
+      return models.filter(model => {
         const matchesSearch = !query || [model.tool, model.model, model.reasoning_effort, model.notes].join(" ").toLocaleLowerCase("zh-CN").includes(query);
         const matchesTool = state.tool === "all" || model.tool === state.tool;
         const sourceType = model.source?.type || "local";
@@ -1344,8 +1345,8 @@ OpenCode,450,社区公开数据</pre>
     }
 
     function render() {
-      const data = state.data;
-      const allModels = data.models || [];
+      const data = state.data || { models: [], meta: {} };
+      const allModels = Array.isArray(data.models) ? data.models : [];
       const activeModels = allModels.filter(model => model.archived !== true);
       const archivedCount = allModels.length - activeModels.length;
       const models = state.view === "table" ? allModels : activeModels;
@@ -2008,21 +2009,29 @@ OpenCode,450,社区公开数据</pre>
       return { item, result };
     }
 
+    let leaderboardSyncPromise = null;
+
     async function runSingleLeaderboardSync(item) {
-      setSyncControlsBusy(true, "正在同步…");
-      try {
-        const { result } = await syncOneLeaderboard(item);
-        await loadData();
-        showToast(`${item.toast}：${formatSyncCounts(result)}`);
-      } catch (error) {
-        showToast(error.message, true);
-      } finally {
-        setSyncControlsBusy(false);
-      }
+      if (leaderboardSyncPromise) return;
+      leaderboardSyncPromise = (async () => {
+        setSyncControlsBusy(true, "正在同步…");
+        try {
+          const { result } = await syncOneLeaderboard(item);
+          await loadData();
+          showToast(`${item.toast}：${formatSyncCounts(result)}`);
+        } catch (error) {
+          showToast(error.message, true);
+        } finally {
+          setSyncControlsBusy(false);
+        }
+      })();
+      try { await leaderboardSyncPromise; } finally { leaderboardSyncPromise = null; }
     }
 
     async function runAllLeaderboardSyncs() {
-      setSyncControlsBusy(true, "正在同步…");
+      if (leaderboardSyncPromise) return;
+      leaderboardSyncPromise = (async () => {
+       setSyncControlsBusy(true, "正在同步…");
       const successes = [];
       const failures = [];
       try {
@@ -2046,6 +2055,8 @@ OpenCode,450,社区公开数据</pre>
       } finally {
         setSyncControlsBusy(false);
       }
+      })();
+      try { await leaderboardSyncPromise; } finally { leaderboardSyncPromise = null; }
     }
 
     document.getElementById("sync-all-leaderboards").addEventListener("click", () => {

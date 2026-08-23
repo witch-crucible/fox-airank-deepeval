@@ -1,6 +1,10 @@
 __pycache__/
 *.py[cod]
 .venv/
+*.env
+.env
+.env.*
+!.env.example
 results/
 runs/
 model_dashboard/data.local.json

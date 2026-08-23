@@ -4,9 +4,11 @@ import argparse
 import copy
 import csv
 import io
+import ipaddress
 import json
 import os
 import re
+import socket
 import subprocess
 import sys
 import threading
@@ -99,6 +101,21 @@ def url_origin(url: str) -> tuple[str, str, int | None]:
     if port is None:
         port = 443 if scheme == "https" else 80 if scheme == "http" else None
     return scheme, (parsed.hostname or "").casefold(), port
+
+
+def reject_private_host(url: str) -> None:
+    """Reject literal or DNS-resolved private destinations for user URLs."""
+    hostname = urlparse(url).hostname
+    if not hostname:
+        raise DashboardError("数据源 URL 缺少主机名")
+    try:
+        addresses = {item[4][0] for item in socket.getaddrinfo(hostname, None)}
+    except socket.gaierror as error:
+        raise DashboardError("无法解析数据源主机") from error
+    for address in addresses:
+        ip = ipaddress.ip_address(address)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+            raise DashboardError("数据源不得指向内网或保留地址")
 
 
 class SameOriginRedirectHandler(HTTPRedirectHandler):
@@ -666,6 +683,7 @@ def fetch_json(url: str, auth: Any, timeout: float = 12) -> Any:
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         raise DashboardError("数据源 URL 必须是有效的 HTTP 或 HTTPS 地址")
     url_origin(url)
+    reject_private_host(url)
     headers = {"Accept": "application/json", "User-Agent": "model-capability-dashboard/1.0"}
     authenticated = False
     if auth:
@@ -686,6 +704,8 @@ def fetch_json(url: str, auth: Any, timeout: float = 12) -> Any:
                 raise DashboardError(f"环境变量 {env_name} 未设置")
             headers[header] = f"{prefix}{secret}"
             authenticated = True
+    # Always send an explicit, minimal request.  In particular, never fall
+    # back to urlopen(url), which permits ambient credentials/proxy behavior.
     request = Request(url, headers=headers, method="GET")
     try:
         opener = build_opener(SameOriginRedirectHandler()) if authenticated else None

@@ -20,6 +20,35 @@ DEFAULT_PROMPT = "阅读 TASK.md，独立完成任务并执行必要验证。最
 MISSING = object()
 
 
+def resolve_workspace_file(workspace: Path, file_name: str) -> Path:
+    if not isinstance(file_name, str) or not file_name or Path(file_name).is_absolute():
+        raise ValueError("检查文件路径无效")
+    candidate = (workspace / file_name).resolve()
+    try:
+        candidate.relative_to(workspace.resolve())
+    except ValueError as error:
+        raise ValueError("检查文件不得离开 case 工作区") from error
+    return candidate
+
+
+def validate_check_source(check: str) -> None:
+    if not isinstance(check, str) or not check.strip():
+        raise ValueError("检查脚本不能为空")
+    forbidden = ("process.", "child_process", "import(", "require(", "eval(", "Function(")
+    if any(token in check for token in forbidden):
+        raise ValueError("检查脚本包含被禁止的运行时访问")
+
+
+def node_permission_args(workspace: Path, harness_directory: Path) -> list[str]:
+    help_result = subprocess.run(["node", "--help"], capture_output=True, text=True, check=False)
+    allow_read = [f"--allow-fs-read={workspace.resolve()}", f"--allow-fs-read={harness_directory.resolve()}"]
+    if "--permission" in help_result.stdout:
+        return ["--permission", *allow_read]
+    if "--experimental-permission" in help_result.stdout:
+        return ["--experimental-permission", *allow_read]
+    return []
+
+
 @dataclass(frozen=True)
 class Case:
     id: str
@@ -192,7 +221,11 @@ def validate_result(workspace: Path, case_id: str) -> tuple[bool, str, dict[str,
 
 
 def run_js_check(workspace: Path, file_name: str, check: str, timeout: int = 5) -> tuple[bool, str]:
-    solution = (workspace / file_name).resolve()
+    try:
+        solution = resolve_workspace_file(workspace, file_name)
+        validate_check_source(check)
+    except ValueError as error:
+        return False, str(error)
     if not solution.is_file():
         return False, f"缺少 {file_name}"
     harness = """\
@@ -205,7 +238,8 @@ const solution = await import(pathToFileURL(process.argv[2]).href + "?run=" + Da
         harness_path.write_text(harness, encoding="utf-8")
         try:
             result = subprocess.run(
-                ["node", str(harness_path), str(solution)],
+                ["node", *node_permission_args(workspace, Path(directory)),
+                 str(harness_path), str(solution)],
                 cwd=workspace,
                 capture_output=True,
                 text=True,
@@ -233,6 +267,8 @@ def manual_answer_checks(actual: Any, expected: Any, path: str = "answer") -> li
 def grade_case(workspace: Path, case: Case, spec: dict[str, Any]) -> dict[str, Any]:
     protocol_ok, protocol_detail, result_data = validate_result(workspace, case.id)
     checks: list[dict[str, Any]] = []
+    if spec.get("type") not in {"logic", "manual", "javascript"}:
+        raise ValueError(f"评分规格类型无效: {spec.get('type')!r}")
     if spec["type"] == "logic":
         passed = result_data is not None and result_data.get("answer") == spec["expected"]
         actual = result_data.get("answer") if result_data else None

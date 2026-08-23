@@ -1,5 +1,8 @@
 export function pageWindow(current, total, size) {
-  const start = Math.max(1, current - Math.floor(size / 2));
-  const end = Math.min(total, start + size);
-  return Array.from({ length: end - start }, (_, index) => start + index);
+  if (total <= 0 || size <= 0) return [];
+  const length = Math.min(Math.trunc(size), Math.trunc(total));
+  const page = Math.max(1, Math.min(Math.trunc(current), total));
+  let start = page - Math.floor(length / 2);
+  start = Math.max(1, Math.min(start, total - length + 1));
+  return Array.from({ length }, (_, index) => start + index);
 }

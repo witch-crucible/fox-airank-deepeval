@@ -6,5 +6,5 @@ const products = [
   { sku: "SCARF-1", name: "Silk Scarf", category: "scarf", price: 50, stock: 0 }
 ];
 assert.deepEqual(filterProducts(products, { query: "bag" }), [products[0]]);
+assert.deepEqual(filterProducts(products, { inStockOnly: true, sortBy: "price-desc" }), [products[0]]);
 console.log("public test passed");
-
