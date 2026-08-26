@@ -8,12 +8,14 @@
 - `code_correction`（3 个）：修复购物车金额、查询参数、分页边界缺陷。
 - `code_generation`（4 个）：实现商品筛选、分页 reducer、安全商品卡片、像素风打飞机小游戏。
 
-每个工具在独立副本中读取 `TASK.md`、修改文件、生成 `result.json`；评分器再运行不会复制到工作区的隐藏检查。功能检查占 90 分，结果文件协议占 10 分。
+每个工具在独立副本中读取 `TASK.md`、修改文件、生成 `result.json`。随后由 DeepEval 的三个 GEval 指标评审：`Task Correctness`、`Robustness, Safety and Regression`、`Delivery Evidence`。参考实现和逻辑题标准答案只进入裁判输入，不会复制到代理工作区；不再生成旧版 100 分或根级报告。
 
 ## 前置条件
 
 - Python 3.10+、Node.js 18+
+- `deepeval==4.2.0`（`python3 -m pip install -e .`）
 - 待测试代码代理 CLI 已安装并登录
+- 统一裁判要求本机已登录 Codex CLI，固定使用 `gpt-5.6-sol` 和 `high` 推理强度
 
 `tools.json` 已配置 Codex、Claude Code、Qwen Code、OpenCode。新增工具只需按其非交互命令追加一条配置，命令数组支持 `{prompt}`、`{workspace}` 占位符（不经过 shell 展开）：
 
@@ -25,7 +27,7 @@
 
 ### 批量运行
 
-`run_benchmark.py` 会按顺序执行 `prepare`、`execute`、`grade`。默认读取 `tools.json`，测试其中配置的全部工具和全部 case。未传 `--run-id` 时，脚本会先询问所选 CLI 的 Agent 与实际模型，并按 `<agent>-<model>-<时间戳>` 生成 run ID；探测失败时使用配置值或 `unknown`：
+`run_benchmark.py` 会按顺序执行 `prepare`、`execute`、`evaluate`。默认读取 `tools.json`，测试其中配置的全部工具和全部 case。未传 `--run-id` 时，脚本会先询问所选 CLI 的 Agent 与实际模型，并按 `<agent>-<model>-<时间戳>` 生成 run ID；探测失败时使用配置值或 `unknown`：
 
 ```bash
 python3 run_benchmark.py
@@ -42,7 +44,7 @@ python3 run_benchmark.py \
   --timeout 600
 ```
 
-`--tool`、`--case` 和 `--category` 均可重复传入。使用 `--run-id smoke-001` 可固定输出目录；使用 `--config custom-tools.json` 可加载其他工具配置。完成后脚本会打印 `runs/<run-id>/report.html` 和 `report.json` 的路径。
+`--tool`、`--case` 和 `--category` 均可重复传入。使用 `--run-id smoke-001` 可固定输出目录；使用 `--config custom-tools.json` 可加载其他工具配置。完成后脚本会打印 `runs/<run-id>/deepeval/`，其中每个工具有独立的 TestRun JSON 和 HTML。
 
 ### OpenCode 隔离
 
@@ -68,46 +70,36 @@ python3 benchmark.py prepare --run-id compare-001 \
 python3 benchmark.py execute --run-dir runs/compare-001 \
   --tool codex --tool claude --tool opencode                           # 依次执行代理工具
 
-python3 benchmark.py grade --run-dir runs/compare-001 \
-  --tool codex --tool claude --tool opencode                           # 评分并生成报告
+python3 benchmark.py evaluate --run-dir runs/compare-001 \
+  --tool codex --tool claude --tool opencode                           # 执行 DeepEval 评测
 ```
 
-报告写入 `runs/compare-001/report.json` 与 `report.html`（可直接用浏览器打开），对比工具总分、三类能力分数、每个 case 得分及协议/功能检查详情；每个 case 目录下还保留 `agent.log` 与 `execution.json`，记录执行过程、退出码和耗时。
+结果写入 `runs/compare-001/deepeval/<tool>/`，包括 DeepEval TestRun JSON、HTML，以及三项指标的分数、理由、阈值和通过状态；每个 case 目录下继续保留 `agent.log`、`execution.json` 和 `result.json`。
 
-三个命令都支持重复传入 `--case`/`--category` 做小规模试跑。`prepare` 后也可以不用 `execute`，改为手工进入 case 目录跑交互式代理——只要最终生成合法 `result.json`，就能统一执行 `grade`。
+三个命令都支持重复传入 `--case`/`--category` 做小规模试跑。`prepare` 后也可以不用 `execute`，改为手工进入 case 目录跑交互式代理，再执行 `evaluate`；缺失或无效的执行/结果文件会以显式证据进入裁判输入。
 
-### 手动测试 case 的无头执行与评分
+### 逻辑 case 与 DeepEval 评分
 
-原来依靠人工提问和记分的测试可以作为 `manual` case 纳入同一流程。case 目录仍只放 `case.json`、`TASK.md` 和 Agent 可见的输入材料；标准答案放在不会复制进运行工作区的 `benchmark/specs.json`：
+逻辑 case 的标准答案放在不会复制进运行工作区的 `benchmark/specs.json`。代码 case 登记实际输出文件和 `tests/reference/` 参考实现；打飞机 case 会完整评审 `game-logic.js`、`game.js` 和 `index.html`：
 
-```json
-{
-  "manual-example": {
-    "type": "manual",
-    "expected": {
-      "decision": "reject",
-      "evidence": {"count": 2, "risk": "high"}
-    }
-  }
-}
-```
+`benchmark/specs.json` 的代码 case 使用 `actual_files` 和 `reference_files` 登记文件；逻辑 case 使用 `expected_answer` 登记隐藏标准答案。该清单不会复制到代理工作区。
 
-`TASK.md` 应明确要求在 `result.json.answer` 中输出与标准答案同结构的 JSON，但不能包含答案值。`execute` 使用 `tools.json` 中配置的 Codex、Claude、Qwen 或 OpenCode 无头命令执行，并在 `runs/<run-id>/<tool>/<case>/` 保存 `agent.log`、`execution.json` 和 `result.json`。`grade` 按隐藏标准答案的叶子字段逐项比较：匹配比例记录为 `manual_score`（0–10），同时按既有规则生成 `score`（功能 90% + 结果协议 10%）。实际 `answer` 会进入 `report.json`，便于复核；标准答案不会复制给 Agent。
+`execute` 使用 `tools.json` 中配置的 Codex、Claude、Qwen 或 OpenCode 无头命令执行，并在 `runs/<run-id>/<tool>/<case>/` 保存 `agent.log`、`execution.json` 和 `result.json`。三个 GEval 指标使用固定评审步骤，阈值分别为 `0.8`、`0.7`、`0.7`；一个 case 必须三项全部通过。默认不启用 DeepEval 缓存，评测子进程会清除 `CONFIDENT_API_KEY`、禁用 dotenv/历史 keyfile 和交互 inspect 提示，因此结果只写本地。
 
 ```bash
-python3 run_benchmark.py --category manual_test --tool codex
+python3 run_benchmark.py --category logic_analysis --tool codex
 ```
 
 ## 公平性与安全
 
-- 各工具须使用相同 case、相同时间限制和等价的权限配置；建议固定实际使用的模型和推理等级，并在报告外另行记录版本。
+- 各工具须使用相同 case、相同时间限制和等价的权限配置；建议固定实际使用的模型和推理等级，并在 DeepEval TestRun 的 hyperparameters 中记录版本。
 - 每次更换 Agent 或模型都应使用新的 run ID，不得在已执行的 case 工作区上继续测试另一模型。
 - 工作区内 `AGENTS.md` 明确禁止读取父目录和评分器；同一仓库无法形成密码学意义上的隐藏测试，严格评测可将 `benchmark/specs.json` 和评分动作放到代理无法访问的外部环境。
 - 代码代理会执行命令和修改文件，应在无敏感凭据、权限受限的临时环境中运行。
 
 ## 验证项目自身
 
-参考解会完整跑过 14 个 case 的评分规则：
+验证项目自身的 Python 代码和测试：
 
 ```bash
 python3 -m unittest discover -s tests -v

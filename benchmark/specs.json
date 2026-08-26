@@ -1,134 +1,16 @@
 {
-  "logic-async-search-race": {
-    "type": "logic",
-    "expected": {
-      "contract_violated": true,
-      "unguarded_call": "render(suggestions)",
-      "missing_condition": "token === latestToken"
-    }
-  },
-  "logic-fragmented-business-rule": {
-    "type": "logic",
-    "expected": {
-      "threshold_basis": "after_discount",
-      "mainland_threshold": 500,
-      "mainland_standard_shipping": 30,
-      "vip_mainland_free": true,
-      "overseas_shipping": 80,
-      "orders": {"o1": 30, "o2": 0, "o3": 80, "o4": 0}
-    }
-  },
-  "logic-commit-consistency": {
-    "type": "logic",
-    "expected": {
-      "consistent": false,
-      "implemented_dimensions": ["currency"],
-      "missing_dimensions": ["locale"],
-      "risk": "cross-locale-cache-collision"
-    }
-  },
-  "logic-comment-implementation": {
-    "type": "logic",
-    "expected": {
-      "contract_violated": true,
-      "misclassified_values": ["stock=0"],
-      "faulty_condition": "!stock",
-      "correct_condition": "stock === null"
-    }
-  },
-  "logic-result-process": {
-    "type": "logic",
-    "expected": {
-      "process_issue": "retry-without-idempotency",
-      "evidence": {"duplicate_orders": 8, "retried_intents": 8},
-      "control": "idempotency-key-per-intent"
-    }
-  },
-  "logic-access-policy": {
-    "type": "logic",
-    "expected": {
-      "policy_matches_implementation": false,
-      "violating_role": "editor",
-      "violating_status": "submitted",
-      "violating_action": "edit",
-      "risk": "unauthorized-edit-of-submitted-order"
-    }
-  },
-  "logic-cart-event-trace": {
-    "type": "logic",
-    "expected": {
-      "process_issue": "out-of-order-event-application",
-      "evidence": {
-        "out_of_order_pairs": 1,
-        "affected_items": 1
-      },
-      "control": "sequence-number-enforcement"
-    }
-  },
-  "fix-cart-total": {
-    "type": "javascript",
-    "file": "cart.js",
-    "checks": [
-      "assert.deepEqual(solution.calculateCart([{price:100,quantity:2},{price:50,quantity:1}], null, 300, 20), {subtotal:250,discount:0,shipping:20,total:270});",
-      "assert.deepEqual(solution.calculateCart([{price:125,quantity:2}], {percent:10}, 225, 20), {subtotal:250,discount:25,shipping:0,total:225}); assert.deepEqual(solution.calculateCart([{price:333,quantity:1}], {percent:15}, 1000, 0), {subtotal:333,discount:50,shipping:0,total:283});",
-      "const items=[{price:100,quantity:-2},{price:40,quantity:2}]; const snapshot=JSON.stringify(items); assert.deepEqual(solution.calculateCart(items,{percent:150},100,9),{subtotal:80,discount:80,shipping:9,total:9}); assert.equal(JSON.stringify(items),snapshot);"
-    ]
-  },
-  "fix-query-string": {
-    "type": "javascript",
-    "file": "query.js",
-    "checks": [
-      "assert.equal(solution.toQueryString({q:'dior bag',page:2}), 'page=2&q=dior%20bag');",
-      "assert.equal(solution.toQueryString({z:null,a:false,b:0,c:'',d:undefined}), 'a=false&b=0&c=');",
-      "const input={tag:['silk scarf','bag&shoe'],q:'a=b'}; const snapshot=JSON.stringify(input); assert.equal(solution.toQueryString(input),'q=a%3Db&tag=silk%20scarf&tag=bag%26shoe'); assert.equal(JSON.stringify(input),snapshot);"
-    ]
-  },
-  "fix-pagination-window": {
-    "type": "javascript",
-    "file": "pagination.js",
-    "checks": [
-      "assert.deepEqual(solution.pageWindow(5,10,4),[3,4,5,6]); assert.deepEqual(solution.pageWindow(5,10,5),[3,4,5,6,7]);",
-      "assert.deepEqual(solution.pageWindow(1,10,5),[1,2,3,4,5]); assert.deepEqual(solution.pageWindow(10,10,5),[6,7,8,9,10]);",
-      "assert.deepEqual(solution.pageWindow(-2,3,9),[1,2,3]); assert.deepEqual(solution.pageWindow(2,0,3),[]); assert.deepEqual(solution.pageWindow(2,5,0),[]);"
-    ]
-  },
-  "write-product-filter": {
-    "type": "javascript",
-    "file": "product-filter.js",
-    "checks": [
-      "const p=[{sku:'A1',name:'Dior Bag',category:'bag',price:100,stock:2},{sku:'B2',name:'Silk',category:'scarf',price:50,stock:0}]; assert.deepEqual(solution.filterProducts(p,{query:'  b2 '}),[p[1]]); assert.deepEqual(solution.filterProducts(p,{categories:['bag'],inStockOnly:true}),[p[0]]);",
-      "const p=[{sku:'a',name:'B',category:'x',price:20,stock:1},{sku:'b',name:'A',category:'x',price:20,stock:1},{sku:'c',name:'C',category:'y',price:10,stock:1}]; assert.deepEqual(solution.filterProducts(p,{minPrice:10,maxPrice:20,sortBy:'price-desc'}).map(x=>x.sku),['a','b','c']); assert.deepEqual(solution.filterProducts(p,{sortBy:'name-asc'}).map(x=>x.sku),['b','a','c']);",
-      "const p=[{sku:'a',name:'A',category:'x',price:1,stock:1}]; const options={categories:[]}; const beforeP=JSON.stringify(p), beforeO=JSON.stringify(options); const result=solution.filterProducts(p,options); assert.notEqual(result,p); assert.equal(JSON.stringify(p),beforeP); assert.equal(JSON.stringify(options),beforeO);"
-    ]
-  },
-  "write-pagination-reducer": {
-    "type": "javascript",
-    "file": "pagination-reducer.js",
-    "checks": [
-      "const s={page:2,pageSize:10,total:35}; assert.deepEqual(solution.paginationReducer(s,{type:'SET_PAGE',page:0}),{page:1,pageSize:10,total:35}); assert.deepEqual(solution.paginationReducer(s,{type:'SET_PAGE',page:99}),{page:4,pageSize:10,total:35}); assert.deepEqual(s,{page:2,pageSize:10,total:35});",
-      "assert.deepEqual(solution.paginationReducer({page:3,pageSize:10,total:100},{type:'SET_PAGE_SIZE',pageSize:25}),{page:1,pageSize:25,total:100}); const s={page:3,pageSize:10,total:100}; assert.equal(solution.paginationReducer(s,{type:'SET_PAGE_SIZE',pageSize:0}),s);",
-      "assert.deepEqual(solution.paginationReducer({page:5,pageSize:10,total:50},{type:'SET_TOTAL',total:12}),{page:2,pageSize:10,total:12}); assert.deepEqual(solution.paginationReducer({page:2,pageSize:10,total:20},{type:'RESET'}),{page:1,pageSize:10,total:0}); const s={page:1,pageSize:10,total:0}; assert.equal(solution.paginationReducer(s,{type:'UNKNOWN'}),s);"
-    ]
-  },
-  "write-product-card": {
-    "type": "javascript",
-    "file": "product-card.js",
-    "checks": [
-      "const h=solution.renderProductCard({sku:'A',imageUrl:'/a.jpg',name:'Lady Dior',price:32000,description:'Bag',stock:1}); assert.ok(h.startsWith('<article class=\"product-card\" data-sku=\"A\">')); assert.ok(h.includes('src=\"/a.jpg\"')); assert.ok(h.includes('alt=\"Lady Dior\"')); assert.ok(h.includes('<h2>Lady Dior</h2>')); assert.ok(h.includes('¥32000')); assert.ok(h.includes('data-action=\"add-to-cart\"')); assert.ok(h.includes('>加入购物车</button>'));",
-      "const h=solution.renderProductCard({sku:'B',imageUrl:'/b.jpg',name:'Out',price:1,description:'None',stock:0}); assert.match(h,/<button[^>]*disabled[^>]*>/); assert.ok(h.includes('>暂时缺货</button>')); assert.ok(!h.includes('data-action=\"add-to-cart\"'));",
-      "const h=solution.renderProductCard({sku:'\" onmouseover=\"x',imageUrl:'x\" onerror=\"x',name:'<script>x</script>',price:2,description:\"A & B 'quote'\",stock:1}); assert.ok(!h.includes('<script>')); assert.ok(h.includes('&lt;script&gt;x&lt;/script&gt;')); assert.ok(h.includes('A &amp; B')); assert.ok(h.includes('&quot;')); assert.ok(h.includes('&#39;') || h.includes('&#x27;'));"
-    ]
-  },
-  "write-plane-shooter": {
-    "type": "javascript",
-    "file": "game-logic.js",
-    "checks": [
-      "const {createGameState,movePlayer}=solution; const s=createGameState({width:400,height:600,random:()=>0.5}); assert.equal(s.player.x,180); movePlayer(s,-999); assert.equal(s.player.x,0); movePlayer(s,999); assert.equal(s.player.x,360);",
-      "const {createGameState,shoot,update}=solution; const s=createGameState({width:400,height:600,random:()=>0.5}); shoot(s); assert.equal(s.bullets.length,1); const y0=s.bullets[0].y; shoot(s); assert.equal(s.bullets.length,1); update(s,0.3); shoot(s); assert.equal(s.bullets.length,2); update(s,0.016); assert.ok(s.bullets.every(b=>b.y<y0));",
-      "const {createGameState,update}=solution; const s=createGameState({width:400,height:600,random:()=>0.5}); update(s,2.0); assert.ok(s.enemies.length>=2); assert.ok(s.enemies.every(e=>e.x>=0&&e.x<=400-e.w)); const before=new Map(s.enemies.map(e=>[e,e.y])); update(s,0.1); for(const [e,y] of before){ if(s.enemies.includes(e)) assert.ok(e.y>y); }",
-      "const {createGameState,update}=solution; const s=createGameState({width:400,height:600,random:()=>0.5}); s.enemies.push({x:178,y:100,w:32,h:32,speed:0,score:10}); s.bullets.push({x:178,y:100,w:4,h:12,speed:320}); update(s,0.016); assert.equal(s.enemies.length,0); assert.equal(s.bullets.length,0); assert.equal(s.score,10);",
-      "const {createGameState,update,restart}=solution; const s=createGameState({width:400,height:600,random:()=>0.5}); for(let i=0;i<3;i++){ s.enemies.push({x:s.player.x,y:s.player.y,w:32,h:32,speed:0,score:10}); update(s,0.016); } assert.equal(s.player.lives,0); assert.equal(s.status,'gameover'); assert.equal(s.score,0); restart(s); assert.equal(s.player.lives,3); assert.equal(s.score,0); assert.equal(s.status,'playing'); assert.equal(s.bullets.length,0); assert.equal(s.enemies.length,0);",
-      "import fs from 'node:fs'; const html=fs.readFileSync('index.html','utf-8'); assert.ok(html.includes('<canvas')); assert.ok(html.includes('<script')); const game=fs.readFileSync('game.js','utf-8'); assert.ok(game.includes('game-logic.js'));"
-    ]
-  }
+  "logic-async-search-race": {"id":"logic-async-search-race","category":"logic_analysis","type":"logic","expected_answer":{"contract_violated":true,"unguarded_call":"render(suggestions)","missing_condition":"token === latestToken"}},
+  "logic-fragmented-business-rule": {"id":"logic-fragmented-business-rule","category":"logic_analysis","type":"logic","expected_answer":{"threshold_basis":"after_discount","mainland_threshold":500,"mainland_standard_shipping":30,"vip_mainland_free":true,"overseas_shipping":80,"orders":{"o1":30,"o2":0,"o3":80,"o4":0}}},
+  "logic-commit-consistency": {"id":"logic-commit-consistency","category":"logic_analysis","type":"logic","expected_answer":{"consistent":false,"implemented_dimensions":["currency"],"missing_dimensions":["locale"],"risk":"cross-locale-cache-collision"}},
+  "logic-comment-implementation": {"id":"logic-comment-implementation","category":"logic_analysis","type":"logic","expected_answer":{"contract_violated":true,"misclassified_values":["stock=0"],"faulty_condition":"!stock","correct_condition":"stock === null"}},
+  "logic-result-process": {"id":"logic-result-process","category":"logic_analysis","type":"logic","expected_answer":{"process_issue":"retry-without-idempotency","evidence":{"duplicate_orders":8,"retried_intents":8},"control":"idempotency-key-per-intent"}},
+  "logic-access-policy": {"id":"logic-access-policy","category":"logic_analysis","type":"logic","expected_answer":{"policy_matches_implementation":false,"violating_role":"editor","violating_status":"submitted","violating_action":"edit","risk":"unauthorized-edit-of-submitted-order"}},
+  "logic-cart-event-trace": {"id":"logic-cart-event-trace","category":"logic_analysis","type":"logic","expected_answer":{"process_issue":"out-of-order-event-application","evidence":{"out_of_order_pairs":1,"affected_items":1},"control":"sequence-number-enforcement"}},
+  "fix-cart-total": {"id":"fix-cart-total","category":"code_correction","type":"javascript","actual_files":["cart.js"],"reference_files":["cart.js"]},
+  "fix-query-string": {"id":"fix-query-string","category":"code_correction","type":"javascript","actual_files":["query.js"],"reference_files":["query.js"]},
+  "fix-pagination-window": {"id":"fix-pagination-window","category":"code_correction","type":"javascript","actual_files":["pagination.js"],"reference_files":["pagination.js"]},
+  "write-product-filter": {"id":"write-product-filter","category":"code_generation","type":"javascript","actual_files":["product-filter.js"],"reference_files":["product-filter.js"]},
+  "write-pagination-reducer": {"id":"write-pagination-reducer","category":"code_generation","type":"javascript","actual_files":["pagination-reducer.js"],"reference_files":["pagination-reducer.js"]},
+  "write-product-card": {"id":"write-product-card","category":"code_generation","type":"javascript","actual_files":["product-card.js"],"reference_files":["product-card.js"]},
+  "write-plane-shooter": {"id":"write-plane-shooter","category":"code_generation","type":"javascript","actual_files":["game-logic.js","game.js","index.html"],"reference_files":["game-logic.js","game.js","index.html"]}
 }

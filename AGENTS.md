@@ -9,11 +9,11 @@
 - `python3 benchmark.py list` lists all registered cases and verifies that case metadata loads.
 - `python3 benchmark.py prepare --run-id smoke --tool codex --case fix-cart-total` creates an isolated smoke-test workspace.
 - `python3 benchmark.py execute --run-dir runs/smoke --tool codex --case fix-cart-total` invokes the configured agent from `tools.json`.
-- `python3 benchmark.py grade --run-dir runs/smoke --tool codex --case fix-cart-total` grades the result and writes JSON/HTML reports.
+- `python3 benchmark.py evaluate --run-dir runs/smoke --tool codex --case fix-cart-total` runs the three DeepEval GEval metrics and writes tool-scoped local JSON/HTML.
 - `python3 -m unittest discover -s tests -v` runs the repository regression suite.
 - `python3 -m compileall -q benchmark tests` checks Python syntax and imports.
 
-Python 3.10+ and Node.js 18+ are required. There is no separate build step or formatter configuration.
+Python 3.10+, Node.js 18+, and `deepeval==4.2.0` are required for evaluation. There is no separate build step or formatter configuration.
 
 ## Coding Style & Naming Conventions
 

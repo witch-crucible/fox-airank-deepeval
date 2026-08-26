@@ -269,6 +269,15 @@ def main() -> int:
     print(f"Run directory: {run_dir}")
     run([*benchmark, "prepare", "--run-id", run_id, *shared])
 
+    run_manifest = run_dir / "run.json"
+    if run_manifest.is_file():
+        manifest = json.loads(run_manifest.read_text(encoding="utf-8"))
+        manifest["identities"] = {
+            tool: {"agent": agent, "model": model, "intelligence": intelligence}
+            for tool, (agent, model, intelligence) in identities.items()
+        }
+        run_manifest.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+
     print_execution_plan(identities, tools)
     execute = [*benchmark, "execute", "--run-dir", str(run_dir), *shared]
     execute.extend(("--config", str(config_path)))
@@ -276,9 +285,8 @@ def main() -> int:
         execute.extend(("--timeout", str(args.timeout)))
     run(execute)
 
-    run([*benchmark, "grade", "--run-dir", str(run_dir), *shared])
-    print(f"\nHTML report: {run_dir / 'report.html'}")
-    print(f"JSON report: {run_dir / 'report.json'}")
+    run([*benchmark, "evaluate", "--run-dir", str(run_dir), *shared])
+    print(f"\nDeepEval reports: {run_dir / 'deepeval'}")
     return 0
 
 
