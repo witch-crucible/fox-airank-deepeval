@@ -78,6 +78,20 @@ python3 benchmark.py evaluate --run-dir runs/compare-001 \
 
 三个命令都支持重复传入 `--case`/`--category` 做小规模试跑。`prepare` 后也可以不用 `execute`，改为手工进入 case 目录跑交互式代理，再执行 `evaluate`；缺失或无效的执行/结果文件会以显式证据进入裁判输入。
 
+### 对比报告
+
+评测完成后，`report` 子命令把分散在各工具目录下的 DeepEval TestRun 汇总成一张跨工具 × case 对比矩阵，便于直接比较不同 Agent/模型的表现：
+
+```bash
+python3 benchmark.py report --run-dir runs/compare-001                    # 单 run 对比矩阵
+python3 benchmark.py report --run-dir runs/compare-001 --tool codex       # 只汇总部分工具
+python3 benchmark.py report --history                                     # 汇总 runs/ 下全部 run 的历史对比
+```
+
+单 run 报告写入 `runs/<run-id>/report.json` 和 `report.md`：汇总表给出每个工具的 Agent/模型/智能度、通过数、通过率和三项指标均分；明细表按 case 列出各指标分数（✓/✗ 表示是否达到阈值）、执行状态和通过结论。历史报告写入 `runs/history-report.json` 和 `history-report.md`，每行是一个 run 中一个工具的汇总，用于跨模型、跨时间的纵向比较。报告只读取 TestRun JSON，不依赖 deepeval，可随时离线重新生成。
+
+`run_benchmark.py` 批量流程会在 `evaluate` 之后自动执行 `report`，结束后同时打印 DeepEval 原始报告和对比报告路径。
+
 ### 逻辑 case 与 DeepEval 评分
 
 逻辑 case 的标准答案放在不会复制进运行工作区的 `benchmark/specs.json`。代码 case 登记实际输出文件和 `tests/reference/` 参考实现；打飞机 case 会完整评审 `game-logic.js`、`game.js` 和 `index.html`：

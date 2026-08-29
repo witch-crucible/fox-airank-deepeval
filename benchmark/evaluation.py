@@ -187,5 +187,11 @@ def evaluate_tool(run_dir: Path, tool: str, cases: list[Any], identities: dict[s
     judge = CodexJudge()
     output_dir = run_dir / "deepeval" / tool
     output_dir.mkdir(parents=True, exist_ok=True)
-    hyperparameters = {"judge_model": JUDGE_MODEL, "judge_reasoning_effort": JUDGE_EFFORT, "metric_version": METRIC_VERSION, "agent_identity": identities or {}}
+    hyperparameters = {
+        "judge_model": JUDGE_MODEL,
+        "judge_reasoning_effort": JUDGE_EFFORT,
+        "metric_version": METRIC_VERSION,
+        # DeepEval 的 hyperparameters 值只接受字符串/数字，dict 需序列化
+        "agent_identity": identities if isinstance(identities, str) else json.dumps(identities or {}, ensure_ascii=False),
+    }
     return evaluate(test_cases=test_cases, metrics=metrics(judge), identifier=f"{run_dir.name}:{tool}", hyperparameters=hyperparameters, async_config=AsyncConfig(max_concurrent=2), display_config=DisplayConfig(results_folder=str(output_dir), file_type="html", file_output_dir=str(output_dir), inspect_after_run=False, print_results=True), cache_config=CacheConfig(use_cache=False, write_cache=False))

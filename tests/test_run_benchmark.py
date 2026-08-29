@@ -79,7 +79,7 @@ class RunBenchmarkIdentityTests(unittest.TestCase):
 
         preflight.assert_called_once_with(configs, ("example",))
         query_identities.assert_not_called()
-        self.assertEqual(run.call_count, 3)
+        self.assertEqual(run.call_count, 4)
 
     def test_parse_json_object_includes_intelligence(self) -> None:
         identity = run_benchmark.parse_json_object(

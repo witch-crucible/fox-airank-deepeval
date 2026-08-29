@@ -183,6 +183,10 @@ def parser() -> argparse.ArgumentParser:
             command.add_argument("--config", type=Path, default=ROOT / "tools.json")
             command.add_argument("--timeout", type=int, default=900)
     sub.add_parser("list")
+    report = sub.add_parser("report")
+    report.add_argument("--run-dir", type=Path)
+    report.add_argument("--tool", action="append", dest="tools", default=[])
+    report.add_argument("--history", action="store_true", help="汇总 runs/ 下全部 run 的历史对比")
     return root
 
 
@@ -193,6 +197,22 @@ def main(argv: Sequence[str] | None = None) -> None:
         if args.command == "list":
             for case in cases:
                 print(f"{case.id:<28} {case.category:<16} {case.title}")
+            return
+        if args.command == "report":
+            from benchmark.report import write_history_report, write_run_report
+
+            if args.history:
+                if args.run_dir is not None:
+                    raise ValueError("--history 与 --run-dir 不能同时使用")
+                history = write_history_report(ROOT / "runs", cases)
+                print(f"历史报告: {ROOT / 'runs' / 'history-report.md'}（{len(history)} 个 run）")
+            else:
+                if args.run_dir is None:
+                    raise ValueError("report 需要 --run-dir（或使用 --history）")
+                report = write_run_report(args.run_dir, args.tools, cases)
+                missing = [item["tool"] for item in report["tools"] if not item["cases"]]
+                warning = f"（未找到评测产物: {', '.join(missing)}）" if missing else ""
+                print(f"报告: {args.run_dir / 'report.md'}{warning}")
             return
         cases = select_cases(cases, args.case_ids, args.category)
         if args.command == "prepare":

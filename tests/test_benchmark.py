@@ -59,5 +59,31 @@ class BenchmarkTests(unittest.TestCase):
             self.assertIn("===== game.js =====", test_case.actual_output)
 
 
+class ReportCommandTests(unittest.TestCase):
+    def test_report_command_writes_run_report(self):
+        from benchmark.cli import main as cli_main
+
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory) / "sample-run"
+            run_dir.mkdir()
+            cli_main(["report", "--run-dir", str(run_dir), "--tool", "codex"])
+            self.assertTrue((run_dir / "report.md").is_file())
+            self.assertIn("没有找到任何 DeepEval 评测产物", (run_dir / "report.md").read_text(encoding="utf-8"))
+
+    def test_report_command_history_mode(self):
+        from benchmark import report as report_module
+        from benchmark.cli import main as cli_main
+
+        with tempfile.TemporaryDirectory() as directory:
+            runs_root = Path(directory) / "runs"
+            (runs_root / "run-a" / "deepeval" / "codex").mkdir(parents=True)
+            (runs_root / "run-a" / "run.json").write_text(json.dumps({"tools": ["codex"]}), encoding="utf-8")
+            # 目录存在但没有任何 test_run_*.json：历史收集应为空并渲染空态文案
+            history = report_module.collect_history(runs_root)
+            self.assertEqual(history, [])
+            self.assertIn("没有找到任何评测产物", report_module.render_history_markdown(history))
+            cli_main(["report", "--run-dir", str(runs_root / "run-a"), "--tool", "codex"])
+
+
 if __name__ == "__main__":
     unittest.main()
