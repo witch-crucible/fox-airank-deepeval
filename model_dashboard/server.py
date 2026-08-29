@@ -50,7 +50,7 @@ LLM_STATS_INDEX_URL = "https://api.zeroeval.com/leaderboard/indexes/compact?payl
 MODEL_TEST_WEIGHTS = {
     "correction": 3,
     "generation": 4,
-    "logic": 7,
+    "logic": 8,
 }
 SCORE_FIELDS = {
     "skill_call",

@@ -1,4 +1,5 @@
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,9 +17,13 @@ class BenchmarkTests(unittest.TestCase):
     def test_all_cases_have_deepeval_specs(self):
         cases = load_cases()
         specs = load_specs()
-        self.assertEqual(len(cases), 14)
+        self.assertEqual(len(cases), 15)
         self.assertEqual({case.id for case in cases}, set(specs))
         self.assertEqual(specs["write-plane-shooter"]["actual_files"], ["game-logic.js", "game.js", "index.html"])
+        self.assertEqual(
+            specs["logic-git-head-review"]["expected_answer"]["missing_guarantees"],
+            ["role-version-invalidation"],
+        )
 
     def test_prepare_does_not_copy_hidden_reference_or_result_artifacts(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -33,6 +38,63 @@ class BenchmarkTests(unittest.TestCase):
             self.assertTrue((workspace / "TASK.md").is_file())
             self.assertFalse((workspace / "result.json").exists())
             self.assertFalse((workspace / "tests").exists())
+
+    def test_prepare_materializes_git_fixture_without_leaking_fixture_sources(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "source"
+            fixture = source / "_git_fixture"
+            first = fixture / "commits" / "001-initial"
+            second = fixture / "commits" / "002-fix"
+            first.mkdir(parents=True)
+            second.mkdir(parents=True)
+            (source / "TASK.md").write_text("review sample-repo HEAD", encoding="utf-8")
+            (first / "cache.js").write_text("export const key = id => `${id}`;\n", encoding="utf-8")
+            (second / "cache.js").write_text("export const key = (tenant, id) => `${tenant}:${id}`;\n", encoding="utf-8")
+            (fixture / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "target": "sample-repo",
+                        "commits": [
+                            {
+                                "snapshot": "commits/001-initial",
+                                "message": "feat: add cache key",
+                                "timestamp": "2026-01-01T00:00:00+00:00",
+                            },
+                            {
+                                "snapshot": "commits/002-fix",
+                                "message": "fix: isolate cache by tenant",
+                                "timestamp": "2026-01-02T00:00:00+00:00",
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            case = Case("git-case", "logic_analysis", "Git fixture", source)
+            run_dir = Path(directory) / "run"
+            prepare(run_dir, ["tool"], [case])
+
+            workspace = run_dir / "tool" / case.id
+            repository = workspace / "sample-repo"
+            self.assertFalse((workspace / "_git_fixture").exists())
+            self.assertTrue((repository / ".git").is_dir())
+            subjects = subprocess.run(
+                ["git", "-C", str(repository), "log", "--format=%s"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.splitlines()
+            self.assertEqual(subjects, ["fix: isolate cache by tenant", "feat: add cache key"])
+            self.assertEqual(
+                subprocess.run(
+                    ["git", "-C", str(repository), "status", "--short"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                ).stdout,
+                "",
+            )
 
     def test_missing_and_invalid_execution_evidence_is_explicit(self):
         with tempfile.TemporaryDirectory() as directory:

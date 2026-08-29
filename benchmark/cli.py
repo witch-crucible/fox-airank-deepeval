@@ -81,6 +81,101 @@ def preflight_tools(
             raise ValueError(f"工具 {tool} 的命令占位符无效: {error}") from error
 
 
+def _relative_fixture_path(value: Any, field: str) -> Path:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"Git fixture 的 {field} 必须是非空相对路径")
+    path = Path(value)
+    if path.is_absolute() or ".." in path.parts:
+        raise ValueError(f"Git fixture 的 {field} 必须位于 fixture 目录内")
+    return path
+
+
+def _run_git(arguments: list[str], repository: Path, env: dict[str, str] | None = None) -> None:
+    try:
+        subprocess.run(
+            ["git", "-C", str(repository), *arguments],
+            capture_output=True,
+            text=True,
+            check=True,
+            env=env,
+        )
+    except subprocess.CalledProcessError as error:
+        detail = (error.stderr or error.stdout or "未知错误").strip()
+        raise ValueError(f"生成 Git fixture 失败: {detail}") from error
+
+
+def _materialize_git_fixture(source: Path, workspace: Path) -> None:
+    fixture = source / "_git_fixture"
+    if not fixture.is_dir():
+        return
+    if shutil.which("git") is None:
+        raise ValueError("当前环境缺少 git，无法生成 Git fixture")
+
+    manifest_path = fixture / "manifest.json"
+    if not manifest_path.is_file():
+        raise ValueError(f"Git fixture 缺少 manifest.json: {source}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict):
+        raise ValueError("Git fixture 的 manifest.json 必须是对象")
+
+    target_path = _relative_fixture_path(manifest.get("target"), "target")
+    repository = (workspace / target_path).resolve()
+    try:
+        repository.relative_to(workspace.resolve())
+    except ValueError as error:
+        raise ValueError("Git fixture 的 target 超出 case 工作区") from error
+    if repository.exists():
+        raise ValueError(f"Git fixture 的 target 已存在: {target_path}")
+
+    commits = manifest.get("commits")
+    if not isinstance(commits, list) or not commits:
+        raise ValueError("Git fixture 的 commits 必须是非空数组")
+    repository.mkdir(parents=True)
+    _run_git(["init", "--quiet"], repository)
+    _run_git(["config", "user.name", str(manifest.get("author_name", "Benchmark Fixture"))], repository)
+    _run_git(
+        ["config", "user.email", str(manifest.get("author_email", "benchmark@example.invalid"))],
+        repository,
+    )
+
+    for index, commit in enumerate(commits, start=1):
+        if not isinstance(commit, dict):
+            raise ValueError(f"Git fixture 的第 {index} 个 commit 必须是对象")
+        snapshot_path = _relative_fixture_path(commit.get("snapshot"), f"commits[{index}].snapshot")
+        snapshot = (fixture / snapshot_path).resolve()
+        try:
+            snapshot.relative_to(fixture.resolve())
+        except ValueError as error:
+            raise ValueError(f"Git fixture 的第 {index} 个 snapshot 超出 fixture 目录") from error
+        if not snapshot.is_dir():
+            raise ValueError(f"Git fixture 的 snapshot 不存在: {snapshot_path}")
+        message = commit.get("message")
+        timestamp = commit.get("timestamp")
+        if not isinstance(message, str) or not message.strip():
+            raise ValueError(f"Git fixture 的第 {index} 个 message 必须是非空字符串")
+        if not isinstance(timestamp, str) or not timestamp:
+            raise ValueError(f"Git fixture 的第 {index} 个 timestamp 必须是非空字符串")
+
+        for child in repository.iterdir():
+            if child.name == ".git":
+                continue
+            if child.is_dir() and not child.is_symlink():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
+        for child in snapshot.iterdir():
+            destination = repository / child.name
+            if child.is_dir():
+                shutil.copytree(child, destination)
+            else:
+                shutil.copy2(child, destination)
+
+        _run_git(["add", "--all"], repository)
+        commit_env = os.environ.copy()
+        commit_env.update({"GIT_AUTHOR_DATE": timestamp, "GIT_COMMITTER_DATE": timestamp})
+        _run_git(["commit", "--quiet", "--no-gpg-sign", "--message", message], repository, commit_env)
+
+
 def prepare(run_dir: Path, tools: list[str], cases: list[Case]) -> None:
     if run_dir.exists() and any(run_dir.iterdir()):
         raise ValueError(f"运行目录已存在且非空: {run_dir}")
@@ -91,8 +186,11 @@ def prepare(run_dir: Path, tools: list[str], cases: list[Case]) -> None:
             shutil.copytree(
                 case.source,
                 target,
-                ignore=shutil.ignore_patterns("result.json", "agent.log", "execution.json"),
+                ignore=shutil.ignore_patterns(
+                    "_git_fixture", "result.json", "agent.log", "execution.json"
+                ),
             )
+            _materialize_git_fixture(case.source, target)
             (target / "AGENTS.md").write_text(
                 "# 评测工作区规则\n\n"
                 "只读取和修改当前目录，不得查看父目录、其他 case、评分器或其他工具结果。\n"

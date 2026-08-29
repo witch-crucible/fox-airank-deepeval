@@ -1433,7 +1433,7 @@ OpenCode,450,社区公开数据</pre>
         [number(models.length, 0), "模型配置", `${visibleToolCount} 个 AI 编程工具`],
         [number(testedCount, 0), "有测试数据", `覆盖率 ${models.length ? pct(testedCount / models.length) : "0%"}`],
         [number(thirdPartyCount, 0), "外部榜单记录", thirdPartyCount ? "已标注来源与拉取时间" : "可同步三方数据或接入 JSON API"],
-        ["3 / 4 / 7", "ModelTest 权重", "修正 / 生成 / 逻辑 case 数"]
+        ["3 / 4 / 8", "ModelTest 权重", "修正 / 生成 / 逻辑 case 数"]
       ];
       metricData.forEach(([value, label, detail], index) => {
         const card = el("article", "metric");

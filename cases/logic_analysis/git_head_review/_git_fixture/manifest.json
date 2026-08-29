@@ -1,0 +1,17 @@
+{
+  "target": "permission-cache",
+  "author_name": "Benchmark Fixture",
+  "author_email": "benchmark@example.invalid",
+  "commits": [
+    {
+      "snapshot": "commits/001-initial",
+      "message": "feat(auth): cache permission decisions",
+      "timestamp": "2026-01-10T09:00:00+00:00"
+    },
+    {
+      "snapshot": "commits/002-isolation-fix",
+      "message": "fix(auth): isolate permission cache by tenant and role version\n\nPrevent cross-tenant decisions and stale decisions after role assignments change.",
+      "timestamp": "2026-01-11T09:00:00+00:00"
+    }
+  ]
+}

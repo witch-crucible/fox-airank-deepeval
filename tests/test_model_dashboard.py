@@ -120,8 +120,8 @@ class ModelDashboardTests(unittest.TestCase):
             }
         )
         self.assertEqual(scores["manual_total"], 36)
-        self.assertEqual(scores["model_test_total"], 93.57)
-        self.assertEqual(scores["composite_total"], 1694.57)
+        self.assertEqual(scores["model_test_total"], 93.14)
+        self.assertEqual(scores["composite_total"], 1694.14)
 
         missing = calculate_scores({})
         self.assertIsNone(missing["manual_total"])
