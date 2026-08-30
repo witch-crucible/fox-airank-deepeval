@@ -34,6 +34,20 @@ from model_dashboard.server import (
 
 
 class ModelDashboardTests(unittest.TestCase):
+    def test_server_facade_reexports_split_module_api(self):
+        from model_dashboard import domain, sources, storage
+        from model_dashboard import server as server_module
+
+        self.assertIs(server_module.DashboardError, domain.DashboardError)
+        self.assertIs(server_module.calculate_scores, domain.calculate_scores)
+        self.assertIs(server_module.normalize_model, domain.normalize_model)
+        self.assertIs(server_module.fetch_json, sources.fetch_json)
+        self.assertIs(
+            server_module.normalize_arena_webdev_rows,
+            sources.normalize_arena_webdev_rows,
+        )
+        self.assertIs(server_module.DashboardStore, storage.DashboardStore)
+
     @staticmethod
     def _artificial_analysis_document(count=3, score_offset=0):
         rows = []
@@ -353,9 +367,13 @@ class ModelDashboardTests(unittest.TestCase):
 
     def test_authenticated_json_source_requires_https_before_network_access(self):
         with patch.dict(os.environ, {"MODEL_API_TOKEN": "secret"}, clear=False):
-            with patch("model_dashboard.server.urlopen") as mocked_urlopen:
+            with (
+                patch("model_dashboard.sources.socket.getaddrinfo") as mocked_resolver,
+                patch("model_dashboard.sources.urlopen") as mocked_urlopen,
+            ):
                 with self.assertRaisesRegex(DashboardError, "必须使用 HTTPS"):
                     fetch_json("http://example.com/models.json", {"env": "MODEL_API_TOKEN"})
+                mocked_resolver.assert_not_called()
                 mocked_urlopen.assert_not_called()
 
     def test_authenticated_redirect_rejects_cross_origin_before_copying_headers(self):

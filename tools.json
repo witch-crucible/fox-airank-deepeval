@@ -5,6 +5,10 @@
   "claude": {
     "command": ["claude", "-p", "--permission-mode", "auto", "--no-session-persistence", "{prompt}"]
   },
+  "commandcode": {
+    "agent": "Command Code",
+    "command": ["commandcode", "-p", "--yolo", "--no-session", "--skip-onboarding", "--no-auto-update", "--config", "taste-learning-project=disabled", "--output-format", "json", "{prompt}"]
+  },
   "qwen": {
     "command": ["qwen", "-p", "--yolo", "{prompt}"]
   },

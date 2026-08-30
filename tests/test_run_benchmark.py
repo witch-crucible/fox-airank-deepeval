@@ -52,6 +52,62 @@ class RunBenchmarkIdentityTests(unittest.TestCase):
         self.assertEqual(run_benchmark.command_option(command, "--model"), "provider/model")
         self.assertEqual(run_benchmark.command_option(command, "--variant"), "high")
 
+    def test_commandcode_identity_command_uses_status_json(self) -> None:
+        command = run_benchmark.identity_command(
+            "commandcode",
+            {
+                "command": [
+                    "commandcode", "-p", "--yolo", "--no-session", "--skip-onboarding",
+                    "--no-auto-update", "--output-format", "json", "--model", "provider/model",
+                    "--effort", "high", "{prompt}",
+                ]
+            },
+        )
+
+        self.assertEqual(["commandcode", "status", "--json", "--no-auto-update"], command)
+
+    def test_parse_commandcode_identity_from_status_json(self) -> None:
+        output = json.dumps(
+            {
+                "authenticated": True,
+                "version": "1.38.2",
+                "provider": "example-provider",
+                "model": "provider/default-model",
+                "context_window": 200000,
+            }
+        )
+
+        self.assertEqual(
+            ("Command Code", "provider/default-model", "unknown"),
+            run_benchmark.parse_identity_output("commandcode", output),
+        )
+
+    def test_commandcode_status_identity_uses_configured_model_and_effort(self) -> None:
+        config = {
+            "agent": "Command Code",
+            "command": [
+                "commandcode", "-p", "--yolo", "--model", "provider/configured-model",
+                "--effort", "high", "{prompt}",
+            ],
+        }
+        status = json.dumps({"model": "provider/default-model"})
+        with patch(
+            "run_benchmark.subprocess.run",
+            return_value=SimpleNamespace(returncode=0, stdout=status, stderr=""),
+        ):
+            identity = run_benchmark.query_identity("commandcode", config)
+
+        self.assertEqual(("Command Code", "provider/configured-model", "high"), identity)
+
+    def test_commandcode_execution_disables_project_taste_learning(self) -> None:
+        config = json.loads(Path("tools.json").read_text(encoding="utf-8"))["commandcode"]
+        command = config["command"]
+
+        self.assertEqual(
+            "taste-learning-project=disabled",
+            run_benchmark.command_option(command, "--config"),
+        )
+
     def test_fixed_run_id_skips_live_identity_discovery(self) -> None:
         args = SimpleNamespace(
             run_id="fixed-run",
@@ -112,6 +168,15 @@ class RunBenchmarkIdentityTests(unittest.TestCase):
         )
 
         self.assertEqual(("build", "example-model", "xhigh"), identity)
+
+    def test_execution_identity_reads_effort_from_command(self) -> None:
+        identity = run_benchmark.execution_identity(
+            {
+                "command": ["example", "--effort", "high", "{prompt}"],
+            }
+        )
+
+        self.assertEqual(("unknown", "unknown", "high"), identity)
 
 
 if __name__ == "__main__":

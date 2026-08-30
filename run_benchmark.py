@@ -83,7 +83,7 @@ def execution_identity(config: dict[str, object]) -> tuple[str, str, str]:
     intelligence = (
         config.get("intelligence")
         or config.get("reasoning_effort")
-        or command_option(command, "--intelligence", "--reasoning-effort")
+        or command_option(command, "--intelligence", "--reasoning-effort", "--effort")
     )
     return (
         str(agent or "unknown"),
@@ -110,6 +110,16 @@ def parse_json_object(value: str) -> tuple[str, str, str] | None:
 
 
 def parse_identity_output(tool: str, output: str) -> tuple[str, str, str] | None:
+    if tool == "commandcode":
+        try:
+            status = json.loads(output)
+        except json.JSONDecodeError:
+            return None
+        if isinstance(status, dict):
+            model = status.get("model")
+            if isinstance(model, str) and model.strip():
+                return "Command Code", model.strip(), "unknown"
+        return None
     for line in reversed(output.splitlines()):
         try:
             event = json.loads(line)
@@ -165,6 +175,8 @@ def identity_command(
             "json",
             IDENTITY_PROMPT,
         ]
+    if tool == "commandcode":
+        return [executable, "status", "--json", "--no-auto-update"]
     if tool == "opencode":
         identity = [executable, "run"]
         for flag in ("--pure", "--auto"):
@@ -207,6 +219,11 @@ def query_identity(tool: str, config: dict[str, object]) -> tuple[str, str, str]
         reason = detail[-1] if detail else f"exit {result.returncode}"
         print(f"  {tool}: 探测失败（{reason}），使用配置值")
         return fallback
+    if tool == "commandcode":
+        return tuple(
+            configured if configured != "unknown" else discovered
+            for configured, discovered in zip(fallback, identity)
+        )
     return identity
 
 

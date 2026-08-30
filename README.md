@@ -17,7 +17,7 @@
 - 待测试代码代理 CLI 已安装并登录
 - 统一裁判要求本机已登录 Codex CLI，固定使用 `gpt-5.6-sol` 和 `high` 推理强度
 
-`tools.json` 已配置 Codex、Claude Code、Qwen Code、OpenCode。新增工具只需按其非交互命令追加一条配置，命令数组支持 `{prompt}`、`{workspace}` 占位符（不经过 shell 展开）：
+`tools.json` 已配置 Codex、Claude Code、Command Code、Qwen Code、OpenCode。新增工具只需按其非交互命令追加一条配置，命令数组支持 `{prompt}`、`{workspace}` 占位符（不经过 shell 展开）：
 
 ```json
 {"qoder": {"command": ["实际可执行文件", "非交互参数", "{prompt}"]}}
@@ -59,6 +59,17 @@ python3 run_benchmark.py \
 
 不要从 OpenCode 命令中移除 `--dir {workspace}` 或 `--pure`，否则 OpenCode 可能将仓库根目录识别为工作区，破坏 case 隔离。`prepare` 还会忽略源 case 中残留的 `result.json`、`agent.log` 和 `execution.json`，防止旧执行产物进入新 run；源 case 目录仍应保持无生成文件。
 
+### Command Code 隔离与无头执行
+
+Command Code 使用 `commandcode -p` 无头执行；`--output-format json` 使 CLI 以 NDJSON 输出，最终结果位于 `result.finalText`。基准任务需要在已准备好的隔离 case 工作区修改文件，因此执行命令保留 `--yolo`，并使用 `--no-session`、`--skip-onboarding`、`--no-auto-update`。`--config taste-learning-project=disabled` 会禁用该项目的 Taste Learning，避免基准 case 产生持久学习；该项目级设置本身会持久化。`--no-session` 不保存会话 transcript。身份探测调用 `commandcode status --json`，不发送模型请求。配置未固定模型或 effort，沿用 Command Code 当前有效配置：
+
+```bash
+python3 run_benchmark.py \
+  --tool commandcode \
+  --case fix-cart-total \
+  --timeout 180
+```
+
 ### 分步运行
 
 ```bash
@@ -98,7 +109,7 @@ python3 benchmark.py report --history                                     # 汇�
 
 `benchmark/specs.json` 的代码 case 使用 `actual_files` 和 `reference_files` 登记文件；逻辑 case 使用 `expected_answer` 登记隐藏标准答案。该清单不会复制到代理工作区。
 
-`execute` 使用 `tools.json` 中配置的 Codex、Claude、Qwen 或 OpenCode 无头命令执行，并在 `runs/<run-id>/<tool>/<case>/` 保存 `agent.log`、`execution.json` 和 `result.json`。三个 GEval 指标使用固定评审步骤，阈值分别为 `0.8`、`0.7`、`0.7`；一个 case 必须三项全部通过。默认不启用 DeepEval 缓存，评测子进程会清除 `CONFIDENT_API_KEY`、禁用 dotenv/历史 keyfile 和交互 inspect 提示，因此结果只写本地。
+`execute` 使用 `tools.json` 中配置的 Codex、Claude、Command Code、Qwen 或 OpenCode 无头命令执行，并在 `runs/<run-id>/<tool>/<case>/` 保存 `agent.log`、`execution.json` 和 `result.json`。三个 GEval 指标使用固定评审步骤，阈值分别为 `0.8`、`0.7`、`0.7`；一个 case 必须三项全部通过。默认不启用 DeepEval 缓存，评测子进程会清除 `CONFIDENT_API_KEY`、禁用 dotenv/历史 keyfile 和交互 inspect 提示，因此结果只写本地。
 
 ```bash
 python3 run_benchmark.py --category logic_analysis --tool codex
