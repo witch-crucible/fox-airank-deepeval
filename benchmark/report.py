@@ -23,6 +23,22 @@ CATEGORY_LABELS = {
     "logic_analysis": "逻辑分析",
 }
 
+MODEL_TEST_WEIGHTS = {
+    "correction": 3,
+    "generation": 4,
+    "logic": 8,
+}
+CATEGORY_TO_MODEL_TEST = {
+    "code_correction": "correction",
+    "code_generation": "generation",
+    "logic_analysis": "logic",
+}
+MODEL_TEST_CATEGORY_FIELD = {
+    "model_test_correction": "code_correction",
+    "model_test_generation": "code_generation",
+    "model_test_logic": "logic_analysis",
+}
+
 
 @dataclass(frozen=True)
 class CaseRow:
@@ -81,6 +97,50 @@ class ToolSummary:
         if not scores:
             return None
         return sum(scores) / len(scores)
+
+    def category_pass_rate(self, category: str) -> float | None:
+        rows = [row for row in self.rows if row.evaluated and row.category == category]
+        if not rows:
+            return None
+        passed = sum(1 for row in rows if row.passed)
+        return passed / len(rows)
+
+    def model_test_score(self, category_key: str) -> float | None:
+        """Average Task Correctness in 0–1, scaled to 0–100, for a model_test category."""
+        categories = [cat for cat, key in CATEGORY_TO_MODEL_TEST.items() if key == category_key]
+        rows = [
+            row
+            for row in self.rows
+            if row.evaluated and row.category in categories
+        ]
+        scores = [
+            row.metric_score("Task Correctness")
+            for row in rows
+            if row.metric_score("Task Correctness") is not None
+        ]
+        if not scores:
+            return None
+        return round(sum(scores) / len(scores) * 100, 2)
+
+    @property
+    def model_test_breakdown(self) -> dict[str, float | None]:
+        return {
+            "correction": self.model_test_score("correction"),
+            "generation": self.model_test_score("generation"),
+            "logic": self.model_test_score("logic"),
+        }
+
+    @property
+    def model_test_total(self) -> float | None:
+        """Weighted average of per-category model_test scores (0–100), same weights as dashboard."""
+        breakdown = self.model_test_breakdown
+        parts = {key: breakdown[key] for key in MODEL_TEST_WEIGHTS}
+        if any(value is not None for value in parts.values()):
+            weighted = sum(
+                (float(value or 0)) * weight for value, weight in zip(parts.values(), MODEL_TEST_WEIGHTS.values())
+            ) / sum(MODEL_TEST_WEIGHTS.values())
+            return round(weighted, 2)
+        return None
 
 
 def _canonical_metric_name(name: str) -> str:
@@ -226,6 +286,13 @@ def _summary_to_dict(summary: ToolSummary) -> dict[str, Any]:
                 name: summary.metric_average(name) for name in _row_metric_names(summary.rows)
             },
         },
+        "category_stats": _category_stats_dict(summary),
+        "model_test": {
+            "correction": summary.model_test_score("correction"),
+            "generation": summary.model_test_score("generation"),
+            "logic": summary.model_test_score("logic"),
+            "total": summary.model_test_total,
+        },
         "cases": [
             {
                 "case_id": row.case_id,
@@ -240,6 +307,20 @@ def _summary_to_dict(summary: ToolSummary) -> dict[str, Any]:
             for row in summary.rows
         ],
     }
+
+
+def _category_stats_dict(summary: ToolSummary) -> dict[str, dict[str, Any]]:
+    stats: dict[str, dict[str, Any]] = {}
+    for category in ("code_correction", "code_generation", "logic_analysis"):
+        rows = [row for row in summary.rows if row.category == category]
+        evaluated = sum(1 for row in rows if row.evaluated)
+        passed = sum(1 for row in rows if row.evaluated and row.passed)
+        stats[category] = {
+            "evaluated": evaluated,
+            "passed": passed,
+            "pass_rate": passed / evaluated if evaluated else None,
+        }
+    return stats
 
 
 def _row_metric_names(rows: Sequence[CaseRow]) -> list[str]:
@@ -320,8 +401,9 @@ def render_markdown(report: dict[str, Any]) -> str:
     metric_names = _report_metric_names(report)
 
     lines += ["## 汇总", "", "| 工具 | Agent | 模型 | 智能度 | 通过 / 评测 | 通过率 | "
-              + " | ".join(f"{name} 均分" for name in metric_names) + " |",
-              "|---" * (6 + len(metric_names)) + "|"]
+              + " | ".join(f"{name} 均分" for name in metric_names)
+              + " | ModelTest 修正 | ModelTest 生成 | ModelTest 逻辑 | ModelTest 总分 |",
+              "|---" * (9 + len(metric_names)) + "|"]
     for tool in report["tools"]:
         summary = tool.get("summary", {})
         evaluated = summary.get("evaluated", 0)
@@ -329,9 +411,12 @@ def render_markdown(report: dict[str, Any]) -> str:
         rate = summary.get("pass_rate")
         averages = summary.get("metric_averages", {})
         rate_text = f"{rate * 100:.0f}%" if rate is not None else "—"
+        mt = tool.get("model_test", {})
         cells = [tool["tool"], tool.get("agent", "unknown"), tool.get("model", "unknown"),
                  tool.get("intelligence", "unknown"), f"{passed} / {evaluated}", rate_text]
         cells += [_format_score(averages.get(name)) for name in metric_names]
+        cells += [_format_score(mt.get("correction")), _format_score(mt.get("generation")),
+                  _format_score(mt.get("logic")), _format_score(mt.get("total"))]
         lines.append("| " + " | ".join(cells) + " |")
 
     for tool in report["tools"]:
@@ -346,6 +431,24 @@ def render_markdown(report: dict[str, Any]) -> str:
             lines.append(f"- 裁判模型：{tool['judge_model']}")
         if tool.get("metric_version"):
             lines.append(f"- 指标版本：{tool['metric_version']}")
+        mt = tool.get("model_test", {})
+        if mt:
+            lines.append(
+                f"- ModelTest：修正 {_format_score(mt.get('correction'))}，"
+                f"生成 {_format_score(mt.get('generation'))}，"
+                f"逻辑 {_format_score(mt.get('logic'))}，"
+                f"总分 {_format_score(mt.get('total'))}"
+            )
+        cat_stats = tool.get("category_stats", {})
+        if cat_stats:
+            cat_parts = []
+            for cat in ("code_correction", "code_generation", "logic_analysis"):
+                stat = cat_stats.get(cat, {})
+                if stat.get("evaluated"):
+                    rate = stat.get("pass_rate")
+                    cat_parts.append(f"{CATEGORY_LABELS.get(cat, cat)} {stat['passed']}/{stat['evaluated']} ({rate * 100:.0f}%)" if rate is not None else f"{CATEGORY_LABELS.get(cat, cat)} {stat['passed']}/{stat['evaluated']}")
+            if cat_parts:
+                lines.append(f"- 分类通过：{', '.join(cat_parts)}")
         lines += ["", "| Case | 分类 | " + " | ".join(metric_names) + " | 执行状态 | 结论 |",
                   "|---" * (4 + len(metric_names)) + "|"]
         for case in tool.get("cases", []):
@@ -374,8 +477,9 @@ def render_history_markdown(history: list[dict[str, Any]]) -> str:
                 if name not in metric_names:
                     metric_names.append(name)
     lines += ["| Run | 工具 | Agent | 模型 | 智能度 | 通过 / 评测 | 通过率 | "
-              + " | ".join(f"{name} 均分" for name in metric_names) + " |",
-              "|---" * (7 + len(metric_names)) + "|"]
+              + " | ".join(f"{name} 均分" for name in metric_names)
+              + " | ModelTest 总分 |",
+              "|---" * (8 + len(metric_names)) + "|"]
     for report in history:
         for tool in report["tools"]:
             summary = tool.get("summary", {})
@@ -384,10 +488,12 @@ def render_history_markdown(history: list[dict[str, Any]]) -> str:
             rate = summary.get("pass_rate")
             rate_text = f"{rate * 100:.0f}%" if rate is not None else "—"
             averages = summary.get("metric_averages", {})
+            mt_total = tool.get("model_test", {}).get("total")
             cells = [report["run_id"], tool["tool"], tool.get("agent", "unknown"),
                      tool.get("model", "unknown"), tool.get("intelligence", "unknown"),
                      f"{passed} / {evaluated}", rate_text]
             cells += [_format_score(averages.get(name)) for name in metric_names]
+            cells += [_format_score(mt_total)]
             lines.append("| " + " | ".join(cells) + " |")
     lines.append("")
     return "\n".join(lines)

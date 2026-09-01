@@ -1052,6 +1052,7 @@
             <button class="btn btn-quiet" id="open-import" type="button" role="menuitem">接入数据</button>
             <button class="btn btn-quiet" id="open-agent-usage" type="button" role="menuitem">录入使用人数</button>
             <button class="btn btn-quiet" id="open-agent-usage-import" type="button" role="menuitem">导入使用人数 CSV</button>
+            <button class="btn btn-quiet" id="open-benchmark-import" type="button" role="menuitem">同步基准测试</button>
           </div>
         </details>
         <button class="btn btn-primary" id="open-model" type="button">＋ 增加模型</button>
@@ -1143,6 +1144,20 @@ OpenCode,450,社区公开数据</pre>
         <button class="btn" type="button" data-close="agent-usage-import-dialog">取消</button>
         <button class="btn btn-primary" type="submit">开始导入</button>
       </div>
+    </form>
+  </dialog>
+
+  <dialog id="benchmark-import-dialog" aria-labelledby="benchmark-import-dialog-title">
+    <div class="dialog-head">
+      <div><h2 id="benchmark-import-dialog-title">同步基准测试</h2><div class="brand-meta">从 benchmark run 目录导入 ModelTest 分数</div></div>
+      <button class="icon-btn" type="button" data-close="benchmark-import-dialog" aria-label="关闭">×</button>
+    </div>
+    <form id="benchmark-import-form">
+      <div class="form-grid">
+        <div class="field"><label for="benchmark-run-dir">Run 目录 *</label><input id="benchmark-run-dir" name="run_dir" required maxlength="1000" placeholder="例如 runs/my-test"></div>
+      </div>
+      <p class="form-error" id="benchmark-import-error" role="alert"></p>
+      <div class="dialog-actions"><button class="btn" type="button" data-close="benchmark-import-dialog">取消</button><button class="btn btn-primary" type="submit">同步</button></div>
     </form>
   </dialog>
 

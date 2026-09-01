@@ -7,6 +7,7 @@ from typing import Any
 
 from .domain import (
     DashboardError,
+    calculate_scores,
     normalize_agent_usage_entry,
     normalize_model,
     utc_now,
@@ -268,6 +269,43 @@ class DashboardStore:
             self.write(data)
         return {"created": created, "updated": updated, "removed": removed}
 
+    def sync_benchmark(self, models: list[dict[str, Any]]) -> dict[str, int]:
+        """Import/overwrite model_test scores from a benchmark run.
+
+        Matches existing dashboard models by (tool, model) key. When a match
+        is found the model_test_* sub-scores are updated and all derived totals
+        (model_test_total, composite_total) are recomputed; the original source
+        and manual/Arena/AA/LLM Stats scores are preserved. Unmatched
+        benchmark models are appended as new entries with source ``benchmark``.
+        """
+        created = 0
+        updated = 0
+        with self._lock:
+            data = self.read()
+            index_by_key: dict[tuple[str, str], int] = {}
+            for index, model in enumerate(data["models"]):
+                index_by_key[self._benchmark_key(model)] = index
+            for benchmark_model in models:
+                key = self._benchmark_key(benchmark_model)
+                if key in index_by_key:
+                    existing = data["models"][index_by_key[key]]
+                    self._preserve_archive(existing, benchmark_model)
+                    for field in ("model_test_correction", "model_test_generation", "model_test_logic"):
+                        existing["scores"][field] = benchmark_model["scores"].get(field)
+                    existing["scores"] = calculate_scores(existing["scores"])
+                    existing["report_path"] = benchmark_model.get("report_path", existing.get("report_path", ""))
+                    existing["updated_at"] = utc_now()
+                    updated += 1
+                else:
+                    data["models"].append(benchmark_model)
+                    created += 1
+            data.setdefault("meta", {})["updated_at"] = utc_now()
+            data["meta"]["benchmark_updated_at"] = utc_now()
+            if models:
+                data["meta"]["benchmark_run_id"] = str(models[0].get("source", {}).get("run_id", ""))
+            self.write(data)
+        return {"created": created, "updated": updated, "skipped": 0}
+
     @staticmethod
     def _source_type(model: dict[str, Any]) -> str:
         source = model.get("source")
@@ -284,6 +322,13 @@ class DashboardStore:
             str(model.get("tool", "")).casefold(),
             str(model.get("model", "")).casefold(),
             str(model.get("reasoning_effort", "")).casefold(),
+        )
+
+    @staticmethod
+    def _benchmark_key(model: dict[str, Any]) -> tuple[str, str]:
+        return (
+            str(model.get("tool", "")).casefold(),
+            str(model.get("model", "")).casefold(),
         )
 
 

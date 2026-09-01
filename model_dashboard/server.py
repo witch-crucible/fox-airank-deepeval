@@ -28,6 +28,7 @@ from .domain import (
     parse_agent_usage_csv,
     utc_now,
 )
+from .benchmark import normalize_benchmark_models
 from .sources import (
     ARENA_DATASET_URL,
     ARENA_TOP_LIMIT,
@@ -152,6 +153,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
             if path == "/api/import/llm-stats":
                 self._import_llm_stats(payload)
                 return
+            if path == "/api/import/benchmark":
+                self._import_benchmark(payload)
+                return
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "接口不存在"})
         except DashboardError as error:
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
@@ -209,6 +213,16 @@ class DashboardHandler(BaseHTTPRequestHandler):
         document = self.json_fetcher(LLM_STATS_INDEX_URL, None)
         models = normalize_llm_stats_indexes(document)
         result = self.dashboard_store.sync_llm_stats(models)
+        self._send_json(HTTPStatus.OK, {**result, "received": len(models)})
+
+    def _import_benchmark(self, payload: Any) -> None:
+        if not isinstance(payload, dict):
+            raise DashboardError("请求数据必须是对象")
+        run_dir = payload.get("run_dir")
+        if not isinstance(run_dir, str) or not run_dir.strip():
+            raise DashboardError("run_dir 不能为空")
+        models = normalize_benchmark_models(Path(run_dir.strip()))
+        result = self.dashboard_store.sync_benchmark(models)
         self._send_json(HTTPStatus.OK, {**result, "received": len(models)})
 
     def _read_json_body(self) -> Any:
