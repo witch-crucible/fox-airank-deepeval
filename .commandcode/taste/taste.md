@@ -1,8 +1,0 @@
-- Uses Chinese text for user-facing strings (error messages, notes, labels) while keeping code identifiers in English. Confidence: 0.85
-- Includes `from __future__ import annotations` at the top of Python modules for forward-compatible type hint syntax. Confidence: 0.75
-- Centralizes shared domain constants, types, and utility functions in a `domain` module imported across subpackages. Confidence: 0.7
-- Immediately fixes typos and removes unused variables after writing code, indicating a preference for clean, correct code. Confidence: 0.65
-- Writes detailed multi-phase plans to `~/.commandcode/plans/` as markdown files before implementation, using a plan-first workflow with checkpoints for user review before proceeding. Confidence: 0.8
-- Uses Python's built-in `unittest` framework (not `pytest`) for test suites and verification commands. Confidence: 0.85
-- Maintains git hygiene: checks `git status`/`git diff` throughout work and removes accidentally-tracked-but-gitignored files (e.g. `__pycache__/*.pyc`) from version control. Confidence: 0.7
-- Prefers Command Code agent mode where main agent uses `meta/muse-spark-1.2-contributor` (Muse Spark 1.2 Contributor) for planning, architecture, code review and complex logic, delegating simple read-only tasks (file queries, symbol location, reference search, directory structure) to `laguna-explorer` sub-agent using `poolside/laguna-s-2.1-free` (Laguna S 2.1 Free) with read-only tools `read_file`, `read_directory`, `grep`, `glob` and `maxTurns: 30`; main agent retains verification and final delivery responsibility and is configured globally via `~/.commandcode` (`AGENTS.md`, `agents/laguna-explorer.md`, `config set model --scope user`). Confidence: 0.9
