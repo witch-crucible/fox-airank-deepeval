@@ -103,6 +103,31 @@ def build_test_cases(run_dir: Path, tool: str, cases: list[Any], identities: dic
     return result
 
 
+def _make_strict_schema(node: Any) -> Any:
+    """将 Pydantic JSON Schema 转成 OpenAI/codex 的 strict 形式。
+
+    codex 要求每个对象节点都声明 ``additionalProperties: false``，
+    且 ``required`` 列出其全部属性；Pydantic 默认生成的 schema
+    不含这两项，会触发::
+        'additionalProperties' is required to be supplied and to be false
+
+    本函数递归处理 ``properties``/``$defs``/``definitions``/``items`` 等子节点。
+    """
+    if isinstance(node, dict):
+        result = dict(node)
+        if "properties" in result or result.get("type") == "object":
+            result["additionalProperties"] = False
+            properties = result.get("properties")
+            if isinstance(properties, dict):
+                result["required"] = list(properties.keys())
+        for key, value in result.items():
+            result[key] = _make_strict_schema(value)
+        return result
+    if isinstance(node, list):
+        return [_make_strict_schema(item) for item in node]
+    return node
+
+
 class CodexJudge(DeepEvalBaseLLM):
     def __init__(self, timeout: int = JUDGE_TIMEOUT):
         if DeepEvalBaseLLM.__module__ == __name__:
@@ -129,7 +154,8 @@ class CodexJudge(DeepEvalBaseLLM):
                 command = ["codex", "exec", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config", "--ignore-rules", "--sandbox", "read-only", "--model", JUDGE_MODEL, "-c", 'model_reasoning_effort="high"']
                 if schema is not None:
                     schema_file = Path(work) / "schema.json"
-                    schema_file.write_text(json.dumps(schema.model_json_schema(), ensure_ascii=False), encoding="utf-8")
+                    strict_schema = _make_strict_schema(schema.model_json_schema())
+                    schema_file.write_text(json.dumps(strict_schema, ensure_ascii=False), encoding="utf-8")
                     command.extend(["--output-schema", str(schema_file)])
                 command.extend(["--color", "never", "-"])
                 try:
