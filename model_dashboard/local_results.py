@@ -35,6 +35,31 @@ def _read_object(path: Path, root: Path) -> dict[str, Any]:
     return value
 
 
+def _read_text(path: Path, root: Path, max_length: int = 100_000) -> str:
+    """Read a bounded text artifact that is explicitly inside a trusted root."""
+    if not _inside(path, root):
+        raise ValueError("路径超出本地运行目录")
+    return path.read_text(encoding="utf-8")[:max_length]
+
+
+def _prompt_from_live_log(path: Path, root: Path) -> str:
+    """Extract only the prompt block; never expose the command or agent log."""
+    try:
+        content = _read_text(path, root)
+    except (OSError, UnicodeError, ValueError):
+        return ""
+    marker = "[PROMPT]\n"
+    end_marker = "\n[/PROMPT]"
+    start = content.find(marker)
+    if start < 0:
+        return ""
+    start += len(marker)
+    end = content.find(end_marker, start)
+    if end < 0:
+        return ""
+    return content[start:end].strip()
+
+
 def _number(value: Any) -> float | None:
     if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
         return float(value)
@@ -89,7 +114,13 @@ def collect_local_results(runs_root: Path = RUNS_ROOT, cases_root: Path = CASES_
     for path in sorted(cases_root.glob("*/*/case.json")):
         try:
             case = _read_object(path, cases_root)
-            registry[case["id"]] = {"title": case.get("title", ""), "category": case.get("category", "")}
+            task_path = path.parent / "TASK.md"
+            task_text = _read_text(task_path, cases_root, 100_000) if task_path.is_file() else ""
+            registry[case["id"]] = {
+                "title": case.get("title", ""),
+                "category": case.get("category", ""),
+                "task_text": task_text,
+            }
         except (OSError, ValueError, KeyError, TypeError):
             continue
 
@@ -143,6 +174,10 @@ def collect_local_results(runs_root: Path = RUNS_ROOT, cases_root: Path = CASES_
                         execution = _read_object(execution_path, runs_root)
                     except (OSError, ValueError):
                         warnings.append(f"{run_dir.name} / {tool} / {case_id}：执行记录无法读取")
+                live_log_path = execution_path.with_name("agent.live.log")
+                if not live_log_path.is_file():
+                    live_log_path = (run_dir / tool / case_id / "agent.live.log")
+                prompt = _prompt_from_live_log(live_log_path, runs_root) if live_log_path.is_file() else ""
                 metrics = {}
                 for name, value in (row.metrics.items() if row else []):
                     score, threshold = _number(value.get("score")), _number(value.get("threshold"))
@@ -161,6 +196,16 @@ def collect_local_results(runs_root: Path = RUNS_ROOT, cases_root: Path = CASES_
                 )
                 status = str(execution.get("status") or (row.execution_status if row else "missing"))
                 info = registry.get(case_id, {})
+                task_text = str(info.get("task_text") or "")
+                if not task_text:
+                    task_path = workspace_path(run_dir, tool, case_id, identities) / "TASK.md"
+                    if not task_path.is_file():
+                        task_path = run_dir / tool / case_id / "TASK.md"
+                    if task_path.is_file():
+                        try:
+                            task_text = _read_text(task_path, runs_root, 100_000)
+                        except (OSError, UnicodeError, ValueError):
+                            task_text = ""
                 records.append({
                     "id": f"{run_dir.name}/{tool}/{case_id}",
                     "run_id": run_dir.name,
@@ -172,6 +217,8 @@ def collect_local_results(runs_root: Path = RUNS_ROOT, cases_root: Path = CASES_
                     "case_id": case_id,
                     "title": str(info.get("title") or (row.title if row else "") or case_id),
                     "category": str(info.get("category") or (row.category if row else "")),
+                    "task_text": task_text,
+                    "prompt": prompt,
                     "execution_status": status,
                     "elapsed_seconds": _number(execution.get("elapsed_seconds", row.elapsed_seconds if row else None)),
                     "evaluated": graded,

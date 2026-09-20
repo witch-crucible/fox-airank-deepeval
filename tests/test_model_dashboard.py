@@ -31,6 +31,8 @@ from model_dashboard.server import (
     normalize_external_rows,
     normalize_llm_stats_indexes,
 )
+from model_dashboard.leaderboards import build_agent_overview, build_local_scores, build_model_overview
+from model_dashboard.sources import normalize_arena_price_catalog, normalize_artificial_analysis_models_html
 
 
 class ModelDashboardTests(unittest.TestCase):
@@ -157,16 +159,30 @@ class ModelDashboardTests(unittest.TestCase):
         with self.assertRaisesRegex(DashboardError, "不支持的目标字段"):
             normalize_external_rows([], "", {"tool": "tool", "model": "model", "unsafe": "x"}, "source", "https://example.com")
 
-    def test_arena_rows_require_and_normalize_top_30(self):
+    def test_arena_rows_normalize_full_board_and_allow_explicit_limit(self):
         models = normalize_arena_webdev_rows(self._arena_document())
-        self.assertEqual(len(models), 30)
+        self.assertEqual(len(models), 31)
         self.assertEqual(models[0]["model"], "Arena Model 1")
         self.assertEqual(models[0]["scores"]["arena_webdev"], 1700)
         self.assertEqual(models[0]["source"]["type"], "arena_webdev")
-        self.assertEqual(models[-1]["source"]["rank"], 30)
+        self.assertEqual(models[-1]["source"]["rank"], 31)
+
+        limited = normalize_arena_webdev_rows(self._arena_document(), limit=30)
+        self.assertEqual(len(limited), 30)
 
         with self.assertRaisesRegex(DashboardError, "不足 30 条"):
-            normalize_arena_webdev_rows(self._arena_document(count=29))
+            normalize_arena_webdev_rows(self._arena_document(count=29), limit=30)
+
+    def test_arena_official_catalog_normalizes_model_price_aliases(self):
+        prices = normalize_arena_price_catalog([{
+            "name": "Alpha Display",
+            "model_api_name": "alpha-api",
+            "input_token_price": "1.25",
+            "output_token_price": "5",
+            "price_source": "https://example.com/pricing",
+        }])
+        self.assertEqual(prices["alpha-api"]["input"], 1.25)
+        self.assertEqual(prices["alpha display"]["output"], 5)
 
     def test_artificial_analysis_html_normalizes_score_and_rank(self):
         models = normalize_artificial_analysis_html(self._artificial_analysis_document())
@@ -190,7 +206,7 @@ class ModelDashboardTests(unittest.TestCase):
         self.assertEqual(models[-1]["model"], "Model 35")
         self.assertEqual(models[-1]["source"]["rank"], 35)
         for model in models:
-            self.assertEqual(model["source"]["type"], "artificial_analysis")
+            self.assertEqual(model["source"]["type"], "artificial_analysis_agent")
             scores = model["scores"]
             self.assertIsInstance(scores["artificial_analysis_index"], (int, float))
             self.assertIsInstance(scores["aa_deep_swe"], (int, float))
@@ -225,13 +241,129 @@ class ModelDashboardTests(unittest.TestCase):
         with self.assertRaisesRegex(DashboardError, "缺少 general 总榜"):
             normalize_llm_stats_indexes({})
 
-    def test_llm_stats_indexes_keep_only_top_30(self):
+    def test_llm_stats_indexes_keep_full_board_and_allow_explicit_limit(self):
         models = normalize_llm_stats_indexes(self._llm_stats_document(count=35))
-        self.assertEqual(len(models), 30)
+        self.assertEqual(len(models), 35)
         self.assertEqual(models[0]["model"], "LLM 1")
-        self.assertEqual(models[-1]["model"], "LLM 30")
-        self.assertEqual(models[-1]["source"]["rank"], 30)
-        self.assertEqual(models[-1]["source"]["source_id"], "llm-30")
+        self.assertEqual(models[-1]["model"], "LLM 35")
+        self.assertEqual(models[-1]["source"]["rank"], 35)
+        self.assertEqual(models[-1]["source"]["source_id"], "llm-35")
+        limited = normalize_llm_stats_indexes(self._llm_stats_document(count=35), limit=30)
+        self.assertEqual(len(limited), 30)
+
+    def test_artificial_analysis_models_uses_full_manifests_and_keeps_variants(self):
+        references = (
+            '"manifest":{"path":"/data/canonical.txt","key":"' + "01" * 32 + '"}'
+            '"manifest":{"path":"/data/hosts.txt","key":"' + "02" * 32 + '"}'
+        )
+        payload = json.dumps([1, references])
+        document = (
+            "<html>Artificial Analysis Intelligence Index v4.3.2"
+            f"<script>self.__next_f.push({payload})</script></html>"
+        )
+        canonical = {
+            "models": [{
+                "id": "model-1",
+                "slug": "alpha-1",
+                "name": "Alpha 1",
+                "intelligenceIndex": 72.5,
+                "terminalBench40": 0.44,
+                "timescaleData": {"medianOutputSpeed": 123.4},
+                "creator": {"name": "Test Lab"},
+            }]
+        }
+        hosts = [{
+            "id": "host-1",
+            "slug": "lab_alpha-1",
+            "modelId": "model-1",
+            "modelSlug": "alpha-1",
+            "host": {"name": "Provider"},
+            "intelligenceIndexCostPerTask": {"cost": {"total": 0.42}},
+            "timescaleData": {"medianOutputSpeed": 111.0},
+        }]
+        with patch("model_dashboard.sources.decrypt_artificial_analysis_manifest", side_effect=[canonical, hosts]):
+            models = normalize_artificial_analysis_models_html(document, lambda _url: b"encrypted")
+        self.assertEqual(len(models), 1)
+        self.assertEqual(models[0]["source"]["type"], "artificial_analysis_model")
+        self.assertEqual(models[0]["scores"]["aa_model_intelligence"], 72.5)
+        self.assertEqual(models[0]["scores"]["aa_model_terminal_bench_v4"], 44)
+        self.assertEqual(models[0]["source"]["variants"][0]["cost_usd_per_task"], 0.42)
+
+    def test_model_overview_applies_requested_weights_and_local_eligibility(self):
+        def model(source_type, name, score_field, score, rank):
+            return normalize_model(
+                {"tool": "Lab", "model": name, "scores": {score_field: score}},
+                source={"type": source_type, "source_id": f"{source_type}-{rank}", "rank": rank},
+            )
+
+        models = [
+            model("arena_webdev", "Alpha Max", "arena_webdev", 1800, 1),
+            model("arena_webdev", "Beta Max", "arena_webdev", 1600, 2),
+            model("artificial_analysis_model", "Alpha", "aa_model_intelligence", 80, 1),
+            model("artificial_analysis_model", "Beta", "aa_model_intelligence", 60, 2),
+            model("llm_stats", "Alpha", "llm_stats_score", 50, 1),
+            model("llm_stats", "Beta", "llm_stats_score", 40, 2),
+        ]
+        metrics = {
+            name: {"score": 0.9}
+            for name in ("Task Correctness", "Robustness, Safety and Regression", "Delivery Evidence")
+        }
+        local_records = [
+            {"agent": "Agent", "model": "Alpha", "reasoning_effort": "max", "case_id": case_id, "metrics": metrics}
+            for case_id in ("case-a", "case-b")
+            for _ in range(3)
+        ]
+        overview = build_model_overview(models, local_records, {"case-a", "case-b"})
+        alpha = next(row for row in overview["models"] if row["model_key"] == "alpha")
+        self.assertEqual(alpha["third_party_score"], 100)
+        self.assertEqual(alpha["local_configurations"][0]["local_score"], 90)
+        self.assertEqual(alpha["local_configurations"][0]["battle_score"], 97)
+        self.assertEqual(overview["weights"], {"arena_webdev": 0.35, "artificial_analysis_model": 0.5, "llm_stats": 0.15})
+
+        incomplete = build_local_scores(local_records[:2], {"case-a", "case-b"})[0]
+        self.assertFalse(incomplete["eligible"])
+        self.assertEqual(incomplete["missing_cases"], ["case-b"])
+
+    def test_agent_overview_matches_model_name_and_quantifies_shared_terminal_bench(self):
+        baseline = normalize_model(
+            {"tool": "Anthropic", "model": "Claude Opus 5 (max)", "reasoning_effort": "max", "scores": {"aa_model_terminal_bench_v4": 40}},
+            source={"type": "artificial_analysis_model", "source_id": "model", "creator_name": "Anthropic", "variants": []},
+        )
+        agent = normalize_model(
+            {"tool": "Claude Code", "model": "Opus 5 (max)", "scores": {"aa_terminal_bench_v4": 55}},
+            source={"type": "artificial_analysis_agent", "source_id": "agent", "rank": 1, "creator": {"model": "Anthropic"}},
+        )
+        overview = build_agent_overview([baseline, agent])
+        self.assertEqual(overview["agents"][0]["baseline"]["model"], "Claude Opus 5 (max)")
+        self.assertEqual(overview["agents"][0]["terminal_bench_uplift"], 15)
+
+    def test_store_keeps_leaderboard_snapshots_and_compares_previous(self):
+        with tempfile.TemporaryDirectory() as directory:
+            data_path = Path(directory) / "dashboard.json"
+            data_path.write_text(json.dumps({"meta": {}, "models": []}), encoding="utf-8")
+            store = DashboardStore(data_path=data_path)
+            first = normalize_arena_webdev_rows(self._arena_document(count=2))
+            second = normalize_arena_webdev_rows(self._arena_document(count=2, score_offset=10))
+            store.sync_arena_webdev(first)
+            store.sync_arena_webdev(second)
+            snapshots = store.leaderboard_snapshots("arena_webdev")
+            self.assertEqual(len(snapshots), 2)
+            comparison = store.leaderboard_comparison("arena_webdev")
+            self.assertEqual(comparison["current"]["snapshot_id"], snapshots[0]["snapshot_id"])
+            self.assertEqual(comparison["rows"][0]["metric_deltas"]["arena_webdev"], 10)
+            alias = store.save_model_alias("Opus 5", "Claude Opus 5")
+            self.assertEqual(alias["canonical_key"], "claude opus 5")
+            self.assertEqual(store.read()["model_aliases"]["opus 5"], "claude opus 5")
+
+    def test_store_seeds_existing_leaderboard_as_legacy_history_baseline(self):
+        with tempfile.TemporaryDirectory() as directory:
+            data_path = Path(directory) / "dashboard.json"
+            existing = normalize_arena_webdev_rows(self._arena_document(count=2))
+            data_path.write_text(json.dumps({"meta": {}, "models": existing}), encoding="utf-8")
+            store = DashboardStore(data_path=data_path)
+            snapshots = store.leaderboard_snapshots("arena_webdev")
+            self.assertEqual(len(snapshots), 1)
+            self.assertEqual(snapshots[0]["row_count"], 2)
 
     def test_http_page_add_model_and_import_third_party_data(self):
         third_party_document = {
@@ -284,10 +416,11 @@ class ModelDashboardTests(unittest.TestCase):
                     self.assertIn("sync-all-leaderboards", html)
                     self.assertIn("runAllLeaderboardSyncs", html)
                     self.assertIn("按来源单独同步", html)
-                    self.assertIn("同步 Arena 前 30", html)
-                    self.assertIn("同步 AA 完整榜", html)
+                    self.assertIn("同步 Arena 全榜", html)
+                    self.assertIn("同步 AA Agent 全榜", html)
+                    self.assertIn("同步 AA Model 全榜", html)
                     self.assertNotIn("同步 AA 前 30", html)
-                    self.assertIn("同步 LLM Stats 前 30", html)
+                    self.assertIn("同步 LLM Stats 全榜", html)
                     self.assertNotIn(">同步榜单</summary>", html)
                     self.assertIn("能力排名", html)
                     self.assertIn("Agent 排名", html)
@@ -303,12 +436,93 @@ class ModelDashboardTests(unittest.TestCase):
                     self.assertIn("配对 Agent：", html)
                     self.assertIn("空白不按 0 分处理", html)
                     self.assertIn('data-view="table"', html)
+                    self.assertIn('data-view="recommendations"', html)
+                    self.assertIn('data-view="recommendation-log"', html)
+                    self.assertIn('data-view="agent-reference"', html)
+                    self.assertIn("function renderModelLeaderboardPage()", html)
+                    self.assertIn("function renderAgentLeaderboardPage()", html)
+                    self.assertIn("Arena 35%", html)
+                    self.assertIn('view: "recommendations"', html)
+                    self.assertIn('function renderRecommendationsPage()', html)
+                    self.assertIn('function renderRecommendationLogPage()', html)
+                    self.assertIn('function renderLegionArtwork(src, alt, summaryText)', html)
+                    self.assertIn('el("details", "legion-artwork")', html)
+                    self.assertIn('展开军团海报', html)
+                    self.assertIn('展开技能冷却现场', html)
+                    self.assertIn('/static/art/vibe-coding-legion.png', html)
+                    self.assertIn('/static/art/vibe-coding-legion-log.png', html)
+                    self.assertIn('function recommendationModel(entry)', html)
+                    self.assertIn('function recommendationLocalRecord(entry)', html)
+                    self.assertIn('function recommendationPurpose(entry, group)', html)
+                    self.assertIn('function recommendationPurposeTypes()', html)
+                    self.assertIn('function recommendationAgentName(entry, planTitle)', html)
+                    self.assertIn('function recommendationEntries()', html)
+                    self.assertIn('function recommendationAgentGroups(entries)', html)
+                    self.assertIn('function recommendationPurposeGroups(entries)', html)
+                    self.assertIn('function pricingEntryForTool(tool)', html)
+                    self.assertIn('function recommendationPricingLink(tool)', html)
+                    self.assertIn('link.href = "#pricing"', html)
+                    self.assertIn('state.pricingTargetTool = pricing.tool', html)
+                    self.assertIn('recommendation-pricing-link', html)
+                    self.assertIn('price-card.is-targeted', html)
+                    self.assertIn('已定位 ${targetTool} 的订阅费用', html)
+                    self.assertIn('purposeRole: "primary"', html)
+                    self.assertIn('purposeRole: "secondary"', html)
+                    self.assertIn('is-secondary-purpose', html)
+                    self.assertIn('function recommendationModelLogo(entry)', html)
+                    self.assertIn('key: "openai"', html)
+                    self.assertIn('key: "claude"', html)
+                    self.assertIn('key: "deepseek"', html)
+                    self.assertIn('recommendation-model-logo', html)
+                    self.assertIn('function recommendationPurposeType(entry, group)', html)
+                    self.assertIn('function recommendationPrimaryPurposeTypes(entry, group)', html)
+                    self.assertIn('function recommendationSecondaryPurposeTypes(entry)', html)
+                    self.assertIn('function recommendationSecondaryPurposeType(entry)', html)
+                    self.assertIn('function recommendationSelectedPurposeTypes(entry, group)', html)
+                    self.assertIn('function renderRecommendationCapability(entry, metrics)', html)
+                    self.assertIn('用途类型配置 *', html)
+                    self.assertIn('["Ask", "Plan", "Build", "Review", "Ship"]', html)
+                    self.assertIn('主用途（可多选）', html)
+                    self.assertIn('副用途（可多选）', html)
+                    self.assertIn('function renderRecommendationPurposeOptions(field, selected = [], inputName = "primary_purpose_types")', html)
+                    self.assertIn('container.dataset.recommendationGroup', html)
+                    self.assertIn('const selectedSecondaryPurposeTypes = recommendationSecondaryPurposeTypes(entry)', html)
+                    self.assertIn('function filterRecommendationEditorRows()', html)
+                    self.assertIn('function syncRecommendationPurposeRoles(row, changedInput)', html)
+                    self.assertIn('function requestCloseRecommendationsDialog()', html)
+                    self.assertIn('recommendation-editor-filter', html)
+                    self.assertIn('recommendation-editor-summary', html)
+                    self.assertIn('recommendation-editor-row-actions', html)
+                    self.assertIn('正在保存…', html)
+                    self.assertIn('有尚未保存的 Vibe Coding Legion 修改', html)
+                    self.assertIn("record.primary_purpose_types", html)
+                    self.assertIn("record.secondary_purpose_types", html)
+                    self.assertIn('function recommendationCorePurposeTypes(entry, group)', html)
+                    self.assertIn('function toggleRecommendationCore(group, index, purposeType, nextValue, control)', html)
+                    self.assertIn('recommendation-core-toggle', html)
+                    self.assertIn('recommendation-item.is-core', html)
+                    self.assertIn('isCorePurpose ? "★" : "☆"', html)
+                    self.assertIn('coreToggle.setAttribute("aria-label"', html)
+                    self.assertIn('已标记为核心选择', html)
+                    self.assertIn('"核心用途（按用途 + 条目，可多选）"', html)
+                    self.assertIn('tag.title = "主用途"', html)
+                    self.assertIn('tag.title = "副用途"', html)
+                    self.assertIn('用途说明（可选）', html)
+                    self.assertIn('recommendation-purpose', html)
+                    self.assertIn('暂无匹配的能力数据，空白不按 0 分处理', html)
+                    self.assertIn('card.dataset.purposeGroup', html)
+                    self.assertIn('agentGroup.dataset.agentGroup', html)
+                    self.assertIn('按主用途分组', html)
+                    self.assertIn('每个用途内部按 Agent 聚合', html)
+                    self.assertIn('不按 Agent 能力归类', html)
                     self.assertIn("function sourceHref(model)", html)
                     self.assertIn("function sourceBadge(model)", html)
                     self.assertIn("打开来源：", html)
                     self.assertIn("function pricingPlanGroups(item)", html)
-                    self.assertIn("IDE Plan", html)
-                    self.assertIn("Code Plan", html)
+                    self.assertIn("Agent Plan", html)
+                    self.assertIn("Coding Plan", html)
+                    self.assertIn("agent_plans", html)
+                    self.assertIn("coding_plans", html)
                     self.assertIn("ide_plans", html)
                     self.assertIn("code_plans", html)
                     self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
@@ -318,6 +532,13 @@ class ModelDashboardTests(unittest.TestCase):
                     self.assertIn('viewBox="0 0 32 32"', mark)
                     self.assertIn("#245b45", mark)
                     self.assertIn("image/svg+xml", response.headers["Content-Type"])
+
+                for asset in ("vibe-coding-legion.png", "vibe-coding-legion-log.png"):
+                    with self.subTest(asset=asset):
+                        with urlopen(f"{base_url}/static/art/{asset}", timeout=3) as response:
+                            self.assertEqual(response.status, 200)
+                            self.assertEqual(response.headers["Content-Type"], "image/png")
+                            self.assertGreater(len(response.read()), 0)
 
                 with self.assertRaises(HTTPError) as blocked:
                     urlopen(f"{base_url}/static/../seed_data.json", timeout=3)
@@ -425,6 +646,12 @@ class ModelDashboardTests(unittest.TestCase):
         self.assertIsNotNone(mark)
         assert mark is not None
         self.assertEqual(mark.name, "mark.svg")
+        for asset in ("vibe-coding-legion.png", "vibe-coding-legion-log.png"):
+            with self.subTest(asset=asset):
+                image = resolve_static_path(f"/static/art/{asset}")
+                self.assertIsNotNone(image)
+                assert image is not None
+                self.assertEqual(image.name, asset)
         self.assertIsNone(resolve_static_path("/static/../seed_data.json"))
         self.assertIsNone(resolve_static_path("/static/index.html"))
         self.assertIsNone(resolve_static_path("/static/brand/"))
@@ -517,7 +744,7 @@ class ModelDashboardTests(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=3)
 
-    def test_http_syncs_arena_top_30_without_overwriting_other_models(self):
+    def test_http_syncs_full_arena_without_overwriting_other_models(self):
         documents = [self._arena_document(), self._arena_document(score_offset=5)]
         fetched = []
 
@@ -532,23 +759,23 @@ class ModelDashboardTests(unittest.TestCase):
             base_url = f"http://127.0.0.1:{server.server_port}"
             try:
                 first = self._post_json(f"{base_url}/api/import/arena-webdev", {})
-                self.assertEqual(first, {"created": 30, "updated": 0, "removed": 0, "received": 30})
+                self.assertEqual(first, {"created": 31, "updated": 0, "removed": 0, "received": 31})
                 second = self._post_json(f"{base_url}/api/import/arena-webdev", {})
-                self.assertEqual(second, {"created": 0, "updated": 30, "removed": 0, "received": 30})
+                self.assertEqual(second, {"created": 0, "updated": 31, "removed": 0, "received": 31})
                 self.assertEqual(fetched, [(ARENA_DATASET_URL, None), (ARENA_DATASET_URL, None)])
 
                 with urlopen(f"{base_url}/api/models", timeout=3) as response:
                     data = json.load(response)
                 arena_models = [model for model in data["models"] if model["source"]["type"] == "arena_webdev"]
-                self.assertEqual(len(arena_models), 30)
+                self.assertEqual(len(arena_models), 31)
                 self.assertEqual(arena_models[0]["scores"]["arena_webdev"], 1705)
-                self.assertEqual(len(data["models"]), 50)
+                self.assertEqual(len(data["models"]), 51)
             finally:
                 server.shutdown()
                 server.server_close()
                 thread.join(timeout=3)
 
-    def test_arena_sync_retains_archived_model_after_it_leaves_top_30(self):
+    def test_arena_sync_retains_archived_model_after_it_leaves_full_board(self):
         first_document = self._arena_document()
         second_document = self._arena_document()
         second_document["rows"] = [
@@ -582,7 +809,7 @@ class ModelDashboardTests(unittest.TestCase):
                 )
 
                 result = self._post_json(f"{base_url}/api/import/arena-webdev", {})
-                self.assertEqual(result, {"created": 1, "updated": 29, "removed": 0, "received": 30})
+                self.assertEqual(result, {"created": 0, "updated": 30, "removed": 0, "received": 30})
                 with urlopen(f"{base_url}/api/models", timeout=3) as response:
                     data = json.load(response)
                 retained = next(model for model in data["models"] if model["model"] == "Arena Model 30")
@@ -630,8 +857,8 @@ class ModelDashboardTests(unittest.TestCase):
 
                 with urlopen(f"{base_url}/api/models", timeout=3) as response:
                     data = json.load(response)
-                aa_models = [model for model in data["models"] if model["source"]["type"] == "artificial_analysis"]
-                non_aa = [model for model in data["models"] if model["source"]["type"] != "artificial_analysis"]
+                aa_models = [model for model in data["models"] if model["source"]["type"] == "artificial_analysis_agent"]
+                non_aa = [model for model in data["models"] if model["source"]["type"] != "artificial_analysis_agent"]
                 self.assertEqual(len(aa_models), 35)
                 self.assertGreater(len(aa_models), 30)
                 self.assertEqual(aa_models[0]["scores"]["artificial_analysis_index"], 69)
@@ -678,6 +905,47 @@ class ModelDashboardTests(unittest.TestCase):
                 self.assertEqual(len(llm_stats_models), 3)
                 self.assertEqual(llm_stats_models[0]["scores"]["llm_stats_score"], 64)
                 self.assertEqual(len(data["models"]), 23)
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=3)
+
+    def test_http_exposes_model_agent_history_and_alias_apis(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runs_root = root / "runs"
+            cases_root = root / "cases"
+            runs_root.mkdir()
+            cases_root.mkdir()
+            server = create_server(
+                "127.0.0.1",
+                0,
+                data_path=root / "dashboard.json",
+                runs_root=runs_root,
+                cases_root=cases_root,
+            )
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_port}"
+            try:
+                with urlopen(f"{base_url}/api/leaderboards/models", timeout=3) as response:
+                    models = json.load(response)
+                self.assertEqual(models["weights"]["arena_webdev"], 0.35)
+                self.assertEqual(models["local_share"], 0.3)
+
+                with urlopen(f"{base_url}/api/leaderboards/agents", timeout=3) as response:
+                    agents = json.load(response)
+                self.assertEqual(agents["count"], 0)
+
+                with urlopen(f"{base_url}/api/leaderboards/arena_webdev", timeout=3) as response:
+                    history = json.load(response)
+                self.assertEqual(history["rows"], [])
+
+                saved = self._post_json(
+                    f"{base_url}/api/leaderboards/model-aliases",
+                    {"alias": "Opus 5", "canonical": "Claude Opus 5"},
+                )
+                self.assertEqual(saved["alias"]["canonical_key"], "claude opus 5")
             finally:
                 server.shutdown()
                 server.server_close()
@@ -869,6 +1137,18 @@ class ModelDashboardTests(unittest.TestCase):
             has_component = any(value is not None for value in source_scores.values())
             expected_composite = row[13] if has_component else None
             self.assertEqual(model["scores"]["composite_total"], expected_composite)
+
+    def test_seed_pricing_uses_agent_and_coding_plan_groups(self):
+        seed_path = Path(__file__).resolve().parent.parent / "model_dashboard" / "seed_data.json"
+        pricing = json.loads(seed_path.read_text(encoding="utf-8"))["pricing"]
+
+        self.assertTrue(pricing)
+        for entry in pricing:
+            self.assertIn("agent_plans", entry)
+            self.assertIn("coding_plans", entry)
+            self.assertNotIn("ide_plans", entry)
+            self.assertNotIn("code_plans", entry)
+            self.assertNotIn("plans", entry)
 
     def test_collect_watch_snapshot_tracks_python_and_ignores_local_data(self):
         with tempfile.TemporaryDirectory() as directory:

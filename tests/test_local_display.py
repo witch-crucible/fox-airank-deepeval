@@ -54,6 +54,37 @@ class LocalDisplayTests(unittest.TestCase):
         )
         return json.loads(result.stdout)
 
+    def capability_rows(self, models, records):
+        script = r"""
+            const fs = require("node:fs");
+            const vm = require("node:vm");
+            const payload = JSON.parse(fs.readFileSync(0, "utf8"));
+            const html = fs.readFileSync(process.argv[1], "utf8");
+            const source = html.split("<script>")[1].split("</script>")[0];
+            new vm.Script(source);
+            const localStart = source.indexOf("    function localScore(");
+            const localEnd = source.indexOf("    function localDuration(", localStart);
+            const capabilityStart = source.indexOf("    function capabilityIdentity(");
+            const capabilityEnd = source.indexOf("    function renderCapability(", capabilityStart);
+            if ([localStart, localEnd, capabilityStart, capabilityEnd].some(index => index < 0)) {
+              throw new Error("Capability score functions missing");
+            }
+            const context = vm.createContext({ state: { local: { records: payload.records } } });
+            vm.runInContext(source.slice(localStart, localEnd), context);
+            vm.runInContext(source.slice(capabilityStart, capabilityEnd), context);
+            context.models = payload.models;
+            const rows = vm.runInContext("capabilityRows(models)", context);
+            process.stdout.write(JSON.stringify(rows));
+        """
+        result = subprocess.run(
+            ["node", "-e", script, str(INDEX_PATH)],
+            input=json.dumps({"models": models, "records": records}),
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        return json.loads(result.stdout)
+
     def test_best_run_keeps_scores_and_artifact_from_the_same_record(self):
         latest = self.record("latest", .6, metrics={
             "Task Correctness": {"score": .6}, "Delivery Evidence": {"score": 1},
@@ -112,6 +143,56 @@ class LocalDisplayTests(unittest.TestCase):
         other_config = self.record("other-config", .8, case_id="other-case", reasoning_effort="low")
         records = [pelican, latest, older, other_config]
         self.assertEqual(self.displayed(records, case_id="other-case"), [latest, other_config])
+
+    def test_capability_profile_uses_only_review_and_best_pelican_score(self):
+        models = [
+            {
+                "model": "sample-model",
+                "tool": "Codex",
+                "reasoning_effort": "High",
+                "scores": {"skill_call": 10, "code_review": 8, "logic_analysis": 2, "function_fix": 3},
+            },
+            {
+                "model": "manual-only",
+                "tool": "Claude Code",
+                "reasoning_effort": "",
+                "scores": {"code_review": 5},
+            },
+            {
+                "model": "other-manual-fields",
+                "tool": "Qoder",
+                "reasoning_effort": "Max",
+                "scores": {"skill_call": 10, "code_review": None, "logic_analysis": 10, "function_fix": 10},
+            },
+        ]
+        records = [
+            self.record("latest", .6),
+            self.record("older-best", .9),
+            self.record("other-case", 1, case_id="other-case"),
+            self.record("local-only", .75, model="local-only", agent="Command Code", reasoning_effort="max"),
+            self.record("zero", 0, model="zero-model", reasoning_effort="low"),
+        ]
+
+        rows = self.capability_rows(models, records)
+        by_model = {row["model"]: row for row in rows}
+
+        self.assertEqual(set(by_model), {"sample-model", "manual-only", "local-only", "zero-model"})
+        self.assertEqual(by_model["sample-model"]["logic_score"], 8)
+        self.assertEqual(by_model["sample-model"]["implementation_score"], 90)
+        self.assertIsNone(by_model["manual-only"]["implementation_score"])
+        self.assertIsNone(by_model["local-only"]["logic_score"])
+        self.assertEqual(by_model["local-only"]["implementation_score"], 75)
+        self.assertEqual(by_model["zero-model"]["implementation_score"], 0)
+        self.assertNotIn("skill_call", by_model["sample-model"])
+        self.assertNotIn("logic_analysis", by_model["sample-model"])
+        self.assertNotIn("function_fix", by_model["sample-model"])
+
+    def test_capability_profile_uses_requested_score_labels(self):
+        html = INDEX_PATH.read_text(encoding="utf-8")
+
+        self.assertIn('{ key: "logic_score", label: "逻辑梳理分", max: 10 }', html)
+        self.assertIn('{ key: "implementation_score", label: "功能实现分", max: 100 }', html)
+        self.assertIn("功能实现分取本地鹈鹕测试的任务正确性", html)
 
 
 if __name__ == "__main__":

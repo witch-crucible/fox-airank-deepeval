@@ -39,10 +39,6 @@ def _category_from_metadata(entry: dict[str, Any]) -> str:
     return str(metadata.get("category") or "")
 
 
-def _agent_identity(metadata: dict[str, Any]) -> str:
-    return str(metadata.get("agent_identity") or "")
-
-
 def _extract_task_correctness(case: dict[str, Any]) -> float | None:
     for metric in case.get("metricsData", []):
         if str(metric.get("name", "")).startswith("Task Correctness"):

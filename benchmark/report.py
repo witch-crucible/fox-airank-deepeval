@@ -34,11 +34,6 @@ CATEGORY_TO_MODEL_TEST = {
     "code_generation": "generation",
     "logic_analysis": "logic",
 }
-MODEL_TEST_CATEGORY_FIELD = {
-    "model_test_correction": "code_correction",
-    "model_test_generation": "code_generation",
-    "model_test_logic": "logic_analysis",
-}
 
 
 @dataclass(frozen=True)

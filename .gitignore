@@ -1,4 +1,7 @@
 .commandcode/
+.idea/
+.omo/
+.DS_Store
 __pycache__/
 *.py[cod]
 .venv/
@@ -9,5 +12,9 @@ __pycache__/
 results/
 runs/
 model_dashboard/data.local.json
+var/sqlite/
 .deepeval/
 *.egg-info/
+cases/code_generation/pelican_bicycle/node_modules/
+cases/code_generation/pelican_bicycle/dist/
+cases/code_generation/pelican_bicycle/verification/

@@ -25,9 +25,15 @@ SCORE_FIELDS = {
     "model_test_logic",
     "model_test_total",
     "arena_webdev",
+    "aa_model_intelligence",
+    "aa_model_speed",
+    "aa_model_cost_per_task",
+    "aa_model_terminal_bench_v4",
     "artificial_analysis_index",
     "aa_deep_swe",
+    "aa_deep_swe_v1_1",
     "aa_terminal_bench_v2",
+    "aa_terminal_bench_v4",
     "aa_swe_atlas_qna",
     "llm_stats_score",
     "llm_stats_reasoning",
@@ -325,5 +331,3 @@ def normalize_external_rows(
         except DashboardError as error:
             raise DashboardError(f"第 {index} 条数据无效：{error}") from error
     return models
-
-

@@ -28,6 +28,11 @@ class LocalResultsTests(unittest.TestCase):
             "created_at": "2026-09-19T12:00:00+00:00", "tools": ["codex"], "cases": [PELICAN_CASE],
             "identities": {"codex": {"agent": "Codex", "model": "sample-model", "intelligence": "high"}},
         })
+        (self.workspace / "TASK.md").write_text("自定义题目：检查鹈鹕避障。", encoding="utf-8")
+        (self.workspace / "agent.live.log").write_text(
+            "command=secret command is not public\n\n[PROMPT]\n自定义鹈鹕测试提示词\n[/PROMPT]\n",
+            encoding="utf-8",
+        )
         self.write(self.workspace / "execution.json", {"status": "completed", "elapsed_seconds": 120, "command": "secret command is not public"})
         self.report_data = {
             "hyperparameters": {"judge_model": "judge", "judge_reasoning_effort": "medium", "metric_version": "v1"},
@@ -62,6 +67,8 @@ class LocalResultsTests(unittest.TestCase):
         self.assertTrue(record["passed"])
         self.assertEqual(record["elapsed_seconds"], 120)
         self.assertEqual(record["preview_url"], "/api/local-benchmarks/preview/sample/codex")
+        self.assertEqual(record["task_text"], "自定义题目：检查鹈鹕避障。")
+        self.assertEqual(record["prompt"], "自定义鹈鹕测试提示词")
         self.assertNotIn("model_test_total", record)
         self.assertNotIn("secret command", json.dumps(result))
 

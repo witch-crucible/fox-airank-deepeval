@@ -30,6 +30,14 @@ python3 -m pip install -e .
 python3 benchmark.py list
 ```
 
+需要本地构建或运行鹈鹕案例的公开测试时，先安装锁定的前端依赖；构建产物、依赖目录和验证截图不会纳入版本管理：
+
+```bash
+cd cases/code_generation/pelican_bicycle
+npm ci
+npm test
+```
+
 ### 启动一次最小基准测试
 
 下面的命令只运行当前前端 case，并使用 `tools.json` 中的 Codex 配置。执行前请确认 Codex CLI 已安装、登录，且本机可调用统一裁判所需的模型：
@@ -296,9 +304,14 @@ python3 -m compileall -q benchmark model_dashboard tests run_benchmark.py
 
 页面右上角以“同步三方数据”为主按钮，会依次同步 Arena、Artificial Analysis、LLM Stats；某一源失败不影响其余来源，结束后给出汇总提示。旁边的“单项”菜单仍可单独同步某一个榜单。
 
-- “同步 Arena 前 30”读取 [Arena WebDev 榜单](https://arena.ai/leaderboard/code/webdev) 的官方 `webdev/latest` 数据集快照，并同步当前 Overall 前 30 名。重复同步只替换上一次 Arena 同步记录，不会覆盖 Excel、手工或其他第三方记录；若官方数据不足 30 条则拒绝写入，保留上一次完整结果。
-- “同步 AA 完整榜”读取 [Artificial Analysis Coding Agents](https://artificialanalysis.ai/agents/coding-agents) 官方页面嵌入的完整榜单（select all，不截断为前 30），保存 Coding Agent Index 排名、总分，以及 DeepSWE、Terminal-Bench v2.1、SWE-Atlas-QnA 三项分数。同步记录还保留官方记录 ID、Agent、模型、指数版本、每任务成本和运行时间；重复同步只替换上一次 Artificial Analysis 记录，不会覆盖 Excel、手工或其他来源。该指数使用独立字段，不参与原表综合分。看板能力排名区按 Agent（编程工具聚合）与 Model（模型配置逐条）两路展示当前指标得分及配对信息。
-- “同步 LLM Stats 前 30”读取 [LLM Stats](https://llm-stats.com/) 官网使用的公开 `general` 指数榜单，只同步当前前 30 名，并保存官网排名、LLM Stats Score，以及 Reasoning、Code、Agents 三个主要分项。同步记录还保留官方模型 ID、组织、14 天排名变化和参与评测数；重复同步只替换上一次 LLM Stats 记录，不会覆盖 Excel、手工或其他来源；接口数据无效时保留已有结果。LLM Stats 分数使用独立字段，不参与原表综合分。
+- “同步 Arena 全榜”分页读取 [Arena WebDev 榜单](https://arena.ai/leaderboard/code/webdev) 的官方 `webdev/latest` Overall 快照，保存名次、Score、输入/输出 Price $/M 和官方来源。价格优先读取 Arena 页面及 LMArena 官方价格目录；Cloudflare 阻止页面读取或目录未覆盖当前模型时，横向总表会明确使用已匹配 AA 服务商配置的价格作为参考，不伪装成 Arena 原始字段。
+- “同步 AA Model 全榜”读取 [Artificial Analysis Models](https://artificialanalysis.ai/models) 的公开加密 manifest，保存完整模型榜、Intelligence、Speed、Cost per Intelligence Index Task、Terminal-Bench 4.0 和服务商配置。解码使用 Node.js 内置加密与 gzip 能力，不需要 AA API key。
+- “同步 AA Agent 全榜”读取 [Artificial Analysis Coding Agents](https://artificialanalysis.ai/agents/coding-agents) 的完整榜单，保存 Coding Agent Index、DeepSWE v1.1、Terminal-Bench 4.0、SWE-Atlas-QnA、Time per Task、Cost per Task 及底层模型标识；旧版字段继续兼容读取。
+- “同步 LLM Stats 全榜”读取 [LLM Stats](https://llm-stats.com/) 官网使用的公开 `general` 指数榜单及 Coding 分项，保存完整排名、官方模型 ID、组织、14 天排名变化和参与评测数。
+
+每个来源的成功同步都会保存不可变 SQLite 快照，默认对比最近两次，也可选择任意历史批次。页面分别标记名次和指标变化、新上榜、退出榜单及版本不可比；同步失败不会推进该来源的历史基线。
+
+Model 三方聚合分先在各来源当前完整快照内按原始得分做 0–100 min-max 归一化，再按 Arena 35%、Artificial Analysis 50%、LLM Stats 15% 加权。同版本存在多个配置时，以该来源官方名次最高的配置参与聚合，全部配置仍可展开检查。三个来源缺一时不计算聚合分，缺失值不会按 0 分或重新分配权重。本地实测分按任务正确性 70%、稳健与安全 20%、交付证据 10% 计算；同任务重复运行先平均，再跨任务平均。实战综合分采用三方聚合分 70% + 本地实测分 30%，只有共同测试集齐全且每题至少完成 3 次时进入正式排名，覆盖不足时仅展示试算值。
 
 直接启动（无需安装额外依赖）：
 
@@ -312,7 +325,13 @@ python3 -m model_dashboard.server
 python3 -m model_dashboard.server --reload
 ```
 
-浏览器打开 <http://127.0.0.1:8765>。新增或导入的数据写入被 Git 忽略的 `model_dashboard/data.local.json`；删除该文件即可恢复 Excel 种子数据。静态页面每次请求都会重新读取，改 `static/index.html` 后刷新浏览器即可，无需重启。
+浏览器打开 <http://127.0.0.1:8765>。新增或导入的数据默认写入被 Git 忽略的 `var/sqlite/fox-airank-deepeval.db`；首次启动会从已有的 `model_dashboard/data.local.json` 自动导入，原 JSON 文件保留。可通过 `--data` 指定 SQLite 文件路径；静态页面每次请求都会重新读取，改 `static/index.html` 后刷新浏览器即可，无需重启。
+
+顶部导航按用途拆分：「本地实测」展示本地运行评分、作品与人工能力剖面；「Agent 三方榜单」展示 AA Coding Agent Index、成本、耗时及底层模型对照；「Model 三方榜单」横向合并 Arena、AA Models、LLM Stats 和本地实测；「Agent 使用人数」和「订阅费用快照」各自独立成页。费用快照按 Agent Plan 与 Coding Plan 展示，规范字段为 `agent_plans` 与 `coding_plans`；旧 `ide_plans`、`code_plans` 和 `plans` 数据继续兼容读取。页面可通过 `/#dashboard`、`/#agent-reference`、`/#reference`、`/#agent-usage`、`/#pricing` 直接打开，支持刷新和浏览器前进/后退；旧章节链接继续进入迁移后的所属页面。
+
+「Vibe Coding Legion」是默认页面，顶部导航另有独立的「Legion 日志」页面；两页分别使用本地打包的军团出征图和技能冷却图，不依赖外部图片服务。Legion 页面先按主用途分组，再在用途内按建议中的 Agent/工具聚合；工具为空时回退使用 Agent Plan 或 Coding Plan 作为 Agent 名。存在同名费用快照的 Agent 分组会显示「订阅费用」链接，点击后进入费用页并定位、高亮对应工具；没有匹配费用记录时不显示空链接。默认用途类型为 `Ask`、`Plan`、`Build`、`Review` 和 `Ship`，每条建议的主用途与副用途都支持多选，副用途仅作为浅色标签展示，不建立页面分组。每张配置卡片按模型名称和工具匹配本地打包的简化家族标记，覆盖 GPT/OpenAI、Claude/Opus、Grok、DeepSeek、Cursor/Composer、Qwen、Kimi 与 Gemini，未知模型回退到模型首字符。只有主用途分组中的卡片支持在右上角用空心/实心星星执行“设为核心 / 取消核心”；核心卡片同时使用金色边框和浅色背景高亮，编辑弹窗中的复选框仍可维护同一字段。点击「编辑建议」可按模型、工具或推理强度搜索配置，复制已有配置，并用固定底部操作区保存；关闭有未保存修改的编辑器时会二次确认。用途类型支持 1 至 20 个逗号分隔值，并提供即时数量、重复与长度校验；每条建议可以分别多选主用途、副用途及修改说明，选择同一类型时会自动从另一用途角色移除。默认不自动标记任何配置。每条建议仍按工具、模型和推理强度优先匹配本地实测结果，展示该配置任务正确性最佳一次运行的三项能力分；没有本地结果时再匹配模型数据，仍无记录或尚未评分时明确显示为空，不按 0 分处理。模型必填，其他字段可留空；主用途留空时，Agent Plan 优先归入 `Plan`、Coding Plan 优先归入 `Build`，对应类型不存在时归入配置列表第一项。用途说明留空时按 Plan 归属和推理强度显示中性默认说明。保存后写入同一本地数据文件，刷新页面或重启服务后保留；取消不会保存。点击「发布 Vibe Coding Legion」会把已保存草稿固化为不可变版本，发布历史在「Legion 日志」页保留完整快照、SHA-256、发布说明和新增/更新/移除差异；内容未变化时不会重复生成版本。旧数据会把原用途数组的第一项读取为主用途、其余项读取为副用途，并继续提供旧字段兼容视图，但不会因读取而写回。建议独立于评分、费用和榜单同步，不参与排名计算。
+
+星标实际按“用途 + 建议条目”独立保存；同一建议属于多个主用途时，只高亮用户点选的那个用途条目。旧数据中的整条 `is_core=true` 会兼容映射为该建议的全部主用途，并继续输出布尔别名供旧客户端读取。
 
 本地鹈鹕测试默认按「模型＋智力程度（推理强度）」合并多次运行，展示组内「任务正确性」得分最高的一次；同分取最新一次，有效的 0 分优先于未评分。同一模型不同智力程度分别展示；同一模型、同一智力程度使用不同工具时仍参与同组比较，三项分数、耗时、明细及作品均来自选中的同一次运行。仍可切换到「每个配置最新一次」或「全部运行（含失败）」查看历史；其他任务保持按配置展示最新结果，原始运行记录不变。
 
@@ -348,6 +367,6 @@ Codex,800,
 
 看板计算口径：
 
-- 人工测试总分是 Skill 调用、代码评审、逻辑分析、功能修复四项之和。
+- 人工测试总分仍按兼容字段 Skill 调用、逻辑梳理分（原代码评审）、逻辑分析、功能修复四项之和计算；“本地实测”的人工能力剖面只展示逻辑梳理分，并把鹈鹕测试的任务正确性展示为功能实现分。
 - ModelTest 总分按当前 case 数量加权：代码修正 3、代码生成 4、逻辑分析 8。
 - 原表综合分沿用 Excel 公式：人工测试总分 + ModelTest 总分 + Arena WebDev。三者量纲不同，因此只用于还原原表排序，不代表归一化能力分。

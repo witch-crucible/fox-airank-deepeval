@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import ipaddress
+import base64
 import json
 import os
 import re
 import socket
-from typing import Any
+import subprocess
+from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
@@ -20,19 +22,44 @@ from .domain import (
 
 
 MAX_BODY_BYTES = 2 * 1024 * 1024
+MAX_BINARY_BYTES = 8 * 1024 * 1024
 ARENA_WEBDEV_URL = "https://arena.ai/leaderboard/code/webdev"
+ARENA_PRICE_CATALOG_URL = "https://raw.githubusercontent.com/lmarena/arena-catalog/main/data/scatterplot-data.json"
+ARENA_PRICE_CATALOG_API_URL = "https://api.github.com/repos/lmarena/arena-catalog/contents/data/scatterplot-data.json"
 ARENA_DATASET_URL = (
     "https://datasets-server.huggingface.co/rows"
     "?dataset=lmarena-ai%2Fleaderboard-dataset"
     "&config=webdev&split=latest&offset=0&length=100"
 )
+ARENA_DATASET_URL_TEMPLATE = (
+    "https://datasets-server.huggingface.co/rows"
+    "?dataset=lmarena-ai%2Fleaderboard-dataset"
+    "&config=webdev&split=latest&offset={offset}&length={length}"
+)
+ARENA_PAGE_SIZE = 100
 LEADERBOARD_TOP_LIMIT = 30
 ARENA_TOP_LIMIT = LEADERBOARD_TOP_LIMIT
 ARTIFICIAL_ANALYSIS_URL = "https://artificialanalysis.ai/agents/coding-agents"
+ARTIFICIAL_ANALYSIS_MODELS_URL = "https://artificialanalysis.ai/models"
 LLM_STATS_URL = "https://llm-stats.com/"
 LLM_STATS_INDEX_URL = "https://api.zeroeval.com/leaderboard/indexes/compact?payloadVersion=2"
 ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 HEADER_NAME = re.compile(r"^[A-Za-z0-9-]+$")
+
+
+def arena_price_key(value: Any) -> str:
+    text = str(value or "").strip().casefold()
+    text = re.sub(r"\s*\(codex[- ]harness\)\s*$", "", text)
+    text = re.sub(r"(?:[-_ ](?:none|minimal|low|medium|high|xhigh|max|thinking)(?:[-_ ]\d+k)?|\s*\((?:none|minimal|low|medium|high|xhigh|max|thinking)\))$", "", text)
+    return text.rstrip(" -_")
+
+
+def model_effort(value: Any) -> str:
+    efforts = {
+        match.casefold()
+        for match in re.findall(r"\((?:[^()]*,\s*)?(none|minimal|low|medium|high|xhigh|max)(?:\s+effort)?\)", str(value or ""), flags=re.I)
+    }
+    return next(iter(efforts)) if len(efforts) == 1 else ""
 
 
 def url_origin(url: str) -> tuple[str, str, int | None]:
@@ -81,7 +108,8 @@ class SameOriginRedirectHandler(HTTPRedirectHandler):
 
 def normalize_arena_webdev_rows(
     document: Any,
-    limit: int = ARENA_TOP_LIMIT,
+    limit: int | None = None,
+    prices: dict[str, dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     if not isinstance(document, dict) or not isinstance(document.get("rows"), list):
         raise DashboardError("Arena WebDev 数据格式无效")
@@ -99,9 +127,16 @@ def normalize_arena_webdev_rows(
             ranked_rows.append((rank, row))
 
     ranked_rows.sort(key=lambda item: (item[0], str(item[1].get("model_name", "")).casefold()))
-    selected = ranked_rows[:limit]
-    if len(selected) < limit:
-        raise DashboardError(f"Arena WebDev 返回的数据不足 {limit} 条，本次未更新")
+    if not ranked_rows:
+        raise DashboardError("Arena WebDev 未返回 Overall 排名，本次未更新")
+    if limit is not None:
+        if limit <= 0:
+            raise DashboardError("Arena WebDev 截断条数无效")
+        selected = ranked_rows[:limit]
+        if len(selected) < limit:
+            raise DashboardError(f"Arena WebDev 返回的数据不足 {limit} 条，本次未更新")
+    else:
+        selected = ranked_rows
 
     fetched_at = utc_now()
     models = []
@@ -113,6 +148,7 @@ def normalize_arena_webdev_rows(
         organization = optional_text(row.get("organization"), "organization", 100)
         license_name = optional_text(row.get("license"), "license", 100)
         publish_date = optional_text(row.get("leaderboard_publish_date"), "leaderboard_publish_date", 40)
+        price = (prices or {}).get(model_name.casefold()) or (prices or {}).get(arena_price_key(model_name), {})
         notes = f"Arena WebDev 第 {rank} 名"
         if organization:
             notes += f" · {organization}"
@@ -132,12 +168,102 @@ def normalize_arena_webdev_rows(
                     "fetched_at": fetched_at,
                     "leaderboard_publish_date": publish_date,
                     "rank": rank,
+                    "source_id": model_name.casefold(),
                     "organization": organization,
                     "license": license_name,
+                    "input_price_per_m": price.get("input"),
+                    "output_price_per_m": price.get("output"),
+                    "price_source": price.get("source") or ARENA_WEBDEV_URL,
                 },
             )
         )
     return models
+
+
+def arena_dataset_url(offset: int, length: int = ARENA_PAGE_SIZE) -> str:
+    return ARENA_DATASET_URL_TEMPLATE.format(offset=offset, length=length)
+
+
+def merge_arena_pages(documents: list[Any]) -> dict[str, Any]:
+    rows: list[Any] = []
+    for document in documents:
+        if not isinstance(document, dict) or not isinstance(document.get("rows"), list):
+            raise DashboardError("Arena WebDev 分页数据格式无效")
+        rows.extend(document["rows"])
+    return {"rows": rows}
+
+
+def normalize_arena_webdev_prices(document: str) -> dict[str, dict[str, float | None]]:
+    """Extract model input/output prices from Arena's page payload when exposed."""
+    if not isinstance(document, str):
+        raise DashboardError("Arena WebDev 价格页面格式无效")
+    prices: dict[str, dict[str, float | None]] = {}
+    decoder = json.JSONDecoder()
+    for match in re.finditer(r"\{", document):
+        try:
+            value, _ = decoder.raw_decode(document, match.start())
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(value, dict):
+            continue
+        name = value.get("model_name") or value.get("modelName") or value.get("model") or value.get("name")
+        if not isinstance(name, str) or not name.strip():
+            continue
+        input_value = value.get("input_price", value.get("inputPrice", value.get("input_cost")))
+        output_value = value.get("output_price", value.get("outputPrice", value.get("output_cost")))
+        try:
+            input_price = float(input_value) if input_value not in (None, "", "N/A") else None
+            output_price = float(output_value) if output_value not in (None, "", "N/A") else None
+        except (TypeError, ValueError):
+            continue
+        if input_price is not None or output_price is not None:
+            prices[name.strip().casefold()] = {"input": input_price, "output": output_price}
+    return prices
+
+
+def normalize_arena_price_catalog(document: Any) -> dict[str, dict[str, Any]]:
+    if isinstance(document, dict) and isinstance(document.get("content"), str):
+        try:
+            document = json.loads(base64.b64decode(document["content"]).decode("utf-8"))
+        except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise DashboardError("Arena 官方价格目录编码无效") from error
+    if not isinstance(document, list):
+        raise DashboardError("Arena 官方价格目录格式无效")
+    prices: dict[str, dict[str, Any]] = {}
+    for row in document:
+        if not isinstance(row, dict):
+            continue
+        try:
+            input_price = float(row["input_token_price"]) if row.get("input_token_price") not in (None, "") else None
+            output_price = float(row["output_token_price"]) if row.get("output_token_price") not in (None, "") else None
+        except (TypeError, ValueError):
+            continue
+        value = {
+            "input": input_price,
+            "output": output_price,
+            "source": row.get("price_source"),
+        }
+        for field in ("model_api_name", "model_api_key", "name"):
+            name = row.get(field)
+            if isinstance(name, str) and name.strip():
+                prices[name.strip().casefold()] = value
+                prices.setdefault(arena_price_key(name), value)
+    return prices
+
+
+def _next_flight_data(document: str) -> str:
+    flight_data = []
+    for script in re.findall(r"<script[^>]*>(.*?)</script>", document, flags=re.DOTALL | re.IGNORECASE):
+        match = re.search(r"self\.__next_f\.push\((\[1,.*\])\)", script, flags=re.DOTALL)
+        if not match:
+            continue
+        try:
+            payload = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            continue
+        if len(payload) > 1 and isinstance(payload[1], str):
+            flight_data.append(payload[1])
+    return "".join(flight_data)
 
 
 def normalize_artificial_analysis_html(
@@ -154,19 +280,7 @@ def normalize_artificial_analysis_html(
 
     version_match = re.search(r"Artificial Analysis Coding Agent Index v([0-9.]+)", document)
     index_version = f"v{version_match.group(1)}" if version_match else "unknown"
-    flight_data = []
-    for script in re.findall(r"<script[^>]*>(.*?)</script>", document, flags=re.DOTALL | re.IGNORECASE):
-        match = re.search(r"self\.__next_f\.push\((\[1,.*\])\)", script, flags=re.DOTALL)
-        if not match:
-            continue
-        try:
-            payload = json.loads(match.group(1))
-        except json.JSONDecodeError:
-            continue
-        if len(payload) > 1 and isinstance(payload[1], str):
-            flight_data.append(payload[1])
-
-    decoded = "".join(flight_data)
+    decoded = _next_flight_data(document)
     decoder = json.JSONDecoder()
     rows: dict[str, dict[str, Any]] = {}
     position = 0
@@ -208,14 +322,16 @@ def normalize_artificial_analysis_html(
             if isinstance(item, dict) and isinstance(item.get("mean"), dict)
         }
         index_score = round(float(row["indexScore"]) * 100, 4)
-        # Official page currently emits terminal-bench-v2.1; keep v2 as a fallback
-        # for older fixtures / cached HTML.
-        terminal_bench = eval_scores.get("terminal-bench-v2.1")
-        if terminal_bench is None:
-            terminal_bench = eval_scores.get("terminal-bench-v2")
+        terminal_bench_v2 = eval_scores.get("terminal-bench-v2.1")
+        if terminal_bench_v2 is None:
+            terminal_bench_v2 = eval_scores.get("terminal-bench-v2")
+        terminal_bench_v4 = eval_scores.get("terminal-bench-v4")
+        deep_swe_v1_1 = eval_scores.get("deep-swe-v1.1")
         component_scores = {
-            "aa_deep_swe": eval_scores.get("deep-swe"),
-            "aa_terminal_bench_v2": terminal_bench,
+            "aa_deep_swe": deep_swe_v1_1 if deep_swe_v1_1 is not None else eval_scores.get("deep-swe"),
+            "aa_deep_swe_v1_1": deep_swe_v1_1,
+            "aa_terminal_bench_v2": terminal_bench_v2,
+            "aa_terminal_bench_v4": terminal_bench_v4,
             "aa_swe_atlas_qna": eval_scores.get("swe-atlas-qna"),
         }
         scores = {"artificial_analysis_index": index_score}
@@ -227,11 +343,12 @@ def normalize_artificial_analysis_html(
                 {
                     "tool": display["agent"],
                     "model": display["model"],
+                    "reasoning_effort": model_effort(display["model"]),
                     "scores": scores,
                     "notes": f"Artificial Analysis Coding Agent Index 第 {rank} 名",
                 },
                 source={
-                    "type": "artificial_analysis",
+                    "type": "artificial_analysis_agent",
                     "name": "Artificial Analysis Coding Agents",
                     "url": ARTIFICIAL_ANALYSIS_URL,
                     "fetched_at": fetched_at,
@@ -239,6 +356,20 @@ def normalize_artificial_analysis_html(
                     "source_id": row["id"],
                     "index_version": index_version,
                     "creator": display.get("creator", {}),
+                    "agent_name": row.get("agentName") or display["agent"],
+                    "provider": row.get("provider"),
+                    "host_model_slug": row.get("hostModelSlug"),
+                    "display_label": row.get("displayLabel"),
+                    "variant_of": row.get("variantOf"),
+                    "evaluation_datasets": [
+                        {
+                            "name": item.get("datasetIndexName"),
+                            "dataset": item.get("refDatasetName"),
+                            "weight": item.get("weight"),
+                        }
+                        for item in row.get("evals", [])
+                        if isinstance(item, dict)
+                    ],
                     "cost_usd_per_task": mean.get("costUsd"),
                     "wall_time_seconds_per_task": mean.get("agentWallTimeSec"),
                 },
@@ -247,9 +378,177 @@ def normalize_artificial_analysis_html(
     return models
 
 
+def artificial_analysis_manifest_references(document: str) -> list[dict[str, str]]:
+    decoded = _next_flight_data(document)
+    decoder = json.JSONDecoder()
+    references: list[dict[str, str]] = []
+    for match in re.finditer(r'"manifest":', decoded):
+        try:
+            value, _ = decoder.raw_decode(decoded, match.end())
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(value, dict):
+            continue
+        path, key = value.get("path"), value.get("key")
+        if isinstance(path, str) and path.startswith("/data/") and isinstance(key, str):
+            reference = {"path": path, "key": key}
+            if reference not in references:
+                references.append(reference)
+    if not references:
+        raise DashboardError("Artificial Analysis Models 页面缺少全量数据 manifest")
+    return references
+
+
+def decrypt_artificial_analysis_manifest(payload: bytes, key: str) -> Any:
+    script = r"""
+const crypto = require('node:crypto');
+const zlib = require('node:zlib');
+let raw = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', chunk => raw += chunk);
+process.stdin.on('end', () => {
+  const input = JSON.parse(raw);
+  const key = Buffer.from(input.key, 'hex');
+  const encrypted = Buffer.from(input.payload, 'base64');
+  const iv = crypto.createHash('sha256').update(key).digest().subarray(0, 12);
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(encrypted.subarray(-16));
+  const compressed = Buffer.concat([decipher.update(encrypted.subarray(0, -16)), decipher.final()]);
+  process.stdout.write(zlib.gunzipSync(compressed, { maxOutputLength: 32 * 1024 * 1024 }));
+});
+"""
+    request = json.dumps({"key": key, "payload": base64.b64encode(payload).decode("ascii")})
+    try:
+        result = subprocess.run(
+            ["node", "-e", script],
+            input=request,
+            text=True,
+            capture_output=True,
+            timeout=20,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise DashboardError("无法解码 Artificial Analysis Models 全量数据") from error
+    if result.returncode != 0:
+        raise DashboardError("Artificial Analysis Models 全量数据解码失败")
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        raise DashboardError("Artificial Analysis Models manifest 不是有效 JSON") from error
+
+
+def normalize_artificial_analysis_models_html(
+    document: str,
+    binary_fetcher: Callable[[str], bytes],
+) -> list[dict[str, Any]]:
+    if not isinstance(document, str) or "Intelligence Index" not in document:
+        raise DashboardError("Artificial Analysis Models 页面缺少榜单数据")
+    manifests = []
+    for reference in artificial_analysis_manifest_references(document):
+        payload = binary_fetcher(f"https://artificialanalysis.ai{reference['path']}")
+        manifests.append(decrypt_artificial_analysis_manifest(payload, reference["key"]))
+
+    canonical_rows: list[dict[str, Any]] | None = None
+    host_rows: list[dict[str, Any]] = []
+    for manifest in manifests:
+        if isinstance(manifest, dict) and isinstance(manifest.get("models"), list):
+            candidate = manifest["models"]
+            if any(isinstance(row, dict) and "intelligenceIndex" in row for row in candidate):
+                canonical_rows = candidate
+        elif isinstance(manifest, list) and any(
+            isinstance(row, dict) and row.get("modelId") and row.get("modelSlug") for row in manifest
+        ):
+            host_rows.extend(row for row in manifest if isinstance(row, dict))
+    if not canonical_rows:
+        raise DashboardError("Artificial Analysis Models manifest 缺少模型总榜")
+
+    hosts_by_model: dict[str, list[dict[str, Any]]] = {}
+    for row in host_rows:
+        model_id = row.get("modelId")
+        if isinstance(model_id, str):
+            hosts_by_model.setdefault(model_id, []).append(row)
+
+    version_match = re.search(r"Intelligence Index v([0-9.]+)", document)
+    index_version = f"v{version_match.group(1)}" if version_match else "unknown"
+    scored = [row for row in canonical_rows if isinstance(row, dict) and isinstance(row.get("intelligenceIndex"), (int, float))]
+    scored.sort(key=lambda row: (-float(row["intelligenceIndex"]), str(row.get("id") or "")))
+    rank_by_id = {str(row.get("id")): rank for rank, row in enumerate(scored, 1)}
+    fetched_at = utc_now()
+    models = []
+    for row in canonical_rows:
+        if not isinstance(row, dict):
+            continue
+        source_id = optional_text(row.get("id"), "id", 160)
+        model_name = optional_text(row.get("name"), "name", 160)
+        if not source_id or not model_name:
+            continue
+        creator = row.get("creator") if isinstance(row.get("creator"), dict) else {}
+        variants = []
+        for variant in hosts_by_model.get(source_id, []):
+            cost = variant.get("intelligenceIndexCostPerTask")
+            cost = cost.get("cost") if isinstance(cost, dict) else None
+            speed = variant.get("timescaleData") if isinstance(variant.get("timescaleData"), dict) else {}
+            variants.append(
+                {
+                    "id": variant.get("id"),
+                    "slug": variant.get("slug"),
+                    "host": variant.get("host"),
+                    "name": variant.get("name"),
+                    "input_price_per_m": variant.get("price1mInputTokens"),
+                    "output_price_per_m": variant.get("price1mOutputTokens"),
+                    "cost_usd_per_task": cost.get("total") if isinstance(cost, dict) else None,
+                    "speed_tokens_per_second": speed.get("medianOutputSpeed"),
+                    "prompt_speeds": variant.get("performanceByPromptType"),
+                }
+            )
+        timescale = row.get("timescaleData") if isinstance(row.get("timescaleData"), dict) else {}
+        intelligence = row.get("intelligenceIndex")
+        terminal_bench = row.get("terminalBench40")
+        models.append(
+            normalize_model(
+                {
+                    "tool": optional_text(creator.get("name"), "creator.name", 100) or "Artificial Analysis",
+                    "model": model_name,
+                    "reasoning_effort": optional_text(
+                        (row.get("effort") or {}).get("slug") if isinstance(row.get("effort"), dict) else "",
+                        "effort.slug",
+                        80,
+                    ),
+                    "scores": {
+                        "aa_model_intelligence": intelligence,
+                        "aa_model_speed": timescale.get("medianOutputSpeed"),
+                        "aa_model_cost_per_task": None,
+                        "aa_model_terminal_bench_v4": round(float(terminal_bench) * 100, 4)
+                        if isinstance(terminal_bench, (int, float))
+                        else None,
+                    },
+                    "notes": "Artificial Analysis Models 全量榜",
+                },
+                source={
+                    "type": "artificial_analysis_model",
+                    "name": "Artificial Analysis Models",
+                    "url": ARTIFICIAL_ANALYSIS_MODELS_URL,
+                    "fetched_at": fetched_at,
+                    "rank": rank_by_id.get(source_id),
+                    "source_id": source_id,
+                    "canonical_model_id": source_id,
+                    "slug": row.get("slug"),
+                    "release": row.get("release"),
+                    "creator_name": creator.get("name"),
+                    "index_version": index_version,
+                    "is_estimated": row.get("intelligenceIndexIsEstimated") is True,
+                    "variants": variants,
+                },
+            )
+        )
+    if not models:
+        raise DashboardError("Artificial Analysis Models 未解析到有效模型")
+    return models
+
+
 def normalize_llm_stats_indexes(
     document: Any,
-    limit: int = LEADERBOARD_TOP_LIMIT,
+    limit: int | None = None,
 ) -> list[dict[str, Any]]:
     if not isinstance(document, dict):
         raise DashboardError("LLM Stats 数据格式无效")
@@ -290,7 +589,9 @@ def normalize_llm_stats_indexes(
         validated_rows.append((rank, source_id, model_name, score, row))
 
     validated_rows.sort(key=lambda item: (item[0], item[1]))
-    selected = validated_rows[:limit]
+    if limit is not None and limit <= 0:
+        raise DashboardError("LLM Stats 截断条数无效")
+    selected = validated_rows[:limit] if limit is not None else validated_rows
     fetched_at = utc_now()
     models = []
     for rank, source_id, model_name, score, row in selected:
@@ -409,3 +710,26 @@ def fetch_text(url: str, timeout: float = 20) -> str:
     except UnicodeDecodeError as error:
         raise DashboardError("榜单页面不是有效的 UTF-8 HTML") from error
 
+
+def fetch_bytes(url: str, timeout: float = 20) -> bytes:
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise DashboardError("数据文件 URL 必须是有效的 HTTPS 地址")
+    request = Request(
+        url,
+        headers={"User-Agent": "Mozilla/5.0 model-capability-dashboard/1.0"},
+        method="GET",
+    )
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            final_url = urlparse(response.geturl())
+            if final_url.scheme != "https" or final_url.hostname != parsed.hostname:
+                raise DashboardError("数据文件不能重定向到其他站点")
+            payload = response.read(MAX_BINARY_BYTES + 1)
+    except HTTPError as error:
+        raise DashboardError(f"数据文件返回 HTTP {error.code}") from error
+    except URLError as error:
+        raise DashboardError(f"无法访问数据文件：{error.reason}") from error
+    if len(payload) > MAX_BINARY_BYTES:
+        raise DashboardError("数据文件超过 8 MB 限制")
+    return payload
