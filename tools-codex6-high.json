@@ -1,0 +1,20 @@
+{
+  "codex6-high": {
+    "agent": "Codex",
+    "model": "gpt-6-astra",
+    "reasoning_effort": "high",
+    "command": [
+      "codex",
+      "exec",
+      "--skip-git-repo-check",
+      "--ephemeral",
+      "-s",
+      "workspace-write",
+      "-m",
+      "gpt-6-astra",
+      "-c",
+      "model_reasoning_effort=\"high\"",
+      "{prompt}"
+    ]
+  }
+}

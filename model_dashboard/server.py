@@ -29,6 +29,7 @@ from .domain import (
     utc_now,
 )
 from .benchmark import normalize_benchmark_models
+from .local_results import RUNS_ROOT, collect_local_results, resolve_pelican_preview
 from .sources import (
     ARENA_DATASET_URL,
     ARENA_TOP_LIMIT,
@@ -105,6 +106,22 @@ class DashboardHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/models":
             self._send_json(HTTPStatus.OK, self.dashboard_store.read())
+            return
+        if path == "/api/local-benchmarks":
+            self._send_json(HTTPStatus.OK, collect_local_results(self.server.runs_root))
+            return
+        if path.startswith("/api/local-benchmarks/preview/"):
+            parts = path.removeprefix("/api/local-benchmarks/preview/").split("/")
+            preview = resolve_pelican_preview(self.server.runs_root, *(unquote(part) for part in parts)) if len(parts) == 2 else None
+            if preview is not None:
+                try:
+                    content = preview.read_bytes()
+                except OSError:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "作品文件无法读取"})
+                    return
+                self._send_bytes(HTTPStatus.OK, content, "text/html; charset=utf-8", preview=True)
+            else:
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "未找到鹈鹕作品"})
             return
         if path == "/api/health":
             self._send_json(HTTPStatus.OK, {"status": "ok"})
@@ -246,13 +263,17 @@ class DashboardHandler(BaseHTTPRequestHandler):
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self._send_bytes(status, data, "application/json; charset=utf-8")
 
-    def _send_bytes(self, status: HTTPStatus, data: bytes, content_type: str) -> None:
+    def _send_bytes(self, status: HTTPStatus, data: bytes, content_type: str, *, preview: bool = False) -> None:
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'")
+        policy = "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'"
+        if preview:
+            policy = "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'"
+            self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Content-Security-Policy", policy)
         self.end_headers()
         self.wfile.write(data)
 
@@ -266,11 +287,13 @@ def create_server(
     data_path: Path = DEFAULT_DATA_PATH,
     json_fetcher: Callable[[str, Any], Any] = fetch_json,
     text_fetcher: Callable[[str], str] = fetch_text,
+    runs_root: Path = RUNS_ROOT,
 ) -> ThreadingHTTPServer:
     server = ThreadingHTTPServer((host, port), DashboardHandler)
     server.store = DashboardStore(data_path=data_path)  # type: ignore[attr-defined]
     server.json_fetcher = json_fetcher  # type: ignore[attr-defined]
     server.text_fetcher = text_fetcher  # type: ignore[attr-defined]
+    server.runs_root = runs_root  # type: ignore[attr-defined]
     return server
 
 
@@ -391,7 +414,8 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     server = create_server(args.host, args.port, args.data)
-    print(f"模型能力台：http://{args.host}:{server.server_port}")
+    dashboard_url = f"http://{args.host}:{server.server_port}"
+    print(f"模型能力台：{dashboard_url}（按住 ⌘ 并双击打开）")
     print(f"本地数据：{args.data}")
     try:
         server.serve_forever()

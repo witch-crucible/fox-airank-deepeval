@@ -21,6 +21,7 @@ CATEGORY_LABELS = {
     "code_correction": "代码修正",
     "code_generation": "代码生成",
     "logic_analysis": "逻辑分析",
+    "magento_business": "Magento 业务测试",
 }
 
 MODEL_TEST_WEIGHTS = {
@@ -52,12 +53,19 @@ class CaseRow:
     evaluated: bool = False
     execution_status: str = "missing"
     elapsed_seconds: float | None = None
+    timeout_seconds: float | None = None
 
     def metric_score(self, name: str) -> float | None:
         entry = self.metrics.get(name)
         if entry is None:
             return None
         return entry.get("score")
+
+    @property
+    def time_score(self) -> float | None:
+        return execution_time_score(
+            self.execution_status, self.elapsed_seconds, self.timeout_seconds
+        )
 
 
 @dataclass(frozen=True)
@@ -97,6 +105,21 @@ class ToolSummary:
         if not scores:
             return None
         return sum(scores) / len(scores)
+
+    @property
+    def total_execution_seconds(self) -> float | None:
+        values = [row.elapsed_seconds for row in self.rows if isinstance(row.elapsed_seconds, (int, float))]
+        return round(sum(values), 3) if values else None
+
+    @property
+    def average_execution_seconds(self) -> float | None:
+        values = [row.elapsed_seconds for row in self.rows if isinstance(row.elapsed_seconds, (int, float))]
+        return round(sum(values) / len(values), 3) if values else None
+
+    @property
+    def average_time_score(self) -> float | None:
+        values = [row.time_score for row in self.rows if row.time_score is not None]
+        return round(sum(values) / len(values), 2) if values else None
 
     def category_pass_rate(self, category: str) -> float | None:
         rows = [row for row in self.rows if row.evaluated and row.category == category]
@@ -145,6 +168,22 @@ class ToolSummary:
 
 def _canonical_metric_name(name: str) -> str:
     return name[: -len(METRIC_SUFFIX)] if name.endswith(METRIC_SUFFIX) else name
+
+
+def execution_time_score(
+    status: str,
+    elapsed_seconds: float | None,
+    timeout_seconds: float | None,
+) -> float | None:
+    """将单 case 执行耗时换算为独立的 0–100 效率分。"""
+    if not isinstance(elapsed_seconds, (int, float)) or not isinstance(timeout_seconds, (int, float)):
+        return None
+    if timeout_seconds <= 0:
+        return None
+    if status != "completed":
+        return 0.0
+    ratio = max(0.0, min(1.0, float(elapsed_seconds) / float(timeout_seconds)))
+    return round((1.0 - ratio) * 100, 2)
 
 
 def _ordered_metrics(names: Sequence[str]) -> list[str]:
@@ -230,6 +269,7 @@ def collect_tool_summary(
                     evaluated=evaluated,
                     execution_status=str(metadata.get("execution_status", "missing")),
                     elapsed_seconds=metadata.get("elapsed_seconds"),
+                    timeout_seconds=metadata.get("timeout_seconds"),
                 )
             )
     return ToolSummary(
@@ -278,6 +318,11 @@ def _summary_to_dict(summary: ToolSummary) -> dict[str, Any]:
         "run_duration_seconds": summary.run_duration_seconds,
         "judge_model": summary.judge_model,
         "metric_version": summary.metric_version,
+        "execution_timing": {
+            "total_elapsed_seconds": summary.total_execution_seconds,
+            "average_elapsed_seconds": summary.average_execution_seconds,
+            "average_time_score": summary.average_time_score,
+        },
         "summary": {
             "evaluated": summary.evaluated,
             "passed": summary.passed,
@@ -302,6 +347,8 @@ def _summary_to_dict(summary: ToolSummary) -> dict[str, Any]:
                 "evaluated": row.evaluated,
                 "execution_status": row.execution_status,
                 "elapsed_seconds": row.elapsed_seconds,
+                "timeout_seconds": row.timeout_seconds,
+                "time_score": row.time_score,
                 "metrics": row.metrics,
             }
             for row in summary.rows
@@ -311,7 +358,7 @@ def _summary_to_dict(summary: ToolSummary) -> dict[str, Any]:
 
 def _category_stats_dict(summary: ToolSummary) -> dict[str, dict[str, Any]]:
     stats: dict[str, dict[str, Any]] = {}
-    for category in ("code_correction", "code_generation", "logic_analysis"):
+    for category in CATEGORY_LABELS:
         rows = [row for row in summary.rows if row.category == category]
         evaluated = sum(1 for row in rows if row.evaluated)
         passed = sum(1 for row in rows if row.evaluated and row.passed)
@@ -358,6 +405,16 @@ def _format_score(value: float | int | None) -> str:
     return f"{float(value):.2f}"
 
 
+def _format_duration(value: float | int | None) -> str:
+    if not isinstance(value, (int, float)):
+        return "—"
+    seconds = float(value)
+    if seconds >= 60:
+        minutes = seconds / 60
+        return f"{minutes:.1f}m"
+    return f"{seconds:.1f}s"
+
+
 def _format_cell(row: CaseRow, name: str) -> str:
     entry = row.metrics.get(name)
     if entry is None:
@@ -378,6 +435,7 @@ def _case_row_from_dict(case: dict[str, Any]) -> CaseRow:
         evaluated=bool(case.get("evaluated", False)),
         execution_status=str(case.get("execution_status", "missing")),
         elapsed_seconds=case.get("elapsed_seconds"),
+        timeout_seconds=case.get("timeout_seconds"),
     )
 
 
@@ -400,10 +458,15 @@ def render_markdown(report: dict[str, Any]) -> str:
         return "\n".join(lines)
     metric_names = _report_metric_names(report)
 
+    lines += [
+        "耗时分按 `max(0, 100 × (1 - 执行耗时 / 超时上限))` 计算；仅正常完成的执行计分，失败或超时为 0。"
+        "耗时分独立展示，不改变现有 GEval 通过判定和 ModelTest 总分。",
+        "",
+    ]
     lines += ["## 汇总", "", "| 工具 | Agent | 模型 | 智能度 | 通过 / 评测 | 通过率 | "
               + " | ".join(f"{name} 均分" for name in metric_names)
-              + " | ModelTest 修正 | ModelTest 生成 | ModelTest 逻辑 | ModelTest 总分 |",
-              "|---" * (9 + len(metric_names)) + "|"]
+              + " | 平均执行耗时 | 耗时分 | ModelTest 修正 | ModelTest 生成 | ModelTest 逻辑 | ModelTest 总分 |",
+              "|---" * (12 + len(metric_names)) + "|"]
     for tool in report["tools"]:
         summary = tool.get("summary", {})
         evaluated = summary.get("evaluated", 0)
@@ -412,9 +475,12 @@ def render_markdown(report: dict[str, Any]) -> str:
         averages = summary.get("metric_averages", {})
         rate_text = f"{rate * 100:.0f}%" if rate is not None else "—"
         mt = tool.get("model_test", {})
+        timing = tool.get("execution_timing", {})
         cells = [tool["tool"], tool.get("agent", "unknown"), tool.get("model", "unknown"),
                  tool.get("intelligence", "unknown"), f"{passed} / {evaluated}", rate_text]
         cells += [_format_score(averages.get(name)) for name in metric_names]
+        cells += [_format_duration(timing.get("average_elapsed_seconds")),
+                  _format_score(timing.get("average_time_score"))]
         cells += [_format_score(mt.get("correction")), _format_score(mt.get("generation")),
                   _format_score(mt.get("logic")), _format_score(mt.get("total"))]
         lines.append("| " + " | ".join(cells) + " |")
@@ -426,7 +492,14 @@ def render_markdown(report: dict[str, Any]) -> str:
             identity += f"（{tool['intelligence']}）"
         lines += [f"- Agent / 模型：{identity}"]
         if tool.get("run_duration_seconds") is not None:
-            lines.append(f"- 评测耗时：{tool['run_duration_seconds']:.1f}s")
+            lines.append(f"- 裁判评测耗时：{tool['run_duration_seconds']:.1f}s")
+        timing = tool.get("execution_timing", {})
+        if timing.get("total_elapsed_seconds") is not None:
+            lines.append(
+                f"- 代理执行耗时：总计 {_format_duration(timing.get('total_elapsed_seconds'))}，"
+                f"平均 {_format_duration(timing.get('average_elapsed_seconds'))}，"
+                f"平均耗时分 {_format_score(timing.get('average_time_score'))}"
+            )
         if tool.get("judge_model"):
             lines.append(f"- 裁判模型：{tool['judge_model']}")
         if tool.get("metric_version"):
@@ -442,15 +515,15 @@ def render_markdown(report: dict[str, Any]) -> str:
         cat_stats = tool.get("category_stats", {})
         if cat_stats:
             cat_parts = []
-            for cat in ("code_correction", "code_generation", "logic_analysis"):
+            for cat in CATEGORY_LABELS:
                 stat = cat_stats.get(cat, {})
                 if stat.get("evaluated"):
                     rate = stat.get("pass_rate")
                     cat_parts.append(f"{CATEGORY_LABELS.get(cat, cat)} {stat['passed']}/{stat['evaluated']} ({rate * 100:.0f}%)" if rate is not None else f"{CATEGORY_LABELS.get(cat, cat)} {stat['passed']}/{stat['evaluated']}")
             if cat_parts:
                 lines.append(f"- 分类通过：{', '.join(cat_parts)}")
-        lines += ["", "| Case | 分类 | " + " | ".join(metric_names) + " | 执行状态 | 结论 |",
-                  "|---" * (4 + len(metric_names)) + "|"]
+        lines += ["", "| Case | 分类 | " + " | ".join(metric_names) + " | 执行耗时 / 上限 | 耗时分 | 执行状态 | 结论 |",
+                  "|---" * (6 + len(metric_names)) + "|"]
         for case in tool.get("cases", []):
             row = _case_row_from_dict(case)
             label = f"`{row.case_id}`"
@@ -459,7 +532,8 @@ def render_markdown(report: dict[str, Any]) -> str:
             category = CATEGORY_LABELS.get(row.category, row.category or "—")
             cells = [label, category] + [_format_cell(row, name) for name in metric_names]
             conclusion = "—" if not row.evaluated else ("✅ 通过" if row.passed else "❌ 未通过")
-            cells += [row.execution_status, conclusion]
+            duration = f"{_format_duration(row.elapsed_seconds)} / {_format_duration(row.timeout_seconds)}"
+            cells += [duration, _format_score(row.time_score), row.execution_status, conclusion]
             lines.append("| " + " | ".join(cells) + " |")
     lines.append("")
     return "\n".join(lines)
@@ -478,8 +552,8 @@ def render_history_markdown(history: list[dict[str, Any]]) -> str:
                     metric_names.append(name)
     lines += ["| Run | 工具 | Agent | 模型 | 智能度 | 通过 / 评测 | 通过率 | "
               + " | ".join(f"{name} 均分" for name in metric_names)
-              + " | ModelTest 总分 |",
-              "|---" * (8 + len(metric_names)) + "|"]
+              + " | 平均执行耗时 | 耗时分 | ModelTest 总分 |",
+              "|---" * (10 + len(metric_names)) + "|"]
     for report in history:
         for tool in report["tools"]:
             summary = tool.get("summary", {})
@@ -489,10 +563,13 @@ def render_history_markdown(history: list[dict[str, Any]]) -> str:
             rate_text = f"{rate * 100:.0f}%" if rate is not None else "—"
             averages = summary.get("metric_averages", {})
             mt_total = tool.get("model_test", {}).get("total")
+            timing = tool.get("execution_timing", {})
             cells = [report["run_id"], tool["tool"], tool.get("agent", "unknown"),
                      tool.get("model", "unknown"), tool.get("intelligence", "unknown"),
                      f"{passed} / {evaluated}", rate_text]
             cells += [_format_score(averages.get(name)) for name in metric_names]
+            cells += [_format_duration(timing.get("average_elapsed_seconds")),
+                      _format_score(timing.get("average_time_score"))]
             cells += [_format_score(mt_total)]
             lines.append("| " + " | ".join(cells) + " |")
     lines.append("")

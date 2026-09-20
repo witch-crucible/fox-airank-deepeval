@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from benchmark.cli import Case, ROOT, load_cases, prepare, select_cases
+from benchmark.cli import Case, load_cases, prepare, select_cases
 from benchmark.evaluation import build_test_cases, collect_actual_output, load_specs
 
 
@@ -17,13 +17,9 @@ class BenchmarkTests(unittest.TestCase):
     def test_all_cases_have_deepeval_specs(self):
         cases = load_cases()
         specs = load_specs()
-        self.assertEqual(len(cases), 15)
+        self.assertEqual(len(cases), 3)
         self.assertEqual({case.id for case in cases}, set(specs))
-        self.assertEqual(specs["write-plane-shooter"]["actual_files"], ["game-logic.js", "game.js", "index.html"])
-        self.assertEqual(
-            specs["logic-git-head-review"]["expected_answer"]["missing_guarantees"],
-            ["role-version-invalidation"],
-        )
+        self.assertEqual(specs["draw-pelican-bicycle"]["actual_files"], ["index.html"])
 
     def test_prepare_does_not_copy_hidden_reference_or_result_artifacts(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -31,13 +27,61 @@ class BenchmarkTests(unittest.TestCase):
             source.mkdir()
             (source / "TASK.md").write_text("task", encoding="utf-8")
             (source / "result.json").write_text("old", encoding="utf-8")
+            (source / "agent.live.log").write_text("old agent output", encoding="utf-8")
             case = Case("test-case", "test", "Test case", source)
             run_dir = Path(directory) / "run"
             prepare(run_dir, ["tool"], [case])
             workspace = run_dir / "tool" / case.id
             self.assertTrue((workspace / "TASK.md").is_file())
             self.assertFalse((workspace / "result.json").exists())
+            self.assertFalse((workspace / "agent.live.log").exists())
             self.assertFalse((workspace / "tests").exists())
+
+    def test_prepare_scopes_pelican_workspace_by_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "source"
+            source.mkdir()
+            (source / "TASK.md").write_text("task", encoding="utf-8")
+            case = Case("draw-pelican-bicycle", "code_generation", "Pelican", source)
+            run_dir = Path(directory) / "run"
+            identities = {
+                "codex": {"agent": "Codex CLI", "model": "provider/model", "intelligence": "high"}
+            }
+            prepare(run_dir, ["codex"], [case], identities)
+            workspace = run_dir / "pelican" / "Codex-CLI" / "provider-model" / "high" / "codex" / case.id
+            self.assertTrue((workspace / "TASK.md").is_file())
+            self.assertIn("不得调用、启动或委派给任何子 Agent", (workspace / "AGENTS.md").read_text())
+            self.assertIn(
+                '"submodels_used": false',
+                (workspace / "RESULT_PROTOCOL.md").read_text(),
+            )
+            self.assertFalse((run_dir / "codex" / case.id).exists())
+            manifest = json.loads((run_dir / "run.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["identities"], identities)
+
+    def test_prepare_pelican_starts_without_an_existing_solution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "source"
+            source.mkdir()
+            (source / "TASK.md").write_text("从头实现鹈鹕动画", encoding="utf-8")
+            (source / "case.json").write_text('{"id":"draw-pelican-bicycle"}', encoding="utf-8")
+            for name in ("index.html", "build.mjs", "package.json", "public-test.mjs",
+                         "src/main.ts", "dist/main.js", "node_modules/package/index.js", "verification/shot.png"):
+                path = source / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("previous solution", encoding="utf-8")
+            case = Case("draw-pelican-bicycle", "code_generation", "Pelican", source)
+            run_dir = Path(directory) / "run"
+
+            prepare(run_dir, ["first", "second"], [case])
+
+            for tool in ("first", "second"):
+                workspace = run_dir / tool / case.id
+                self.assertEqual(
+                    {path.name for path in workspace.iterdir()},
+                    {"TASK.md", "case.json", "AGENTS.md", "RESULT_PROTOCOL.md"},
+                )
+            self.assertEqual((source / "index.html").read_text(), "previous solution")
 
     def test_prepare_materializes_git_fixture_without_leaking_fixture_sources(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -108,17 +152,17 @@ class BenchmarkTests(unittest.TestCase):
             import deepeval  # noqa: F401
         except ImportError:
             self.skipTest("当前环境未安装 deepeval")
-        cases = [case for case in load_cases() if case.id == "write-plane-shooter"]
+        cases = [case for case in load_cases() if case.id == "draw-pelican-bicycle"]
         with tempfile.TemporaryDirectory() as directory:
             run_dir = Path(directory)
             workspace = run_dir / "codex" / cases[0].id
             workspace.mkdir(parents=True)
             (workspace / "execution.json").write_text(json.dumps({"status": "timeout", "elapsed_seconds": 3.2}), encoding="utf-8")
             test_case = build_test_cases(run_dir, "codex", cases)[0]
-            self.assertEqual(test_case.name, "codex/write-plane-shooter")
+            self.assertEqual(test_case.name, "codex/draw-pelican-bicycle")
             metadata = getattr(test_case, "metadata", None) or getattr(test_case, "custom_column_key_values")
             self.assertEqual(metadata["execution_status"], "timeout")
-            self.assertIn("===== game.js =====", test_case.actual_output)
+            self.assertIn("===== index.html =====", test_case.actual_output)
 
 
 class ReportCommandTests(unittest.TestCase):

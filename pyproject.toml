@@ -12,6 +12,7 @@ dependencies = ["deepeval==4.2.0"]
 [project.scripts]
 agent-bench = "benchmark.cli:main"
 model-dashboard = "model_dashboard.server:main"
+score-pelican = "benchmark.pelican_scoring:main"
 
 [tool.setuptools.packages.find]
 include = ["benchmark*", "model_dashboard*"]

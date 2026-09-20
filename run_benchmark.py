@@ -11,7 +11,7 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from benchmark.cli import load_tool_config, preflight_tools
+from benchmark.cli import DEFAULT_EXECUTION_TIMEOUT_SECONDS, load_tool_config, preflight_tools
 
 
 ROOT = Path(__file__).resolve().parent
@@ -33,7 +33,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--category", action="append", default=[], help="指定分类，可重复")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG, help="工具配置文件")
     parser.add_argument("--tool", dest="tools", action="append", default=[], help="指定工具，可重复")
-    parser.add_argument("--timeout", type=positive_integer, help="每个代理执行的超时秒数")
+    parser.add_argument(
+        "--timeout",
+        type=positive_integer,
+        default=DEFAULT_EXECUTION_TIMEOUT_SECONDS,
+        help=f"每个代理执行的超时秒数（默认 {DEFAULT_EXECUTION_TIMEOUT_SECONDS}，即 30 分钟）",
+    )
     args = parser.parse_args()
     if args.run_id is not None and not re.fullmatch(r"[A-Za-z0-9._-]+", args.run_id):
         parser.error("--run-id 只能包含字母、数字、点、下划线和连字符")
@@ -262,6 +267,7 @@ def run(command: list[str]) -> None:
 
 def main() -> int:
     args = parse_args()
+    timeout_seconds = args.timeout or DEFAULT_EXECUTION_TIMEOUT_SECONDS
     config_path = args.config.expanduser().resolve()
     try:
         configs = load_tool_config(config_path)
@@ -284,7 +290,14 @@ def main() -> int:
 
     print(f"Tools: {', '.join(tools)}")
     print(f"Run directory: {run_dir}")
-    run([*benchmark, "prepare", "--run-id", run_id, *shared])
+    identity_json = json.dumps(
+        {
+            tool: {"agent": agent, "model": model, "intelligence": intelligence}
+            for tool, (agent, model, intelligence) in identities.items()
+        },
+        ensure_ascii=False,
+    )
+    run([*benchmark, "prepare", "--run-id", run_id, "--identities-json", identity_json, *shared])
 
     run_manifest = run_dir / "run.json"
     if run_manifest.is_file():
@@ -293,17 +306,18 @@ def main() -> int:
             tool: {"agent": agent, "model": model, "intelligence": intelligence}
             for tool, (agent, model, intelligence) in identities.items()
         }
+        manifest["timeout_seconds"] = timeout_seconds
         run_manifest.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print_execution_plan(identities, tools)
     execute = [*benchmark, "execute", "--run-dir", str(run_dir), *shared]
     execute.extend(("--config", str(config_path)))
-    if args.timeout is not None:
-        execute.extend(("--timeout", str(args.timeout)))
+    execute.extend(("--timeout", str(timeout_seconds)))
     run(execute)
 
     run([*benchmark, "evaluate", "--run-dir", str(run_dir), *shared])
-    run([*benchmark, "report", "--run-dir", str(run_dir), *shared])
+    report_tools = [value for tool in tools for value in ("--tool", tool)]
+    run([*benchmark, "report", "--run-dir", str(run_dir), *report_tools])
     print(f"\nDeepEval reports: {run_dir / 'deepeval'}")
     print(f"对比报告: {run_dir / 'report.md'}")
     return 0

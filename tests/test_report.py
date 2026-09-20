@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 from benchmark.report import (
     collect_history,
     collect_run_report,
+    execution_time_score,
     latest_test_run,
     render_history_markdown,
     render_markdown,
@@ -52,6 +53,7 @@ def make_test_run(case_id: str, scores: dict[str, float], tool: str = "codex") -
                     "category": "code_correction",
                     "execution_status": "completed",
                     "elapsed_seconds": 12.5,
+                    "timeout_seconds": 1800,
                     "agent_identity": "codex/gpt-5.6",
                 },
             }
@@ -107,7 +109,7 @@ class CollectToolSummaryTests(unittest.TestCase):
                 root,
                 "run-1",
                 "codex",
-                "fix-cart-total",
+                "draw-pelican-bicycle",
                 {
                     "Task Correctness [GEval]": 0.9,
                     "Robustness, Safety and Regression [GEval]": 0.75,
@@ -127,9 +129,18 @@ class CollectToolSummaryTests(unittest.TestCase):
             self.assertAlmostEqual(summary["metric_averages"]["Task Correctness"], 0.9)
             self.assertAlmostEqual(summary["metric_averages"]["Delivery Evidence"], 0.5)
             case = tool["cases"][0]
-            self.assertEqual(case["case_id"], "fix-cart-total")
+            self.assertEqual(case["case_id"], "draw-pelican-bicycle")
             self.assertFalse(case["passed"])
             self.assertEqual(case["execution_status"], "completed")
+            self.assertEqual(case["timeout_seconds"], 1800)
+            self.assertEqual(case["time_score"], 99.31)
+            self.assertEqual(tool["execution_timing"]["average_time_score"], 99.31)
+
+    def test_execution_time_score_requires_completion_and_timeout_budget(self) -> None:
+        self.assertEqual(execution_time_score("completed", 600, 1800), 66.67)
+        self.assertEqual(execution_time_score("timeout", 1800, 1800), 0.0)
+        self.assertEqual(execution_time_score("failed", 2, 1800), 0.0)
+        self.assertIsNone(execution_time_score("completed", 10, None))
 
     def test_tool_without_artifacts_reports_empty(self) -> None:
         with TemporaryDirectory() as raw:
@@ -149,7 +160,7 @@ class RenderMarkdownTests(unittest.TestCase):
                 root,
                 "run-1",
                 "codex",
-                "fix-cart-total",
+                "draw-pelican-bicycle",
                 {
                     "Task Correctness [GEval]": 0.9,
                     "Robustness, Safety and Regression [GEval]": 0.75,
@@ -164,7 +175,10 @@ class RenderMarkdownTests(unittest.TestCase):
             self.assertIn("0.90 ✓", markdown)
             self.assertIn("0.50 ✗", markdown)
             self.assertIn("❌ 未通过", markdown)
-            self.assertIn("fix-cart-total", markdown)
+            self.assertIn("draw-pelican-bicycle", markdown)
+            self.assertIn("平均执行耗时", markdown)
+            self.assertIn("12.5s / 30.0m", markdown)
+            self.assertIn("99.31", markdown)
 
     def test_markdown_without_artifacts(self) -> None:
         with TemporaryDirectory() as raw:
@@ -179,12 +193,12 @@ class HistoryTests(unittest.TestCase):
         with TemporaryDirectory() as raw:
             root = Path(raw)
             build_run(
-                root, "run-a", "codex", "fix-cart-total",
+                root, "run-a", "codex", "draw-pelican-bicycle",
                 {"Task Correctness [GEval]": 0.9, "Robustness, Safety and Regression [GEval]": 0.8, "Delivery Evidence [GEval]": 0.8},
                 identity={"agent": "Codex CLI", "model": "gpt-5.6-sol", "intelligence": "high"},
             )
             build_run(
-                root, "run-b", "claude", "fix-cart-total",
+                root, "run-b", "claude", "draw-pelican-bicycle",
                 {"Task Correctness [GEval]": 0.95, "Robustness, Safety and Regression [GEval]": 0.85, "Delivery Evidence [GEval]": 0.9},
                 identity={"agent": "Claude Code", "model": "claude-4.5", "intelligence": "high"},
             )
@@ -195,12 +209,13 @@ class HistoryTests(unittest.TestCase):
             self.assertIn("跨 run 历史对比", markdown)
             self.assertIn("| run-a | codex | Codex CLI | gpt-5.6-sol | high | 1 / 1 | 100% |", markdown)
             self.assertIn("| run-b | claude | Claude Code | claude-4.5 | high | 1 / 1 | 100% |", markdown)
+            self.assertIn("耗时分", markdown)
 
     def test_write_files(self) -> None:
         with TemporaryDirectory() as raw:
             root = Path(raw)
             build_run(
-                root, "run-a", "codex", "fix-cart-total",
+                root, "run-a", "codex", "draw-pelican-bicycle",
                 {"Task Correctness [GEval]": 0.9, "Robustness, Safety and Regression [GEval]": 0.8, "Delivery Evidence [GEval]": 0.8},
             )
             run_dir = root / "run-a"

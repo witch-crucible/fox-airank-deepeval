@@ -1,0 +1,62 @@
+{
+  "codex-luna-medium": {
+    "agent": "Codex",
+    "model": "gpt-5.6-luna",
+    "reasoning_effort": "medium",
+    "command": [
+      "codex",
+      "exec",
+      "--skip-git-repo-check",
+      "--ephemeral",
+      "-s",
+      "workspace-write",
+      "--add-dir",
+      "{output_dir}",
+      "-m",
+      "gpt-5.6-luna",
+      "-c",
+      "model_reasoning_effort=\"medium\"",
+      "{prompt}"
+    ]
+  },
+  "codex-sol-high": {
+    "agent": "Codex",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "command": [
+      "codex",
+      "exec",
+      "--skip-git-repo-check",
+      "--ephemeral",
+      "-s",
+      "workspace-write",
+      "--add-dir",
+      "{output_dir}",
+      "-m",
+      "gpt-5.6-sol",
+      "-c",
+      "model_reasoning_effort=\"high\"",
+      "{prompt}"
+    ]
+  },
+  "codex-astra-high": {
+    "agent": "Codex",
+    "model": "gpt-6-astra",
+    "reasoning_effort": "high",
+    "command": [
+      "codex",
+      "exec",
+      "--skip-git-repo-check",
+      "--ephemeral",
+      "-s",
+      "workspace-write",
+      "--add-dir",
+      "{output_dir}",
+      "-m",
+      "gpt-6-astra",
+      "-c",
+      "model_reasoning_effort=\"high\"",
+      "{prompt}"
+    ]
+  }
+}

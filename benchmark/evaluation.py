@@ -9,6 +9,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from benchmark.paths import load_identities, workspace_path
+
 try:
     from deepeval.models.base_model import DeepEvalBaseLLM
 except ImportError:
@@ -50,8 +52,43 @@ def collect_expected_output(spec: dict[str, Any]) -> str:
         reference = ROOT / "tests" / "reference" / name
         parts.append(f"===== 参考实现/{name} =====\n{_read(reference)}")
     if "expected_answer" in spec:
-        parts.append("===== 隐藏标准答案 =====\n" + json.dumps(spec["expected_answer"], ensure_ascii=False, indent=2))
+        label = "业务分析评分要求（非业务标准答案）" if spec.get("category") == "magento_business" else "隐藏标准答案"
+        parts.append(f"===== {label} =====\n" + json.dumps(spec["expected_answer"], ensure_ascii=False, indent=2))
     return "\n\n".join(parts) or "[该 case 没有独立参考文件；以 TASK.md 和实际证据判断。]"
+
+
+def collect_project_evidence(workspace: Path, project_dir: Path) -> str:
+    """从项目源码读取引用，不能将代理提供的片段本身当作正确性证据。"""
+    try:
+        entries = json.loads((workspace / "evidence.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return "[源码证据缺失或 evidence.json 无效]"
+    if not isinstance(entries, list) or not entries or len(entries) > 40:
+        return "[evidence.json 必须包含 1 到 40 条源码引用]"
+    root = project_dir.resolve()
+    parts = ["===== 项目源码引用核对 =====\n以下为评分时读取的当前项目源码；不是完整项目标准答案。"]
+    for entry in entries:
+        try:
+            name = entry["path"]
+            start, end = entry["start_line"], entry["end_line"]
+            if not isinstance(name, str) or not name or Path(name).is_absolute() or ".." in Path(name).parts:
+                raise ValueError("引用必须使用项目内相对路径")
+            path = (root / name).resolve()
+            path.relative_to(root)
+            if path.suffix not in {".php", ".xml", ".js", ".ts", ".phtml", ".graphqls", ".md"} or name in {"app/etc/env.php"}:
+                raise ValueError("只接受业务源码或文档引用")
+            if type(start) is not int or type(end) is not int or start < 1 or end < start or end - start >= 80:
+                raise ValueError("行号无效或单条引用超过 80 行")
+            lines = path.read_text(encoding="utf-8").splitlines()
+            if end > len(lines):
+                raise ValueError("引用行号超出文件")
+            excerpt = "\n".join(f"{number}: {lines[number - 1]}" for number in range(start, end + 1))
+            if len(excerpt) > 12000:
+                raise ValueError("引用片段过长，请缩小范围")
+            parts.append(f"===== {name}:{start}-{end} =====\n{excerpt}")
+        except (KeyError, TypeError, OSError, ValueError) as error:
+            parts.append(f"[无效源码引用: {error}]")
+    return "\n\n".join(parts)
 
 
 def _test_case(name: str, task: str, actual: str, expected: str, metadata: dict[str, Any]):
@@ -81,10 +118,10 @@ def _test_case(name: str, task: str, actual: str, expected: str, metadata: dict[
 def build_test_cases(run_dir: Path, tool: str, cases: list[Any], identities: dict[str, Any] | None = None):
     result = []
     specs = load_specs()
-    identities = identities or {}
+    identities = identities or load_identities(run_dir)
     for case in cases:
         spec = specs[case.id]
-        workspace = run_dir / tool / case.id
+        workspace = workspace_path(run_dir, tool, case.id, identities)
         execution = {}
         execution_path = workspace / "execution.json"
         if execution_path.is_file():
@@ -97,9 +134,15 @@ def build_test_cases(run_dir: Path, tool: str, cases: list[Any], identities: dic
             "tool": tool, "case_id": case.id, "category": case.category,
             "execution_status": execution.get("status", "missing"),
             "elapsed_seconds": execution.get("elapsed_seconds"),
+            "timeout_seconds": execution.get("timeout_seconds"),
             "agent_identity": identities.get(tool, "unknown"),
         }
-        result.append(_test_case(f"{tool}/{case.id}", task, collect_actual_output(workspace, spec), collect_expected_output(spec), metadata))
+        expected = collect_expected_output(spec)
+        if case.project_dir is not None:
+            task += "\n\n===== 准备时项目状态 =====\n" + _read(workspace / "PROJECT.json")
+            expected += "\n\n" + collect_project_evidence(workspace, case.project_dir)
+            metadata["project_dir"] = str(case.project_dir)
+        result.append(_test_case(f"{tool}/{case.id}", task, collect_actual_output(workspace, spec), expected, metadata))
     return result
 
 

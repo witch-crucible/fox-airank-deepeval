@@ -114,7 +114,7 @@ class RunBenchmarkIdentityTests(unittest.TestCase):
             config=Path("tools.json"),
             tools=["example"],
             case_ids=[],
-            category=[],
+            category=["magento_business"],
             timeout=None,
         )
         configs = {
@@ -136,6 +136,16 @@ class RunBenchmarkIdentityTests(unittest.TestCase):
         preflight.assert_called_once_with(configs, ("example",))
         query_identities.assert_not_called()
         self.assertEqual(run.call_count, 4)
+        self.assertIn("--category", run.call_args_list[0].args[0])
+        report_command = run.call_args_list[-1].args[0]
+        self.assertIn("report", report_command)
+        self.assertIn("--tool", report_command)
+        self.assertNotIn("--category", report_command)
+        execute_command = run.call_args_list[1].args[0]
+        self.assertEqual(
+            execute_command[execute_command.index("--timeout") + 1],
+            str(run_benchmark.DEFAULT_EXECUTION_TIMEOUT_SECONDS),
+        )
 
     def test_parse_json_object_includes_intelligence(self) -> None:
         identity = run_benchmark.parse_json_object(
@@ -177,6 +187,26 @@ class RunBenchmarkIdentityTests(unittest.TestCase):
         )
 
         self.assertEqual(("unknown", "unknown", "high"), identity)
+
+    def test_fixed_codex_model_profiles_record_model_and_effort(self) -> None:
+        profiles = json.loads(Path("tools-codex-models.json").read_text(encoding="utf-8"))
+        expected = {
+            "codex-luna-medium": ("Codex", "gpt-5.6-luna", "medium"),
+            "codex-sol-high": ("Codex", "gpt-5.6-sol", "high"),
+            "codex-astra-high": ("Codex", "gpt-6-astra", "high"),
+        }
+
+        self.assertEqual(set(expected), set(profiles))
+        for name, identity in expected.items():
+            with self.subTest(name=name):
+                profile = profiles[name]
+                self.assertEqual(identity, run_benchmark.execution_identity(profile))
+                self.assertIn("--add-dir", profile["command"])
+                self.assertIn("{output_dir}", profile["command"])
+                self.assertIn(
+                    f'model_reasoning_effort="{identity[2]}"',
+                    profile["command"],
+                )
 
 
 if __name__ == "__main__":

@@ -1,13 +1,13 @@
 {
   "codex": {
-    "command": ["codex", "exec", "--skip-git-repo-check", "--ephemeral", "-s", "workspace-write", "{prompt}"]
+    "command": ["codex", "exec", "--skip-git-repo-check", "--ephemeral", "-s", "workspace-write", "--add-dir", "{output_dir}", "{prompt}"]
   },
   "claude": {
-    "command": ["claude", "-p", "--permission-mode", "auto", "--no-session-persistence", "{prompt}"]
+    "command": ["claude", "-p", "--permission-mode", "auto", "--no-session-persistence", "--add-dir", "{output_dir}", "{prompt}"]
   },
   "commandcode": {
     "agent": "Command Code",
-    "command": ["commandcode", "-p", "--yolo", "--no-session", "--skip-onboarding", "--no-auto-update", "--config", "taste-learning-project=disabled", "--output-format", "json", "{prompt}"]
+    "command": ["commandcode", "-p", "--verbose", "--yolo", "--no-session", "--skip-onboarding", "--no-auto-update", "--config", "taste-learning-project=disabled", "--output-format", "json", "--model", "qwen/qwen3.8-max-0902", "{prompt}"]
   },
   "qwen": {
     "command": ["qwen", "-p", "--yolo", "{prompt}"]

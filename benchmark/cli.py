@@ -1,19 +1,29 @@
 from __future__ import annotations
 
 import argparse
+import codecs
+import io
 import json
+import locale
 import os
+import queue
+import shlex
 import shutil
+import signal
 import subprocess
 import sys
+import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, BinaryIO, Sequence, TextIO
+
+from benchmark.paths import PELICAN_CASE, load_identities, workspace_path
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PROMPT = "阅读 TASK.md，独立完成任务并执行必要验证。最后必须按 TASK.md 要求生成 result.json。"
+DEFAULT_EXECUTION_TIMEOUT_SECONDS = 30 * 60
 
 
 @dataclass(frozen=True)
@@ -22,6 +32,7 @@ class Case:
     category: str
     title: str
     source: Path
+    project_dir: Path | None = None
 
 
 def load_cases() -> list[Case]:
@@ -29,7 +40,11 @@ def load_cases() -> list[Case]:
     seen: set[str] = set()
     for path in sorted((ROOT / "cases").glob("*/*/case.json")):
         data = json.loads(path.read_text(encoding="utf-8"))
-        case = Case(data["id"], data["category"], data["title"], path.parent)
+        project_dir = data.get("project_dir")
+        if project_dir is not None and (not isinstance(project_dir, str) or not Path(project_dir).is_absolute()):
+            raise ValueError(f"case 的 project_dir 必须是绝对路径: {path}")
+        case = Case(data["id"], data["category"], data["title"], path.parent,
+                    Path(project_dir) if project_dir is not None else None)
         if case.id in seen:
             raise ValueError(f"重复的 case id: {case.id}")
         cases.append(case)
@@ -76,7 +91,7 @@ def preflight_tools(
         if shutil.which(executable) is None:
             raise ValueError(f"找不到工具命令: {executable}")
         try:
-            [token.format(workspace=workspace, prompt=DEFAULT_PROMPT) for token in command]
+            [token.format(workspace=workspace, output_dir=workspace, prompt=DEFAULT_PROMPT) for token in command]
         except (KeyError, ValueError) as error:
             raise ValueError(f"工具 {tool} 的命令占位符无效: {error}") from error
 
@@ -176,32 +191,65 @@ def _materialize_git_fixture(source: Path, workspace: Path) -> None:
         _run_git(["commit", "--quiet", "--no-gpg-sign", "--message", message], repository, commit_env)
 
 
-def prepare(run_dir: Path, tools: list[str], cases: list[Case]) -> None:
+def prepare(
+    run_dir: Path,
+    tools: list[str],
+    cases: list[Case],
+    identities: dict[str, Any] | None = None,
+) -> None:
     if run_dir.exists() and any(run_dir.iterdir()):
         raise ValueError(f"运行目录已存在且非空: {run_dir}")
+    projects = {case.id: project_context(case.project_dir) for case in cases if case.project_dir is not None}
     for tool in tools:
         for case in cases:
-            target = run_dir / tool / case.id
+            target = workspace_path(run_dir, tool, case.id, identities)
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(
-                case.source,
-                target,
-                ignore=shutil.ignore_patterns(
-                    "_git_fixture", "result.json", "agent.log", "execution.json"
-                ),
-            )
+            if case.id == PELICAN_CASE:
+                # This task must start from scratch; local solutions are not fixtures.
+                target.mkdir()
+                for name in ("TASK.md", "case.json"):
+                    source = case.source / name
+                    if source.is_file():
+                        shutil.copy2(source, target / name)
+            else:
+                shutil.copytree(
+                    case.source,
+                    target,
+                    ignore=shutil.ignore_patterns(
+                        "_git_fixture", "result.json", "agent.log", "agent.live.log", "execution.json"
+                    ),
+                )
             _materialize_git_fixture(case.source, target)
+            project_rules = "只读取和修改当前目录，不得查看父目录、其他 case、评分器或其他工具结果。\n"
+            if case.project_dir is not None:
+                (target / "PROJECT.json").write_text(
+                    json.dumps(projects[case.id], ensure_ascii=False, indent=2), encoding="utf-8"
+                )
+                project_rules = (
+                    f"只读分析项目 {case.project_dir}；仅可在本输出目录写入答案和结果文件。\n"
+                    "不得修改项目源码、调用业务接口、连接数据库或执行业务任务；不得查看其他 case、评分器或其他工具结果。\n"
+                )
+            model_rules = ""
+            result_attestation = ""
+            if case.id == PELICAN_CASE:
+                model_rules = (
+                    "仅允许当前被测 Agent 使用当前主模型独立完成；不得调用、启动或委派给任何子 Agent、"
+                    "子模型、后台/并行 Agent 或外部 LLM/API。\n"
+                )
+                result_attestation = '  "submodels_used": false,\n'
             (target / "AGENTS.md").write_text(
                 "# 评测工作区规则\n\n"
-                "只读取和修改当前目录，不得查看父目录、其他 case、评分器或其他工具结果。\n"
+                + project_rules +
+                model_rules +
                 "严格完成 TASK.md；不得修改 case.json；必须生成 result.json。\n",
                 encoding="utf-8",
             )
             (target / "RESULT_PROTOCOL.md").write_text(
-                "# 结果文件协议\n\n完成任务后，在当前目录生成 `result.json`：\n\n"
+                "# 结果文件协议\n\n完成任务后，在本协议文件所在的输出目录生成 `result.json`：\n\n"
                 "```json\n{\n"
                 f"  \"case_id\": \"{case.id}\",\n"
                 "  \"status\": \"completed\",\n"
+                + result_attestation +
                 "  \"summary\": \"实际完成内容\",\n"
                 "  \"changed_files\": [\"实际修改或新增的相对路径\"],\n"
                 "  \"verification\": [\"实际执行的验证命令或检查\"]\n"
@@ -213,61 +261,225 @@ def prepare(run_dir: Path, tools: list[str], cases: list[Case]) -> None:
         "tools": tools,
         "cases": [case.id for case in cases],
     }
+    if identities:
+        manifest["identities"] = identities
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "run.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def project_context(project_dir: Path) -> dict[str, str]:
+    if not project_dir.is_dir():
+        raise ValueError(f"项目目录不存在: {project_dir}")
+    context = {"path": str(project_dir.resolve())}
+    for key, arguments in (("commit", ["rev-parse", "HEAD"]), ("working_tree", ["status", "--short"])):
+        result = subprocess.run(
+            ["git", "-C", str(project_dir), *arguments], capture_output=True, text=True, check=False
+        )
+        if result.returncode != 0:
+            raise ValueError(f"无法读取项目 Git 状态: {project_dir}")
+        context[key] = result.stdout.strip()
+    return context
+
+
+def _stream_command(
+    command: list[str], cwd: Path, timeout: int, live_log: TextIO
+) -> subprocess.CompletedProcess[str]:
+    deadline = time.monotonic() + timeout
+    process = subprocess.Popen(
+        command, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        start_new_session=os.name == "posix",
+    )
+    events: queue.Queue[tuple[str, str | Exception | None]] = queue.Queue()
+    stopping = threading.Event()
+    output: dict[str, list[str]] = {"stdout": [], "stderr": []}
+    pending = set(output)
+    last_stream = None
+    stopped = False
+    completed = False
+
+    def read_output(name: str, stream: BinaryIO) -> None:
+        decoder = io.IncrementalNewlineDecoder(
+            codecs.getincrementaldecoder(locale.getpreferredencoding(False))(errors="replace"),
+            translate=True,
+        )
+        try:
+            with stream:
+                while not stopping.is_set():
+                    chunk = stream.read1(65536)
+                    text = decoder.decode(chunk, final=not chunk)
+                    if text:
+                        events.put((name, text))
+                    if not chunk:
+                        break
+        except Exception as error:
+            events.put((name, error))
+        finally:
+            events.put((name, None))
+
+    def receive_output(wait: float) -> None:
+        nonlocal last_stream
+        name, text = events.get(timeout=max(0, wait))
+        if text is None:
+            pending.remove(name)
+        elif isinstance(text, Exception):
+            raise text
+        else:
+            output[name].append(text)
+            if last_stream != name:
+                live_log.write(f"\n[{name}]\n")
+                last_stream = name
+            live_log.write(text)
+            live_log.flush()
+            terminal = sys.stdout if name == "stdout" else sys.stderr
+            terminal.write(text)
+            terminal.flush()
+
+    def stop_process() -> None:
+        nonlocal stopped
+        if stopped:
+            return
+        stopped = True
+        if os.name == "posix":
+            # Kill this execution's group, including children holding output pipes open.
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        elif process.poll() is None:
+            process.kill()
+        process.wait()
+
+    readers = [
+        threading.Thread(target=read_output, args=(name, stream), daemon=True)
+        for name, stream in (("stdout", process.stdout), ("stderr", process.stderr))
+    ]
+    try:
+        for reader in readers:
+            reader.start()
+        try:
+            while pending:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise subprocess.TimeoutExpired(command, timeout)
+                receive_output(remaining)
+            returncode = process.wait(timeout=max(0, deadline - time.monotonic()))
+        except (queue.Empty, subprocess.TimeoutExpired):
+            stop_process()
+            # Drain output already emitted, without waiting forever on a detached child.
+            drain_deadline = time.monotonic() + 1
+            while pending:
+                remaining = drain_deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                try:
+                    receive_output(remaining)
+                except queue.Empty:
+                    break
+            raise subprocess.TimeoutExpired(
+                command, timeout, output="".join(output["stdout"]), stderr="".join(output["stderr"])
+            ) from None
+        completed = True
+        return subprocess.CompletedProcess(
+            command, returncode, "".join(output["stdout"]), "".join(output["stderr"])
+        )
+    finally:
+        stopping.set()
+        if not completed:
+            stop_process()
+        for reader in readers:
+            if reader.ident is not None:
+                reader.join(timeout=0.2)
 
 
 def execute(run_dir: Path, tools: list[str], cases: list[Case], config_path: Path, timeout: int) -> None:
     configs = load_tool_config(config_path)
     preflight_tools(configs, tools)
+    identities = load_identities(run_dir)
     workspaces: dict[tuple[str, str], Path] = {}
     for tool in tools:
         for case in cases:
-            workspace = (run_dir / tool / case.id).resolve()
+            workspace = workspace_path(run_dir, tool, case.id, identities).resolve()
             if not workspace.is_dir():
                 raise ValueError(f"case 工作区不存在: {workspace}")
+            if case.project_dir is not None and not case.project_dir.is_dir():
+                raise ValueError(f"项目目录不存在: {case.project_dir}")
             workspaces[(tool, case.id)] = workspace
 
     for tool in tools:
         for case in cases:
             workspace = workspaces[(tool, case.id)]
+            cwd = case.project_dir or workspace
+            prompt = DEFAULT_PROMPT
+            if case.project_dir is not None:
+                prompt = (
+                    f"这是只读项目业务分析测试。当前项目目录：{cwd}。输出目录：{workspace}。"
+                    f"阅读输出目录中的 TASK.md、AGENTS.md、RESULT_PROTOCOL.md 和 PROJECT.json，完成题目。"
+                    "只读分析项目源码，不得修改项目文件、调用业务接口、连接数据库、启动服务或执行业务任务。"
+                    "所有 answer.md、evidence.json、result.json 仅写入上述输出目录，不得写到项目目录。"
+                    "不得读取输出目录的父目录、其他 case、评分器或其他工具结果；不得伪造执行或验证记录。"
+                )
             command = [
-                token.format(workspace=str(workspace), prompt=DEFAULT_PROMPT)
+                token.format(workspace=str(cwd), output_dir=str(workspace), prompt=prompt)
                 for token in configs[tool]["command"]
             ]
             print(f"[RUN] {tool} / {case.id}", flush=True)
+            execution_details = (
+                f"工作目录: {cwd}\n"
+                f"\n[PROMPT]\n{prompt}\n[/PROMPT]\n"
+                f"\n手动执行命令（zsh/bash）:\n"
+                f"cd {shlex.quote(str(cwd))} && {shlex.join(command)}\n"
+            )
+            print(execution_details, flush=True)
+            started_at = datetime.now(timezone.utc)
             started = time.monotonic()
-            try:
-                result = subprocess.run(
-                    command,
-                    cwd=workspace,
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout,
-                    check=False,
+            live_log_path = workspace / "agent.live.log"
+            print(f"实时日志: {live_log_path}", flush=True)
+            with live_log_path.open("w", encoding="utf-8") as live_log:
+                live_log.write(
+                    f"command={json.dumps(command, ensure_ascii=False)}\n"
+                    f"started_at={started_at.isoformat()}\ntimeout_seconds={timeout}\n"
+                    f"\n{execution_details}"
                 )
-                status = "completed" if result.returncode == 0 else "failed"
-                returncode = result.returncode
-                stdout, stderr = result.stdout, result.stderr
-            except subprocess.TimeoutExpired as error:
-                status, returncode = "timeout", None
-                stdout = error.stdout or ""
-                stderr = error.stderr or ""
+                live_log.flush()
+                try:
+                    result = _stream_command(command, cwd=cwd, timeout=timeout, live_log=live_log)
+                    status = "completed" if result.returncode == 0 else "failed"
+                    returncode = result.returncode
+                    stdout, stderr = result.stdout, result.stderr
+                except subprocess.TimeoutExpired as error:
+                    status, returncode = "timeout", None
+                    stdout = error.stdout or ""
+                    stderr = error.stderr or ""
+                live_log.write(f"\nstatus={status}\nreturncode={returncode}\n")
             elapsed = round(time.monotonic() - started, 3)
+            finished_at = datetime.now(timezone.utc)
             (workspace / "agent.log").write_text(
                 f"command={json.dumps(command, ensure_ascii=False)}\n"
-                f"status={status}\nreturncode={returncode}\nelapsed_seconds={elapsed}\n\n"
+                f"status={status}\nreturncode={returncode}\n"
+                f"started_at={started_at.isoformat()}\nfinished_at={finished_at.isoformat()}\n"
+                f"elapsed_seconds={elapsed}\ntimeout_seconds={timeout}\n\n"
                 f"[stdout]\n{stdout}\n\n[stderr]\n{stderr}",
                 encoding="utf-8",
             )
             (workspace / "execution.json").write_text(
-                json.dumps({"status": status, "returncode": returncode, "elapsed_seconds": elapsed}, indent=2),
+                json.dumps(
+                    {
+                        "status": status,
+                        "returncode": returncode,
+                        "started_at": started_at.isoformat(),
+                        "finished_at": finished_at.isoformat(),
+                        "elapsed_seconds": elapsed,
+                        "timeout_seconds": timeout,
+                    },
+                    indent=2,
+                ),
                 encoding="utf-8",
             )
+            print(f"\n[DONE] {tool} / {case.id}: {status} ({elapsed}s)", flush=True)
 
 
 def parser() -> argparse.ArgumentParser:
-    root = argparse.ArgumentParser(description="前端代码代理工具能力测试")
+    root = argparse.ArgumentParser(description="代码代理与项目业务分析能力测试")
     sub = root.add_subparsers(dest="command", required=True)
     for name in ("prepare", "execute", "evaluate"):
         command = sub.add_parser(name)
@@ -277,9 +489,15 @@ def parser() -> argparse.ArgumentParser:
         command.add_argument("--category", action="append", default=[])
         if name == "prepare":
             command.add_argument("--run-id", default=datetime.now().strftime("%Y%m%d-%H%M%S"))
+            command.add_argument("--identities-json", default="{}")
         if name == "execute":
             command.add_argument("--config", type=Path, default=ROOT / "tools.json")
-            command.add_argument("--timeout", type=int, default=900)
+            command.add_argument(
+                "--timeout",
+                type=int,
+                default=DEFAULT_EXECUTION_TIMEOUT_SECONDS,
+                help=f"每个代理执行的超时秒数（默认 {DEFAULT_EXECUTION_TIMEOUT_SECONDS}，即 30 分钟）",
+            )
     sub.add_parser("list")
     report = sub.add_parser("report")
     report.add_argument("--run-dir", type=Path)
@@ -315,7 +533,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         cases = select_cases(cases, args.case_ids, args.category)
         if args.command == "prepare":
             run_dir = ROOT / "runs" / args.run_id
-            prepare(run_dir, args.tools, cases)
+            identities = json.loads(args.identities_json)
+            if not isinstance(identities, dict):
+                raise ValueError("--identities-json 必须是 JSON 对象")
+            prepare(run_dir, args.tools, cases, identities)
             print(f"运行目录: {run_dir}")
         elif args.command == "execute":
             execute(args.run_dir, args.tools, cases, args.config, args.timeout)
