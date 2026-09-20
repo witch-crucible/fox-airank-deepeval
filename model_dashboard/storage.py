@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .domain import DashboardError, calculate_scores, normalize_agent_usage_entry, normalize_model, utc_now
-from .leaderboards import compare_snapshot_rows
+from .leaderboards import compare_snapshot_rows, normalize_third_party_weights
 from .recommendations import normalize_recommendations, normalize_stored_recommendations
 
 ROOT = Path(__file__).resolve().parent
@@ -490,6 +490,13 @@ class DashboardStore:
             return {'alias_key':alias,'canonical_key':canonical}
         except sqlite3.Error as error:
             raise DashboardError(f'无法保存模型关联：{error}') from error
+    def leaderboard_weights(self):
+        data=self.read()
+        return normalize_third_party_weights(data.get('meta',{}).get('leaderboard_weights'))
+    def save_leaderboard_weights(self, raw):
+        weights=normalize_third_party_weights(raw)
+        self._mutate(lambda data:data.setdefault('meta',{}).__setitem__('leaderboard_weights',weights))
+        return weights
     def sync_benchmark(self, models):
         created=updated=0
         def fn(d):

@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>模型能力台</title>
-  <link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.svg">
+  <link rel="icon" href="/static/brand/favicon.ico" sizes="any">
+  <link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
   <style>
     :root {
       color-scheme: light;
@@ -306,7 +306,24 @@
     .leaderboard-table table { min-width: 1450px; }
     .leaderboard-table td { vertical-align: top; }
     .leaderboard-score { font: 600 16px var(--mono); color: var(--accent-dark); }
+    .leaderboard-metric-link { display: inline-flex; align-items: center; gap: 4px; color: var(--accent-dark); font: 600 14px var(--mono); text-decoration: none; white-space: nowrap; }
+    a.leaderboard-metric-link:hover { color: var(--accent); text-decoration: underline; }
+    .leaderboard-podium { --podium-accent: var(--line-strong); --podium-tint: #f8f9fb; }
+    .leaderboard-podium-1 { --podium-accent: #b98522; --podium-tint: #fff8e7; }
+    .leaderboard-podium-2 { --podium-accent: #7c8798; --podium-tint: #f3f5f8; }
+    .leaderboard-podium-3 { --podium-accent: #a85f38; --podium-tint: #fbf0e9; }
+    .leaderboard-podium > td,
+    .leaderboard-podium:hover > td { background: var(--podium-tint); }
+    .leaderboard-podium > td:first-child,
+    .leaderboard-podium:hover > td:first-child { background: var(--podium-tint); box-shadow: inset 3px 0 0 var(--podium-accent), 1px 0 0 var(--line); }
+    .leaderboard-podium .leaderboard-rank { color: var(--podium-accent); font-size: 14px; font-weight: 700; }
     .leaderboard-cell { display: grid; gap: 4px; min-width: 135px; }
+    .leaderboard-source-link { color: var(--ink); text-decoration: none; }
+    .leaderboard-source-link:hover { color: var(--accent-dark); text-decoration: underline; text-underline-offset: 3px; }
+    .weight-config-form { display: grid; gap: 18px; max-width: 760px; }
+    .weight-config-fields { display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr)); gap: 14px; }
+    .weight-config-feedback { margin: 0; color: var(--muted); }
+    .weight-config-feedback.error { color: var(--danger); }
     .leaderboard-cell small { display: block; line-height: 1.5; }
     .leaderboard-variants { margin-top: 6px; color: var(--muted); font-size: 10px; }
     .leaderboard-variants summary { cursor: pointer; }
@@ -320,6 +337,24 @@
     .alias-form { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto; gap: 10px; align-items: end; }
     .alias-form label { display: grid; gap: 5px; color: var(--muted); font-size: 10px; }
     .leaderboard-search { max-width: 420px; margin-bottom: 16px; }
+    .leaderboard-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+    .leaderboard-toolbar .leaderboard-search { margin-bottom: 0; flex: 1; min-width: 200px; }
+    .leaderboard-legion-filter { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+    .leaderboard-legion > td,
+    .leaderboard-legion:hover > td { background: #f0f6f2; }
+    .leaderboard-legion-core > td,
+    .leaderboard-legion-core:hover > td { background: #fff8e7; }
+    .leaderboard-legion > td:first-child,
+    .leaderboard-legion:hover > td:first-child { background: #f0f6f2; box-shadow: inset 3px 0 0 #50846b, 1px 0 0 var(--line); }
+    .leaderboard-legion-core > td:first-child,
+    .leaderboard-legion-core:hover > td:first-child { background: #fff8e7; box-shadow: inset 3px 0 0 #b98522, 1px 0 0 var(--line); }
+    .leaderboard-identity { min-width: 180px; max-width: 280px; }
+    .leaderboard-identity > strong, .leaderboard-identity > small { display: block; }
+    .leaderboard-identity > small { margin-top: 4px; line-height: 1.5; }
+    .leaderboard-legion-badge { display: block; margin-top: 6px; color: #32694f; font-size: 12px; font-weight: 600; }
+    .leaderboard-legion-core .leaderboard-legion-badge { color: #946517; }
+    .leaderboard-effort { white-space: nowrap; font-weight: 600; }
+    .leaderboard-sync-result { margin-bottom: 16px; font-size: 13px; line-height: 1.7; }
     .loading { min-height: 60vh; display: grid; place-items: center; color: var(--muted); }
     .legion-hero {
       display: grid;
@@ -603,6 +638,7 @@
       .pagination-controls { flex-wrap: wrap; }
       .page-size { flex: 1; }
       .form-grid { grid-template-columns: 1fr; }
+      .weight-config-fields { grid-template-columns: 1fr; }
       .dialog-head { padding: 18px; gap: 12px; }
       .dialog-head h2 { font-size: 20px; }
       form, .score-content { padding: 20px 18px; }
@@ -620,7 +656,7 @@
   <div class="app-shell">
     <header class="topbar">
       <div class="brand">
-        <img class="brand-mark" src="/static/brand/mark.svg" width="38" height="38" alt="" aria-hidden="true">
+        <img class="brand-mark" src="/static/brand/mark.png" width="38" height="38" alt="" aria-hidden="true">
         <div>
           <div class="brand-name">模型能力台</div>
           <div class="brand-meta">Everyday coding · Local benchmarks</div>
@@ -635,6 +671,7 @@
           <button type="button" data-view="reference" aria-pressed="false">Model 三方榜单</button>
           <button type="button" data-view="agent-usage" aria-pressed="false">Agent 使用人数</button>
           <button type="button" data-view="pricing" aria-pressed="false">订阅费用快照</button>
+          <button type="button" data-view="settings" aria-pressed="false">配置</button>
           <button type="button" data-view="table" aria-pressed="false" aria-label="表格模式">数据管理</button>
         </div>
         <button class="btn btn-primary" id="refresh-local" type="button" aria-label="刷新本地结果" title="刷新本地结果">刷新本地结果</button>
@@ -854,6 +891,9 @@ OpenCode,450,社区公开数据</pre>
       agentLeaderboard: { agents: [], snapshots: [] },
       agentLeaderboardError: "",
       leaderboardSearch: "",
+      leaderboardLegionOnly: false,
+      modelLeaderboardAaOnly: false,
+      legionSyncResult: null,
       leaderboardPage: 1,
       leaderboardPageSize: 50,
       history: { source: "arena_webdev", data: null, error: "" },
@@ -885,6 +925,11 @@ OpenCode,450,社区公开数据</pre>
     const capabilityMetrics = [
       { key: "logic_score", label: "逻辑梳理分", max: 10 },
       { key: "implementation_score", label: "功能实现分", max: 100 }
+    ];
+    const MODEL_LEADERBOARD_SOURCES = [
+      { key: "artificial_analysis_model", label: "AA", heading: "Artificial Analysis", defaultWeight: .5 },
+      { key: "arena_webdev", label: "Arena", heading: "Arena", defaultWeight: .35 },
+      { key: "llm_stats", label: "LLM Stats", heading: "LLM Stats", defaultWeight: .15 }
     ];
     const numberFormatters = new Map();
     const dateTimeFormatter = new Intl.DateTimeFormat("zh-CN", { dateStyle: "medium", timeStyle: "short" });
@@ -930,6 +975,37 @@ OpenCode,450,社区公开数据</pre>
       }
     }
 
+    function sourceDetailHref(model) {
+      const href = sourceHref(model);
+      if (!href) return "";
+      const source = model?.source || {};
+      const parsed = new URL(href);
+      if (!["artificialanalysis.ai", "www.artificialanalysis.ai"].includes(parsed.hostname)) return href;
+      if (source.type === "artificial_analysis_model") {
+        const slug = String(source.slug || source.release?.slug || "").trim();
+        if (/^[a-z0-9]+(?:[-._][a-z0-9]+)*$/i.test(slug)) {
+          parsed.pathname = `/models/${encodeURIComponent(slug)}`;
+          parsed.search = "";
+          parsed.hash = "";
+        }
+      } else if (["artificial_analysis", "artificial_analysis_agent"].includes(source.type)) {
+        parsed.hash = "artificial-analysis-coding-agent-index";
+      }
+      return parsed.href;
+    }
+
+    function leaderboardMetricLink(value, href, title) {
+      const link = el(href ? "a" : "span", "leaderboard-metric-link", href ? `${value} ↗` : value);
+      if (href) {
+        link.href = href;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.title = title;
+        link.setAttribute("aria-label", title);
+      }
+      return link;
+    }
+
     function sourceBadge(model) {
       const sourceType = model.source?.type || "manual";
       const external = ["third_party", "arena_webdev", "artificial_analysis", "artificial_analysis_agent", "artificial_analysis_model", "llm_stats"].includes(sourceType);
@@ -972,6 +1048,16 @@ OpenCode,450,社区公开数据</pre>
 
     function pct(value) { return `${Math.round(value * 100)}%`; }
 
+    function weightPercent(value) { return `${number(Number(value) * 100)}%`; }
+
+    function orderedModelLeaderboardSources(weights = {}) {
+      return MODEL_LEADERBOARD_SOURCES.map((source, index) => ({
+        ...source,
+        index,
+        weight: Number.isFinite(Number(weights[source.key])) ? Number(weights[source.key]) : source.defaultWeight
+      })).sort((left, right) => right.weight - left.weight || left.index - right.index);
+    }
+
     function showToast(message, error = false) {
       toast.textContent = message;
       toast.className = `toast show${error ? " error" : ""}`;
@@ -996,6 +1082,16 @@ OpenCode,450,社区公开数据</pre>
       } catch (error) {
         state.recommendationPublicationError = error.message;
       }
+    }
+
+    async function refreshLegionLeaderboards() {
+      const results = await Promise.allSettled([api("/api/leaderboards/models"), api("/api/leaderboards/agents")]);
+      ["modelLeaderboard", "agentLeaderboard"].forEach((key, index) => {
+        const result = results[index];
+        state[`${key}Error`] = result.status === "rejected" ? result.reason.message : "";
+        state[key] = result.status === "fulfilled" ? result.value : key === "modelLeaderboard" ? { models: [] } : { agents: [] };
+      });
+      state.legionSyncResult = null;
     }
 
     async function loadData() {
@@ -1104,6 +1200,11 @@ OpenCode,450,社区公开数据</pre>
 
       if (state.view === "pricing") {
         renderPricingPage();
+        return;
+      }
+
+      if (state.view === "settings") {
+        renderSettingsPage();
         return;
       }
 
@@ -1224,8 +1325,8 @@ OpenCode,450,社区公开数据</pre>
       return record.passed ? ["评分通过", ""] : ["未通过", "failed"];
     }
 
-    function visibleLocalRecords(caseId = state.localCase) {
-      const records = (state.local.records || []).filter(record => record.case_id === caseId);
+    function visibleLocalRecords(caseId = state.localCase, requirePreview = false) {
+      const records = (state.local.records || []).filter(record => record.case_id === caseId && (!requirePreview || record.preview_url));
       let selected = records;
       if (state.localHistory !== "all") {
         const best = state.localHistory === "best" && caseId === "draw-pelican-bicycle";
@@ -1324,7 +1425,7 @@ OpenCode,450,社区公开数据</pre>
       const method = el("section", "local-method");
       method.id = "local-method";
       [["01 / 测试基调", "优先使用日常最常见的配置完成真实任务，记录实际模型与推理强度。未记录的配置明确标为未知。"],
-       ["02 / 如何看分数", "三项 GEval 原始分数 × 100 分开展示。鹈鹕测试默认在同一模型、同一智力程度（推理强度）内取任务得分最高的一次，同分取最新；三项分数与作品来自同次运行。可切换查看全部历史，空白不按 0 分处理。"],
+       ["02 / 如何看分数", "三项 GEval 原始分数 × 100 分开展示。鹈鹕评分表默认在同一模型、同一智力程度（推理强度）内取任务得分最高的一次，同分取最新；评分表中的三项分数、耗时与明细来自同次运行。作品区只从当前筛选中可预览的单文件 HTML 运行里选作品；若最高分运行没有作品，会回退到另一条可预览历史运行，并明确标出运行编号，空白不按 0 分处理。"],
        ["03 / 如何选日常配置", "综合任务得分、失败记录、执行耗时与实际作品判断。单次高分不能代表长期稳定性；当前未记录单次费用。"]].forEach(([title, copy]) => {
         const item = el("div"); item.append(el("strong", "", title), el("p", "", copy)); method.append(item);
       });
@@ -1465,7 +1566,7 @@ OpenCode,450,社区公开数据</pre>
       const panel = el("section", "local-panel"); panel.id = "pelican-showcase";
       panel.append(panelHeader("鹈鹕测试", "直接看模型交付的 HTML / SVG 动画"));
       const records = visibleLocalRecords("draw-pelican-bicycle");
-      const previews = records.filter(record => record.preview_url);
+      const previews = visibleLocalRecords("draw-pelican-bicycle", true);
       const promptRecord = records.find(record => record.prompt);
       if (!previews.length) {
         if (promptRecord) {
@@ -1483,7 +1584,15 @@ OpenCode,450,社区公开数据</pre>
       previews.forEach(record => select.append(new Option(`${localIdentity(record)} · ${dateTime(record.created_at)}`, record.id)));
       select.value = selected.id;
       const stage = el("div"); stage.append(pelicanFrame(selected));
-      const caption = el("div", "preview-caption", `任务得分 ${number(localScore(selected, "Task Correctness"))} / 100 · ${localDuration(selected.elapsed_seconds)} · ${localStatus(selected)[0]}`);
+      const previewCaption = record => {
+        const score = localScore(record, "Task Correctness");
+        const scoreText = score === null ? "任务得分 未评分" : `任务得分 ${number(score)} / 100`;
+        return `作品运行 ${record.run_id} · ${scoreText} · ${localDuration(record.elapsed_seconds)} · ${localStatus(record)[0]}`;
+      };
+      const caption = el("div", "preview-caption", previewCaption(selected));
+      const fallbackNotice = el("p", "local-notice", "当前展示另一条可预览历史运行；评分与耗时以此作品运行记录为准。");
+      fallbackNotice.hidden = records.some(record => record.id === selected.id);
+      panel.append(fallbackNotice);
       const prompt = el("details", "local-context");
       prompt.open = true;
       const promptText = el("pre", "", selected.prompt || "未记录本次运行的提示词。");
@@ -1494,7 +1603,8 @@ OpenCode,450,社区公开数据</pre>
         state.previewId = select.value;
         const record = previews.find(item => item.id === select.value);
         stage.replaceChildren(pelicanFrame(record));
-        caption.textContent = `任务得分 ${number(localScore(record, "Task Correctness"))} / 100 · ${localDuration(record.elapsed_seconds)} · ${localStatus(record)[0]}`;
+        caption.textContent = previewCaption(record);
+        fallbackNotice.hidden = records.some(item => item.id === record.id);
         promptText.textContent = record.prompt || "未记录本次运行的提示词。";
         prompt.hidden = !record.prompt;
       };
@@ -1629,6 +1739,30 @@ OpenCode,450,社区公开数据</pre>
       return panel;
     }
 
+    function leaderboardModelHref(source) {
+      const representative = source?.representative;
+      const meta = representative?.source || {};
+      const sourceType = meta.type;
+      const raw = sourceHref(representative || {});
+      if (!raw) return "";
+      try {
+        const target = new URL(raw);
+        if (sourceType === "artificial_analysis_model") {
+          const slug = String(meta.slug || meta.release?.slug || "").trim();
+          if (slug) target.pathname = `/models/${encodeURIComponent(slug)}`;
+        } else if (sourceType === "llm_stats") {
+          const sourceId = String(meta.source_id || "").trim();
+          if (sourceId) target.pathname = `/models/${encodeURIComponent(sourceId)}`;
+        } else if (sourceType === "arena_webdev") {
+          const model = String(representative?.model || meta.source_id || "").trim();
+          if (model) target.searchParams.set("q", model);
+        }
+        return target.href;
+      } catch {
+        return "";
+      }
+    }
+
     function leaderboardSourceCell(source, label) {
       const cell = el("div", "leaderboard-cell");
       if (!source) {
@@ -1637,10 +1771,19 @@ OpenCode,450,社区公开数据</pre>
       }
       const representative = source.representative || {};
       const meta = representative.source || {};
+      const href = leaderboardModelHref(source);
+      const heading = el(href ? "a" : "strong", href ? "leaderboard-source-link" : "", `${label} #${number(meta.rank, 0)}${href ? " ↗" : ""}`);
+      if (href) {
+        heading.href = href;
+        heading.target = "_blank";
+        heading.rel = "noopener noreferrer";
+        heading.title = `打开 ${label} 的 ${representative.model || "模型"} 页面`;
+      }
       cell.append(
-        el("strong", "", `${label} #${number(meta.rank, 0)}`),
+        heading,
         el("span", "", `原始 ${number(source.raw_score)} · 归一化 ${number(source.normalized_score)}`)
       );
+      if (representative.reasoning_effort) cell.append(el("small", "", `智能度 ${leaderboardEffort(representative.reasoning_effort)}`));
       if (label === "Arena" && (meta.input_price_per_m != null || meta.output_price_per_m != null)) {
         cell.append(el("small", "", `Price $/M：${number(meta.input_price_per_m)} / ${number(meta.output_price_per_m)}`));
       } else if (label === "Arena" && source.price_reference) {
@@ -1692,7 +1835,7 @@ OpenCode,450,社区公开数据</pre>
       return cell;
     }
 
-    function leaderboardHero(kind, count, copy) {
+    function leaderboardHero(kind, count, copy, weights = {}, aaOnly = false) {
       const hero = el("section", "hero");
       const heroText = el("div");
       heroText.append(el("div", "eyebrow", `${kind} leaderboard`));
@@ -1702,43 +1845,169 @@ OpenCode,450,社区公开数据</pre>
       const chips = el("div", "hero-chips");
       chips.append(el("span", "hero-chip", `${count} 条记录`));
       if (kind === "Model") {
-        chips.append(el("span", "hero-chip", "Arena 35%"), el("span", "hero-chip", "AA 50%"), el("span", "hero-chip", "LLM Stats 15%"), el("span", "hero-chip", "三方 70% + 本地 30%"));
+        if (aaOnly) {
+          chips.append(el("span", "hero-chip", "Artificial Analysis only"));
+        } else {
+          orderedModelLeaderboardSources(weights).forEach(source => chips.append(el("span", "hero-chip", `${source.label} ${weightPercent(source.weight)}`)));
+          chips.append(el("span", "hero-chip", "三方 70% + 本地 30%"));
+        }
       }
       heroText.append(chips); hero.append(heroText); return hero;
     }
 
+    function leaderboardPodiumClass(rank) {
+      const numericRank = Number(rank);
+      return Number.isInteger(numericRank) && numericRank >= 1 && numericRank <= 3
+        ? `leaderboard-podium leaderboard-podium-${numericRank}`
+        : "";
+    }
+
+    function leaderboardEffort(value) {
+      return !value || value === "unknown" ? "未注明" : value;
+    }
+
+    function markLeaderboardLegion(tr, identity, row) {
+      const legion = row.legion;
+      if (!legion?.matched) return;
+      tr.classList.add("leaderboard-legion");
+      if (legion.is_core) tr.classList.add("leaderboard-legion-core");
+      const badge = el("span", "leaderboard-legion-badge", `${legion.is_core ? "★" : "☆"} Vibe Coding Legion`);
+      badge.title = legion.is_core ? "Legion 核心配置" : "Legion 配置（未设为核心）";
+      identity.append(badge);
+      const entries = legion.entries || [];
+      entries.forEach(entry => {
+        const core = Array.isArray(entry.core_purpose_types) ? entry.core_purpose_types : entry.is_core ? entry.primary_purpose_types || [] : [];
+        const purposes = entry.primary_purpose_types || [];
+        identity.append(el("small", "", [entry.tool, purposes.map(purpose => `${core.includes(purpose) ? "★ " : ""}${purpose}`).join(" / ")].filter(Boolean).join(" · ")));
+      });
+      if (row.supplemental) identity.append(el("small", "", "Legion 补充配置"));
+    }
+
+    function leaderboardLegionToolbar(panel, search = null, includeModelMode = false) {
+      const toolbar = el("div", "leaderboard-toolbar");
+      if (search) toolbar.append(search);
+      if (includeModelMode) {
+        const aaLabel = el("label", "leaderboard-legion-filter");
+        const aaOnly = el("input"); aaOnly.type = "checkbox"; aaOnly.checked = state.modelLeaderboardAaOnly;
+        aaOnly.addEventListener("change", () => { state.modelLeaderboardAaOnly = aaOnly.checked; state.leaderboardPage = 1; render(); });
+        aaLabel.append(aaOnly, "纯 Artificial Analysis");
+        toolbar.append(aaLabel);
+      }
+      const label = el("label", "leaderboard-legion-filter");
+      const checkbox = el("input"); checkbox.type = "checkbox"; checkbox.checked = state.leaderboardLegionOnly;
+      checkbox.addEventListener("change", () => { state.leaderboardLegionOnly = checkbox.checked; state.leaderboardPage = 1; render(); });
+      label.append(checkbox, "仅看 Legion");
+      const refresh = localButton("补齐 Legion 数据", runLegionLeaderboardSync, "btn btn-secondary");
+      refresh.dataset.legionSync = "true";
+      refresh.disabled = Boolean(leaderboardSyncPromise);
+      toolbar.append(label, refresh); panel.append(toolbar);
+      if (state.legionSyncResult) {
+        const result = state.legionSyncResult;
+        const failures = (result.sources || []).filter(item => item.status === "failed");
+        const missing = (result.missing_models || []).length + (result.missing_agents || []).length;
+        const status = el("div", "leaderboard-sync-result"); status.setAttribute("role", "status");
+        status.append(el("span", "", missing ? `仍有 ${missing} 个 Model / Agent 配置缺少部分同智能度成绩；保留配置，缺失分数显示为空。` : "Legion 配置的榜单数据已齐全。"));
+        failures.forEach(item => status.append(el("div", "", `${item.source} 拉取失败：${item.error}`)));
+        panel.append(status);
+      }
+    }
+
+    function aaProviderConfigurationCell(source) {
+      const cell = el("div", "leaderboard-cell");
+      const variants = source?.representative?.source?.variants || [];
+      if (!variants.length) {
+        cell.append(el("span", "badge badge-empty", "无服务商配置"));
+        return cell;
+      }
+      const costs = variants.map(variant => variant.cost_usd_per_task).filter(value => Number.isFinite(Number(value)));
+      const heading = costs.length ? `${variants.length} 个配置 · 最低 $${number(Math.min(...costs))}/task` : `${variants.length} 个服务商配置`;
+      const details = el("details", "leaderboard-variants");
+      details.append(el("summary", "", heading));
+      variants.forEach(variant => {
+        const host = typeof variant.host === "object" ? variant.host?.name : variant.host;
+        details.append(el("div", "leaderboard-variant", `${host || variant.name || "配置"} · $/task ${number(variant.cost_usd_per_task)} · $/M ${number(variant.input_price_per_m)} / ${number(variant.output_price_per_m)} · ${number(variant.speed_tokens_per_second)} tok/s`));
+      });
+      cell.append(details); return cell;
+    }
+
     function renderModelLeaderboardPage() {
       const data = state.modelLeaderboard || { models: [] };
-      app.append(leaderboardHero("Model", data.models?.length || 0, "同一版本模型横向对照三个来源；原始分在各自完整快照内归一化。本地覆盖不足时显示试算分，不进入正式排名。"));
+      const aaOnly = state.modelLeaderboardAaOnly;
+      const sources = aaOnly ? [] : orderedModelLeaderboardSources(data.weights);
+      const query = state.leaderboardSearch.trim().toLocaleLowerCase();
+      const rows = (data.models || []).filter(row => (!aaOnly || row.sources?.artificial_analysis_model)
+        && (!state.leaderboardLegionOnly || row.legion?.matched)
+        && (!query || `${row.model} ${row.model_key} ${leaderboardEffort(row.reasoning_effort)}`.toLocaleLowerCase().includes(query)))
+        .sort((left, right) => aaOnly
+          ? Number(left.sources.artificial_analysis_model.representative?.source?.rank || Number.MAX_SAFE_INTEGER)
+            - Number(right.sources.artificial_analysis_model.representative?.source?.rank || Number.MAX_SAFE_INTEGER)
+          : (left.third_party_rank || Number.MAX_SAFE_INTEGER) - (right.third_party_rank || Number.MAX_SAFE_INTEGER));
+      app.append(leaderboardHero(
+        "Model",
+        rows.length,
+        aaOnly
+          ? "只展示 Artificial Analysis 已发布的模型与智能度配置，按 AA 官方名次排序；分数不混入 Arena、LLM Stats 或三方聚合。"
+          : "按模型与智能度（推理强度）逐项对照三个来源。不同智能度独立展示和算分；未注明智能度的数据单列。",
+        aaOnly ? {} : data.weights,
+        aaOnly
+      ));
       if (state.modelLeaderboardError) app.append(el("div", "empty", `Model 榜单读取失败：${state.modelLeaderboardError}`));
       const panel = el("section", "panel panel-wide");
-      panel.append(panelHeader("模型横向总表", "缺失来源不按 0 分，也不重新分配权重；同版本多配置以该来源官方名次最高者参与聚合，并保留全部配置明细。", "Model / Combined"));
+      panel.append(panelHeader(
+        aaOnly ? "Artificial Analysis 模型榜" : "模型横向总表",
+        aaOnly
+          ? "保留 AA 的模型粒度和智能度配置，官方名次、Intelligence、Speed、Terminal-Bench 4.0 及服务商成本均来自同一 AA 配置。"
+          : "只聚合同模型、同智能度的成绩。权重大于 0 的来源缺失时不计算聚合分；0% 来源不作为完整性门槛。Legion 配置以绿色高亮，核心星标以金色高亮。",
+        aaOnly ? "Model / Artificial Analysis" : "Model / Combined"
+      ));
       const search = el("input", "control leaderboard-search");
-      search.type = "search"; search.placeholder = "搜索模型"; search.value = state.leaderboardSearch;
+      search.type = "search"; search.placeholder = "搜索模型 / 智能度"; search.value = state.leaderboardSearch;
       search.addEventListener("input", () => { state.leaderboardSearch = search.value; state.leaderboardPage = 1; render(); });
-      panel.append(search);
-      const query = state.leaderboardSearch.trim().toLocaleLowerCase();
-      const rows = (data.models || []).filter(row => !query || `${row.model} ${row.model_key}`.toLocaleLowerCase().includes(query));
+      leaderboardLegionToolbar(panel, search, true);
       const pageCount = Math.max(1, Math.ceil(rows.length / state.leaderboardPageSize));
       state.leaderboardPage = Math.min(state.leaderboardPage, pageCount);
       const start = (state.leaderboardPage - 1) * state.leaderboardPageSize;
       const visible = rows.slice(start, start + state.leaderboardPageSize);
       const wrap = el("div", "table-wrap leaderboard-table"); const table = el("table");
       const head = el("thead"); const headRow = el("tr");
-      ["模型", "聚合排名", "三方聚合分", "Arena 35%", "Artificial Analysis 50%", "LLM Stats 15%", "本地实测 / 实战分"].forEach(label => headRow.append(el("th", "", label)));
+      const labels = aaOnly
+        ? ["模型", "智能度", "AA 官方名次", "Intelligence", "Speed", "Terminal-Bench 4.0", "服务商配置 / 成本", "本地实测"]
+        : ["模型", "智能度", "聚合排名", "三方聚合分", ...sources.map(source => `${source.heading} ${weightPercent(source.weight)}`), "本地实测 / 实战分"];
+      labels.forEach(label => headRow.append(el("th", "", label)));
       head.append(headRow); table.append(head); const body = el("tbody");
       visible.forEach(row => {
-        const tr = el("tr"); const identity = el("td");
+        const aa = row.sources?.artificial_analysis_model;
+        const aaRepresentative = aa?.representative || {};
+        const displayRank = aaOnly ? aaRepresentative.source?.rank : row.third_party_rank;
+        const tr = el("tr", leaderboardPodiumClass(displayRank)); const identity = el("td", "leaderboard-identity");
         identity.append(el("strong", "", row.model), el("small", "", row.model_key));
-        tr.append(identity, el("td", "number", row.third_party_rank ? `#${row.third_party_rank}` : "—"), el("td", "leaderboard-score", number(row.third_party_score)));
-        for (const [source, label] of [["arena_webdev", "Arena"], ["artificial_analysis_model", "AA"], ["llm_stats", "LLM Stats"]]) {
-          const td = el("td"); td.append(leaderboardSourceCell(row.sources?.[source], label)); tr.append(td);
+        markLeaderboardLegion(tr, identity, row);
+        if (aaOnly) {
+          const rankCell = el("td", "number leaderboard-rank");
+          const href = leaderboardModelHref(aa);
+          const rank = el(href ? "a" : "span", href ? "leaderboard-metric-link" : "", displayRank ? `#${displayRank}` : "—");
+          if (href) { rank.href = href; rank.target = "_blank"; rank.rel = "noopener noreferrer"; }
+          rankCell.append(rank);
+          tr.append(
+            identity,
+            el("td", "leaderboard-effort", leaderboardEffort(row.reasoning_effort)),
+            rankCell,
+            el("td", "leaderboard-score", number(aa?.raw_score)),
+            el("td", "number", aaRepresentative.scores?.aa_model_speed == null ? "—" : `${number(aaRepresentative.scores.aa_model_speed)} tok/s`),
+            el("td", "number", number(aaRepresentative.scores?.aa_model_terminal_bench_v4))
+          );
+          const provider = el("td"); provider.append(aaProviderConfigurationCell(aa)); tr.append(provider);
+        } else {
+          tr.append(identity, el("td", "leaderboard-effort", leaderboardEffort(row.reasoning_effort)), el("td", "number leaderboard-rank", row.third_party_rank ? `#${row.third_party_rank}` : "—"), el("td", "leaderboard-score", number(row.third_party_score)));
+          for (const source of sources) {
+            const td = el("td"); td.append(leaderboardSourceCell(row.sources?.[source.key], source.label)); tr.append(td);
+          }
         }
         const local = el("td"); local.append(localConfigurationCell(row.local_configurations)); tr.append(local); body.append(tr);
       });
-      if (!visible.length) { const tr = el("tr"); const td = el("td", "empty", "当前没有可展示的模型榜单数据"); td.colSpan = 7; tr.append(td); body.append(tr); }
+      if (!visible.length) { const tr = el("tr"); const td = el("td", "empty", "当前没有可展示的模型榜单数据"); td.colSpan = 8; tr.append(td); body.append(tr); }
       table.append(body); wrap.append(table); panel.append(wrap);
-      const pagination = el("div", "table-pagination"); pagination.append(el("span", "pagination-summary", `${rows.length} 个模型 · 第 ${state.leaderboardPage}/${pageCount} 页`));
+      const pagination = el("div", "table-pagination"); pagination.append(el("span", "pagination-summary", `${rows.length} 个${aaOnly ? " AA" : "模型"}配置 · 第 ${state.leaderboardPage}/${pageCount} 页`));
       const controls = el("div", "pagination-controls");
       const previous = localButton("上一页", () => { state.leaderboardPage -= 1; render(); }, "btn page-button"); previous.disabled = state.leaderboardPage <= 1;
       const next = localButton("下一页", () => { state.leaderboardPage += 1; render(); }, "btn page-button"); next.disabled = state.leaderboardPage >= pageCount;
@@ -1746,33 +2015,115 @@ OpenCode,450,社区公开数据</pre>
       app.append(panel, renderModelAliasPanel(), renderHistoryPanel(["arena_webdev", "artificial_analysis_model", "llm_stats"]));
     }
 
+    function renderSettingsPage() {
+      const weights = state.modelLeaderboard?.weights || Object.fromEntries(MODEL_LEADERBOARD_SOURCES.map(source => [source.key, source.defaultWeight]));
+      const hero = el("section", "hero");
+      const heroText = el("div");
+      heroText.append(el("div", "eyebrow", "Dashboard configuration"));
+      const title = el("h1"); title.append("榜单参数，", el("em", "", "集中配置。"));
+      heroText.append(title, el("p", "hero-copy", "配置 Model 三方榜单各来源的聚合权重；保存后立即重新计算聚合分与排名。"));
+      hero.append(heroText); app.append(hero);
+
+      const panel = el("section", "panel");
+      panel.append(panelHeader("Model 三方榜单权重", "三个来源均可设为 0%，但合计必须为 100%。同权重时保持 AA、Arena、LLM Stats 的稳定顺序。", "Weights / 100%"));
+      const form = el("form", "weight-config-form");
+      const fields = el("div", "weight-config-fields");
+      const inputs = {};
+      MODEL_LEADERBOARD_SOURCES.forEach(source => {
+        const field = el("label", "field");
+        field.append(el("span", "", `${source.heading}（%）`));
+        const input = el("input");
+        input.type = "number"; input.name = source.key; input.min = "0"; input.max = "100"; input.step = "0.01"; input.required = true;
+        input.value = String(Number(weights[source.key] ?? source.defaultWeight) * 100);
+        field.append(input); fields.append(field); inputs[source.key] = input;
+      });
+      const feedback = el("p", "weight-config-feedback");
+      feedback.setAttribute("role", "status");
+      const actions = el("div", "dialog-actions");
+      const submit = el("button", "btn btn-primary", "保存权重"); submit.type = "submit";
+      actions.append(submit); form.append(fields, feedback, actions); panel.append(form); app.append(panel);
+
+      const currentValues = () => Object.fromEntries(MODEL_LEADERBOARD_SOURCES.map(source => [source.key, Number(inputs[source.key].value)]));
+      const validate = () => {
+        const values = currentValues();
+        const validValues = Object.values(values).every(value => Number.isFinite(value) && value >= 0 && value <= 100);
+        const total = Object.values(values).reduce((sum, value) => sum + value, 0);
+        const valid = validValues && Math.abs(total - 100) < 1e-9;
+        feedback.textContent = `当前合计 ${number(total)}%${valid ? "，可保存" : "，必须等于 100%"}`;
+        feedback.classList.toggle("error", !valid);
+        submit.disabled = !valid;
+        return valid ? Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value / 100])) : null;
+      };
+      Object.values(inputs).forEach(input => input.addEventListener("input", validate));
+      validate();
+      form.addEventListener("submit", async event => {
+        event.preventDefault();
+        const normalized = validate();
+        if (!normalized) return;
+        submit.disabled = true;
+        try {
+          await api("/api/leaderboards/weights", { method: "POST", body: JSON.stringify({ weights: normalized }) });
+          await loadData();
+          showToast("Model 三方榜单权重已更新");
+        } catch (error) {
+          feedback.textContent = error.message;
+          feedback.classList.add("error");
+          submit.disabled = false;
+        }
+      });
+    }
+
     function renderAgentLeaderboardPage() {
       const data = state.agentLeaderboard || { agents: [] };
-      app.append(leaderboardHero("Agent", data.agents?.length || 0, "展示 Coding Agent Index、Time per Task、Cost per Task，并关联相同底层模型。只有共同的 Terminal-Bench 4.0 指标计算百分点差。"));
+      app.append(leaderboardHero("Agent", data.agents?.length || 0, "按 Agent、模型与智能度匹配 Legion 配置和星标。只用同配置的 Terminal-Bench 4.0 计算提升效果；补充配置独立展示已获得的模型成绩。"));
       if (state.agentLeaderboardError) app.append(el("div", "empty", `Agent 榜单读取失败：${state.agentLeaderboardError}`));
       const panel = el("section", "panel panel-wide");
       panel.append(panelHeader("Coding Agent Index", "Agent 总分与 Model Intelligence 使用不同评测套件，不直接相减。", "Agent / Artificial Analysis"));
+      leaderboardLegionToolbar(panel);
       const wrap = el("div", "table-wrap leaderboard-table"); const table = el("table");
       const head = el("thead"); const headRow = el("tr");
-      ["名次", "Agent", "底层模型", "Coding Agent Index", "Time per Task", "Cost per Task", "模型基线", "Agent 提升效果"].forEach(label => headRow.append(el("th", "", label)));
+      ["名次", "Agent", "底层模型", "智能度", "Coding Agent Index", "Time per Task", "Cost per Task", "模型基线 / 同配置数据", "Agent 提升效果"].forEach(label => headRow.append(el("th", "", label)));
       head.append(headRow); table.append(head); const body = el("tbody");
-      (data.agents || []).forEach(entry => {
+      const rows = (data.agents || []).filter(entry => !state.leaderboardLegionOnly || entry.legion?.matched);
+      rows.forEach(entry => {
         const agent = entry.agent || {}; const source = agent.source || {}; const baseline = entry.baseline;
-        const tr = el("tr");
+        const tr = el("tr", leaderboardPodiumClass(source.rank));
+        const identity = el("td", "leaderboard-identity"); identity.append(el("strong", "", agent.model || "—"));
+        markLeaderboardLegion(tr, identity, entry);
+        const indexCell = el("td", "number");
+        if (agent.scores?.artificial_analysis_index == null) indexCell.append(el("span", "badge badge-empty", "无同配置成绩"));
+        else indexCell.append(leaderboardMetricLink(
+          number(agent.scores?.artificial_analysis_index),
+          sourceDetailHref(agent),
+          `在 Artificial Analysis 查看 ${agent.tool || "该 Agent"} 的 Coding Agent Index`
+        ));
         tr.append(
-          el("td", "number", number(source.rank, 0)), el("td", "", agent.tool || "—"), el("td", "", agent.model || "—"),
-          el("td", "number", number(agent.scores?.artificial_analysis_index)),
+          el("td", "number leaderboard-rank", number(source.rank, 0)), el("td", "", agent.tool || "—"), identity,
+          el("td", "leaderboard-effort", leaderboardEffort(entry.reasoning_effort || agent.reasoning_effort)),
+          indexCell,
           el("td", "number", source.wall_time_seconds_per_task == null ? "—" : `${number(source.wall_time_seconds_per_task)} s`),
           el("td", "number", source.cost_usd_per_task == null ? "—" : `$${number(source.cost_usd_per_task)}`)
         );
-        const baselineCell = el("td");
-        if (baseline) baselineCell.append(el("strong", "", baseline.model), el("small", "", `Intelligence ${number(baseline.scores?.aa_model_intelligence)} · TB4 ${number(baseline.scores?.aa_model_terminal_bench_v4)}`));
-        else baselineCell.textContent = "待关联";
+        const baselineCell = el("td", "number");
+        if (baseline && baseline.scores?.aa_model_terminal_bench_v4 != null) baselineCell.append(leaderboardMetricLink(
+          `TB4 ${number(baseline.scores?.aa_model_terminal_bench_v4)}`,
+          sourceDetailHref(baseline),
+          `在 Artificial Analysis 查看 ${baseline.model || "该模型"} 的基线`
+        ));
+        else baselineCell.textContent = "无同配置 TB4";
+        if (entry.supplemental) {
+          const details = el("div", "leaderboard-cell");
+          orderedModelLeaderboardSources(state.modelLeaderboard?.weights).forEach(item => {
+            const modelSource = entry.model_sources?.[item.key];
+            if (modelSource) details.append(leaderboardSourceCell(modelSource, item.label));
+          });
+          if (details.childNodes.length) baselineCell.append(details);
+        }
         const uplift = el("td", entry.terminal_bench_uplift > 0 ? "delta-up" : entry.terminal_bench_uplift < 0 ? "delta-down" : "delta-neutral");
         uplift.textContent = entry.terminal_bench_uplift == null ? "不可直接量化" : `Terminal-Bench 4.0 ${entry.terminal_bench_uplift > 0 ? "+" : ""}${number(entry.terminal_bench_uplift)} 个百分点`;
         tr.append(baselineCell, uplift); body.append(tr);
       });
-      if (!(data.agents || []).length) { const tr = el("tr"); const td = el("td", "empty", "同步 AA Agent 与 AA Model 后显示对照"); td.colSpan = 8; tr.append(td); body.append(tr); }
+      if (!rows.length) { const tr = el("tr"); const td = el("td", "empty", "同步 AA Agent 与 AA Model 后显示对照"); td.colSpan = 9; tr.append(td); body.append(tr); }
       table.append(body); wrap.append(table); panel.append(wrap); app.append(panel, renderHistoryPanel(["artificial_analysis_agent"]));
     }
 
@@ -2524,6 +2875,7 @@ OpenCode,450,社区公开数据</pre>
         state.data.recommendations = result.recommendations;
         state.recommendationPublication.is_current = false;
         await refreshRecommendationPublication();
+        await refreshLegionLeaderboards();
         render();
         showToast(nextValue ? `已标记为核心选择：${purposeType} 条目` : `已取消核心选择：${purposeType} 条目`);
       } catch (failure) {
@@ -3079,6 +3431,7 @@ OpenCode,450,社区公开数据</pre>
         state.data.recommendations = result.recommendations;
         state.recommendationPublication.is_current = false;
         await refreshRecommendationPublication();
+        await refreshLegionLeaderboards();
         recommendationsEditorDirty = false;
         document.getElementById("recommendations-dialog").close();
         render();
@@ -3232,7 +3585,8 @@ OpenCode,450,社区公开数据</pre>
     function syncControlButtons() {
       return [
         document.getElementById("sync-all-leaderboards"),
-        ...LEADERBOARD_SYNCS.map(item => document.getElementById(item.id))
+        ...LEADERBOARD_SYNCS.map(item => document.getElementById(item.id)),
+        ...document.querySelectorAll("[data-legion-sync]")
       ].filter(Boolean);
     }
 
@@ -3263,6 +3617,26 @@ OpenCode,450,社区公开数据</pre>
     }
 
     let leaderboardSyncPromise = null;
+
+    async function runLegionLeaderboardSync() {
+      if (leaderboardSyncPromise) return;
+      leaderboardSyncPromise = (async () => {
+        setSyncControlsBusy(true, "正在补齐 Legion…");
+        document.querySelectorAll("[data-legion-sync]").forEach(button => { button.disabled = true; button.textContent = "正在补齐…"; });
+        try {
+          const result = await api("/api/leaderboards/legion/refresh", { method: "POST", body: "{}" });
+          state.legionSyncResult = result;
+          await loadData();
+          const failed = result.sources.filter(item => item.status === "failed").length;
+          showToast(failed ? `${failed} 个来源拉取失败，已保留原有成绩。` : "Legion 数据已重新匹配，缺失详情见榜单。", Boolean(failed));
+        } catch (error) {
+          showToast(error.message, true);
+        } finally {
+          setSyncControlsBusy(false);
+        }
+      })();
+      try { await leaderboardSyncPromise; } finally { leaderboardSyncPromise = null; render(); }
+    }
 
     async function runSingleLeaderboardSync(item) {
       if (leaderboardSyncPromise) return;

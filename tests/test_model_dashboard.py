@@ -31,7 +31,12 @@ from model_dashboard.server import (
     normalize_external_rows,
     normalize_llm_stats_indexes,
 )
-from model_dashboard.leaderboards import build_agent_overview, build_local_scores, build_model_overview
+from model_dashboard.leaderboards import (
+    build_agent_overview,
+    build_local_scores,
+    build_model_overview,
+    normalize_third_party_weights,
+)
 from model_dashboard.sources import normalize_arena_price_catalog, normalize_artificial_analysis_models_html
 
 
@@ -287,18 +292,19 @@ class ModelDashboardTests(unittest.TestCase):
         self.assertEqual(models[0]["source"]["type"], "artificial_analysis_model")
         self.assertEqual(models[0]["scores"]["aa_model_intelligence"], 72.5)
         self.assertEqual(models[0]["scores"]["aa_model_terminal_bench_v4"], 44)
+        self.assertEqual(models[0]["source"]["slug"], "alpha-1")
         self.assertEqual(models[0]["source"]["variants"][0]["cost_usd_per_task"], 0.42)
 
     def test_model_overview_applies_requested_weights_and_local_eligibility(self):
         def model(source_type, name, score_field, score, rank):
             return normalize_model(
-                {"tool": "Lab", "model": name, "scores": {score_field: score}},
+                {"tool": "Lab", "model": name, "reasoning_effort": "max", "scores": {score_field: score}},
                 source={"type": source_type, "source_id": f"{source_type}-{rank}", "rank": rank},
             )
 
         models = [
-            model("arena_webdev", "Alpha Max", "arena_webdev", 1800, 1),
-            model("arena_webdev", "Beta Max", "arena_webdev", 1600, 2),
+            model("arena_webdev", "Alpha (max)", "arena_webdev", 1800, 1),
+            model("arena_webdev", "Beta (max)", "arena_webdev", 1600, 2),
             model("artificial_analysis_model", "Alpha", "aa_model_intelligence", 80, 1),
             model("artificial_analysis_model", "Beta", "aa_model_intelligence", 60, 2),
             model("llm_stats", "Alpha", "llm_stats_score", 50, 1),
@@ -323,6 +329,116 @@ class ModelDashboardTests(unittest.TestCase):
         incomplete = build_local_scores(local_records[:2], {"case-a", "case-b"})[0]
         self.assertFalse(incomplete["eligible"])
         self.assertEqual(incomplete["missing_cases"], ["case-b"])
+
+    def test_model_overview_applies_configured_third_party_weights(self):
+        def model(source_type, name, score_field, score, rank):
+            return normalize_model(
+                {"tool": "Lab", "model": name, "scores": {score_field: score}},
+                source={"type": source_type, "source_id": f"{source_type}-{rank}", "rank": rank},
+            )
+
+        models = [
+            model("arena_webdev", "Alpha", "arena_webdev", 100, 1),
+            model("arena_webdev", "Beta", "arena_webdev", 0, 2),
+            model("artificial_analysis_model", "Alpha", "aa_model_intelligence", 0, 2),
+            model("artificial_analysis_model", "Beta", "aa_model_intelligence", 100, 1),
+            model("llm_stats", "Alpha", "llm_stats_score", 0, 2),
+            model("llm_stats", "Beta", "llm_stats_score", 100, 1),
+        ]
+        weights = {"artificial_analysis_model": 0.1, "arena_webdev": 0.8, "llm_stats": 0.1}
+        overview = build_model_overview(models, [], set(), weights=weights)
+
+        self.assertEqual(overview["weights"], weights)
+        self.assertEqual([row["model"] for row in overview["models"]], ["Alpha", "Beta"])
+        self.assertEqual([row["third_party_score"] for row in overview["models"]], [80, 20])
+
+    def test_third_party_weights_require_all_sources_and_total_100_percent(self):
+        self.assertEqual(normalize_third_party_weights(), {
+            "artificial_analysis_model": 0.5,
+            "arena_webdev": 0.35,
+            "llm_stats": 0.15,
+        })
+        with self.assertRaisesRegex(DashboardError, "必须包含"):
+            normalize_third_party_weights({"arena_webdev": 1})
+        with self.assertRaisesRegex(DashboardError, "合计必须为 100%"):
+            normalize_third_party_weights({
+                "artificial_analysis_model": 0.5,
+                "arena_webdev": 0.3,
+                "llm_stats": 0.1,
+            })
+
+    def test_zero_weight_source_is_not_required_for_model_ranking(self):
+        arena = normalize_model(
+            {"tool": "Arena", "model": "Alpha", "scores": {"arena_webdev": 1800}},
+            source={"type": "arena_webdev", "source_id": "alpha", "rank": 1},
+        )
+        overview = build_model_overview(
+            [arena],
+            [],
+            set(),
+            weights={"artificial_analysis_model": 0, "arena_webdev": 1, "llm_stats": 0},
+        )
+
+        self.assertEqual(overview["models"][0]["third_party_score"], 100)
+        self.assertEqual(overview["models"][0]["third_party_rank"], 1)
+
+    def test_model_overview_matches_aa_release_without_merging_efforts(self):
+        def model(source_type, name, score_field, score, rank, **source):
+            return normalize_model(
+                {"tool": "Anthropic", "model": name, "scores": {score_field: score}},
+                source={"type": source_type, "source_id": f"{source_type}-{rank}-{name}", "rank": rank, **source},
+            )
+
+        models = [
+            model("arena_webdev", "claude-fable-5.1-max", "arena_webdev", 1700, 1),
+            model("arena_webdev", "claude-opus-5-max", "arena_webdev", 1650, 2),
+            model(
+                "artificial_analysis_model",
+                "Claude Fable 5.1 (Adaptive Reasoning, Max Effort, Default Fallback)",
+                "aa_model_intelligence",
+                53,
+                1,
+                creator_name="Anthropic",
+                release={"slug": "claude-fable-5-1", "name": "Claude Fable 5.1"},
+            ),
+            model(
+                "artificial_analysis_model",
+                "Claude Fable 5.1 (Adaptive Reasoning, High Effort, Default Fallback)",
+                "aa_model_intelligence",
+                51,
+                3,
+                creator_name="Anthropic",
+                release={"slug": "claude-fable-5-1", "name": "Claude Fable 5.1"},
+            ),
+            model(
+                "artificial_analysis_model",
+                "Claude Opus 5 (Adaptive Reasoning, Max Effort)",
+                "aa_model_intelligence",
+                50,
+                2,
+                creator_name="Anthropic",
+                release={"slug": "claude-opus-5", "name": "Claude Opus 5"},
+            ),
+            model("llm_stats", "Claude Fable 5.1", "llm_stats_score", 56, 1),
+            model("llm_stats", "Claude Opus 5", "llm_stats_score", 54, 2),
+        ]
+
+        overview = build_model_overview(models, [], set())
+        rows = {(row["model_key"], row["reasoning_effort"]): row for row in overview["models"]}
+
+        self.assertEqual(set(rows), {
+            ("claude fable 5 1", "max"), ("claude fable 5 1", "high"), ("claude fable 5 1", "unknown"),
+            ("claude opus 5", "max"), ("claude opus 5", "unknown"),
+        })
+        fable_max = rows[("claude fable 5 1", "max")]
+        fable_high = rows[("claude fable 5 1", "high")]
+        self.assertEqual(fable_max["model"], "Claude Fable 5.1")
+        self.assertEqual(fable_max["sources"]["artificial_analysis_model"]["raw_score"], 53)
+        self.assertEqual(fable_high["sources"]["artificial_analysis_model"]["raw_score"], 51)
+        self.assertEqual(len(fable_max["sources"]["artificial_analysis_model"]["variants"]), 1)
+        self.assertNotIn("llm_stats", fable_max["sources"])
+        self.assertNotIn("arena_webdev", fable_high["sources"])
+        self.assertTrue(all(row["third_party_score"] is None for row in rows.values()))
 
     def test_agent_overview_matches_model_name_and_quantifies_shared_terminal_bench(self):
         baseline = normalize_model(
@@ -354,6 +470,14 @@ class ModelDashboardTests(unittest.TestCase):
             alias = store.save_model_alias("Opus 5", "Claude Opus 5")
             self.assertEqual(alias["canonical_key"], "claude opus 5")
             self.assertEqual(store.read()["model_aliases"]["opus 5"], "claude opus 5")
+            weights = store.save_leaderboard_weights({
+                "artificial_analysis_model": 0.2,
+                "arena_webdev": 0.7,
+                "llm_stats": 0.1,
+            })
+            self.assertEqual(weights["arena_webdev"], 0.7)
+            self.assertEqual(store.leaderboard_weights(), weights)
+            self.assertEqual(store.read()["meta"]["leaderboard_weights"], weights)
 
     def test_store_seeds_existing_leaderboard_as_legacy_history_baseline(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -391,8 +515,8 @@ class ModelDashboardTests(unittest.TestCase):
                 with urlopen(f"{base_url}/", timeout=3) as response:
                     html = response.read().decode("utf-8")
                     self.assertIn("模型能力台", html)
-                    self.assertIn("/static/brand/mark.svg", html)
-                    self.assertIn("/static/brand/favicon.svg", html)
+                    self.assertIn("/static/brand/mark.png", html)
+                    self.assertIn("/static/brand/favicon.ico", html)
                     self.assertIn("增加模型", html)
                     self.assertIn("录入使用人数", html)
                     self.assertIn("导入使用人数 CSV", html)
@@ -441,7 +565,33 @@ class ModelDashboardTests(unittest.TestCase):
                     self.assertIn('data-view="agent-reference"', html)
                     self.assertIn("function renderModelLeaderboardPage()", html)
                     self.assertIn("function renderAgentLeaderboardPage()", html)
-                    self.assertIn("Arena 35%", html)
+                    self.assertIn("function sourceDetailHref(model)", html)
+                    self.assertIn('parsed.hash = "artificial-analysis-coding-agent-index"', html)
+                    self.assertIn('source.slug || source.release?.slug', html)
+                    self.assertIn('parsed.pathname = `/models/${encodeURIComponent(slug)}`', html)
+                    self.assertIn("function leaderboardMetricLink(value, href, title)", html)
+                    self.assertIn("sourceDetailHref(agent)", html)
+                    self.assertIn("sourceDetailHref(baseline)", html)
+                    self.assertIn('`TB4 ${number(baseline.scores?.aa_model_terminal_bench_v4)}`', html)
+                    self.assertNotIn('el("strong", "", baseline.model)', html)
+                    self.assertIn("function leaderboardPodiumClass(rank)", html)
+                    self.assertIn("leaderboard-podium-1", html)
+                    self.assertIn("leaderboardPodiumClass(displayRank)", html)
+                    self.assertIn("纯 Artificial Analysis", html)
+                    self.assertIn("AA 官方名次", html)
+                    self.assertIn("leaderboardPodiumClass(source.rank)", html)
+                    self.assertIn("function leaderboardModelHref(source)", html)
+                    self.assertIn('target.pathname = `/models/${encodeURIComponent(slug)}`', html)
+                    self.assertIn('target.pathname = `/models/${encodeURIComponent(sourceId)}`', html)
+                    self.assertIn('target.searchParams.set("q", model)', html)
+                    self.assertIn('heading.rel = "noopener noreferrer"', html)
+                    self.assertIn('data-view="settings"', html)
+                    self.assertIn("function orderedModelLeaderboardSources(weights = {})", html)
+                    self.assertIn("function renderSettingsPage()", html)
+                    self.assertIn('api("/api/leaderboards/weights"', html)
+                    self.assertIn("Model 三方榜单权重", html)
+                    self.assertIn("三个来源均可设为 0%，但合计必须为 100%", html)
+                    self.assertIn('heading: "Arena", defaultWeight: .35', html)
                     self.assertIn('view: "recommendations"', html)
                     self.assertIn('function renderRecommendationsPage()', html)
                     self.assertIn('function renderRecommendationLogPage()', html)
@@ -527,11 +677,9 @@ class ModelDashboardTests(unittest.TestCase):
                     self.assertIn("code_plans", html)
                     self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
 
-                with urlopen(f"{base_url}/static/brand/mark.svg", timeout=3) as response:
-                    mark = response.read().decode("utf-8")
-                    self.assertIn('viewBox="0 0 32 32"', mark)
-                    self.assertIn("#245b45", mark)
-                    self.assertIn("image/svg+xml", response.headers["Content-Type"])
+                with urlopen(f"{base_url}/static/brand/mark.png", timeout=3) as response:
+                    self.assertEqual(response.headers["Content-Type"], "image/png")
+                    self.assertGreater(len(response.read()), 0)
 
                 for asset in ("vibe-coding-legion.png", "vibe-coding-legion-log.png"):
                     with self.subTest(asset=asset):
@@ -642,10 +790,12 @@ class ModelDashboardTests(unittest.TestCase):
                     url_origin(url)
 
     def test_resolve_static_path_allows_brand_assets_and_blocks_traversal(self):
-        mark = resolve_static_path("/static/brand/mark.svg")
-        self.assertIsNotNone(mark)
-        assert mark is not None
-        self.assertEqual(mark.name, "mark.svg")
+        for asset in ("mark.png", "apple-touch-icon.png", "favicon.ico"):
+            with self.subTest(asset=asset):
+                brand_asset = resolve_static_path(f"/static/brand/{asset}")
+                self.assertIsNotNone(brand_asset)
+                assert brand_asset is not None
+                self.assertEqual(brand_asset.name, asset)
         for asset in ("vibe-coding-legion.png", "vibe-coding-legion-log.png"):
             with self.subTest(asset=asset):
                 image = resolve_static_path(f"/static/art/{asset}")
@@ -933,9 +1083,37 @@ class ModelDashboardTests(unittest.TestCase):
                 self.assertEqual(models["weights"]["arena_webdev"], 0.35)
                 self.assertEqual(models["local_share"], 0.3)
 
+                with urlopen(f"{base_url}/api/leaderboards/weights", timeout=3) as response:
+                    self.assertEqual(json.load(response)["weights"], models["weights"])
+                configured = self._post_json(
+                    f"{base_url}/api/leaderboards/weights",
+                    {"weights": {
+                        "artificial_analysis_model": 0.2,
+                        "arena_webdev": 0.7,
+                        "llm_stats": 0.1,
+                    }},
+                )
+                self.assertEqual(configured["weights"]["arena_webdev"], 0.7)
+                with urlopen(f"{base_url}/api/leaderboards/models", timeout=3) as response:
+                    self.assertEqual(json.load(response)["weights"], configured["weights"])
+                with self.assertRaises(HTTPError) as raised:
+                    self._post_json(
+                        f"{base_url}/api/leaderboards/weights",
+                        {"weights": {
+                            "artificial_analysis_model": 0.2,
+                            "arena_webdev": 0.2,
+                            "llm_stats": 0.2,
+                        }},
+                    )
+                self.assertEqual(raised.exception.code, 400)
+                raised.exception.close()
+
                 with urlopen(f"{base_url}/api/leaderboards/agents", timeout=3) as response:
                     agents = json.load(response)
-                self.assertEqual(agents["count"], 0)
+                self.assertGreater(agents["count"], 0)
+                self.assertTrue(all(row["supplemental"] for row in agents["agents"]))
+                self.assertTrue(all(row["legion"]["matched"] for row in agents["agents"]))
+                self.assertTrue(all(not row["agent"]["scores"] for row in agents["agents"]))
 
                 with urlopen(f"{base_url}/api/leaderboards/arena_webdev", timeout=3) as response:
                     history = json.load(response)

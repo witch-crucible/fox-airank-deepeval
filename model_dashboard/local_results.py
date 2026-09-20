@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -40,6 +41,25 @@ def _read_text(path: Path, root: Path, max_length: int = 100_000) -> str:
     if not _inside(path, root):
         raise ValueError("路径超出本地运行目录")
     return path.read_text(encoding="utf-8")[:max_length]
+
+
+class _ExternalScriptParser(HTMLParser):
+    """Detect real script src attributes, ignoring comments and inline text."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.has_external_script = False
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() == "script" and any(name.lower() == "src" for name, _ in attrs):
+            self.has_external_script = True
+
+
+def _uses_external_script(content: str) -> bool:
+    parser = _ExternalScriptParser()
+    parser.feed(content)
+    parser.close()
+    return parser.has_external_script
 
 
 def _prompt_from_live_log(path: Path, root: Path) -> str:
@@ -90,6 +110,12 @@ def _pelican_preview(
         return None, missing
     if not path.is_file():
         return None, missing
+    try:
+        html = path.read_text(encoding="utf-8")
+        if _uses_external_script(html):
+            return None, "作品依赖外部脚本文件，当前仅支持单文件预览"
+    except (OSError, UnicodeError):
+        return None, "作品文件无法读取"
     initial = cases_root / "code_generation" / "pelican_bicycle" / "index.html"
     try:
         # Older prepare() calls copied local solutions into every workspace, even

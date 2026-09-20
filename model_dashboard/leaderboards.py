@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import re
 import unicodedata
+import math
 from collections import defaultdict
 from typing import Any, Iterable
 
+from .domain import DashboardError
+
 
 THIRD_PARTY_WEIGHTS = {
-    "arena_webdev": 0.35,
     "artificial_analysis_model": 0.50,
+    "arena_webdev": 0.35,
     "llm_stats": 0.15,
 }
 LOCAL_METRIC_WEIGHTS = {
@@ -26,12 +29,36 @@ SOURCE_SCORE_FIELDS = {
     "llm_stats": "llm_stats_score",
 }
 
-_EFFORT_SUFFIX = re.compile(
-    r"(?:\s*\((?:codex[- ]harness(?:,?\s*)?)?(?:none|minimal|low|medium|high|xhigh|max)\)"
-    r"|[-_ ](?:none|minimal|low|medium|high|xhigh|max))$",
-    re.IGNORECASE,
-)
 _NON_ALNUM = re.compile(r"[^a-z0-9]+")
+_EFFORT_WORD = r"(?:none|minimal|low|medium|xhigh|high|max|ultra)"
+
+_EFFORT_ALIASES = {
+    "无": "none", "无推理": "none", "non reasoning": "none", "non-reasoning": "none",
+    "none": "none", "minimal": "minimal", "最低": "minimal", "低": "low", "low": "low",
+    "中": "medium", "中等": "medium", "medium": "medium", "高": "high", "high": "high",
+    "xhigh": "xhigh", "extra high": "xhigh", "极高": "xhigh", "max": "max", "maximum": "max",
+    "ultra": "ultra", "超高": "ultra", "最高": "max", "non thinking": "none",
+}
+
+
+def normalize_reasoning_effort(value: Any) -> str:
+    """Return one stable effort name; undisclosed values are ``unknown``."""
+    if value is None or isinstance(value, bool):
+        return "unknown"
+    text = unicodedata.normalize("NFKC", str(value)).strip().casefold()
+    if text in {"", "unknown", "not disclosed", "undisclosed", "n/a", "na", "未知", "未注明", "未记录", "—"}:
+        return "unknown"
+    budget = re.fullmatch(r"(?:budget[ _-]*)?(\d+(?:\.\d+)?k?)(?:\s*tokens?)?", text)
+    if budget:
+        return f"budget_{budget.group(1)}"
+    combined = re.fullmatch(rf"({_EFFORT_WORD})/budget[ _-]*(\d+k?)", text)
+    if combined:
+        return f"{combined.group(1)}/budget_{combined.group(2)}"
+    text = re.sub(r"[_-]+", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"^(?:reasoning|thinking) effort\s*[:=]?\s*", "", text)
+    text = re.sub(r"\s+(?:reasoning |thinking )?effort$", "", text)
+    return _EFFORT_ALIASES.get(text, text)
 
 
 def _source_type(model: dict[str, Any]) -> str:
@@ -41,18 +68,65 @@ def _source_type(model: dict[str, Any]) -> str:
 
 def split_model_effort(name: Any) -> tuple[str, str]:
     text = unicodedata.normalize("NFKC", str(name or "")).strip()
-    text = re.sub(r"\s*\(codex[- ]harness\)\s*$", "", text, flags=re.I)
+    if "+" in text and len(re.findall(rf"\b{_EFFORT_WORD}\b", text, re.I)) > 1:
+        return text, ""
+    text = re.sub(r"(?:\s*\((?:codex[- ]harness|with fallback)\))+$", "", text, flags=re.I)
     effort = ""
-    while True:
-        match = _EFFORT_SUFFIX.search(text)
-        if not match:
-            break
-        suffix = match.group(0)
-        effort_match = re.search(r"(none|minimal|low|medium|high|xhigh|max)", suffix, re.I)
-        if effort_match and not effort:
-            effort = effort_match.group(1).casefold()
-        text = text[: match.start()].rstrip(" -_")
+    match = re.search(r"\s*\(([^()]*)\)$", text)
+    if match:
+        content = match.group(1).strip()
+        tokens = re.findall(rf"\b{_EFFORT_WORD}\b|极高|超高|最高|最低|高|中|低|无", content, re.I)
+        normalized = {normalize_reasoning_effort(token) for token in tokens}
+        candidate = normalize_reasoning_effort(content)
+        if len(normalized) == 1:
+            effort = normalized.pop()
+        elif candidate in {"none", "thinking", "reasoning", "adaptive reasoning"} or (
+            candidate.startswith("budget_") and re.search(r"\b(?:budget|tokens?)\b", content, re.I)
+        ):
+            effort = candidate
+        if effort:
+            text = text[:match.start()].rstrip(" -_")
+    # Max is a product tier in Qwen names, not an effort setting.
+    product_max = re.fullmatch(r"qwen[\d. -]+[-_ ]max", text, re.I)
+    match = re.search(rf"[-_ ]+(?P<effort>{_EFFORT_WORD}|non[-_ ](?:reasoning|thinking)|thinking|reasoning)(?:[-_ ](?P<budget>\d+k))?$", text, re.I)
+    if match and not product_max:
+        if not effort:
+            effort = normalize_reasoning_effort(match.group("effort"))
+            if match.group("budget"):
+                effort = f"{effort}/budget_{match.group('budget').casefold()}"
+        text = text[:match.start()].rstrip(" -_")
     return text.strip(), effort
+
+
+def model_configuration(record: dict[str, Any], aliases: dict[str, str] | None = None) -> tuple[str, str]:
+    """Return ``(canonical model family, normalized reasoning effort)``."""
+    family = _model_family_name(record, aliases)
+    creator = (record.get("source") or {}).get("organization") or (record.get("source") or {}).get("creator_name") or record.get("tool")
+    canonical = canonical_model_key(family, creator=creator, aliases=aliases)
+    explicit = record.get("reasoning_effort")
+    if explicit is None and isinstance(record.get("source"), dict) and "reasoning_effort" in record["source"]:
+        explicit = record["source"].get("reasoning_effort")
+    suffix_effort = normalize_reasoning_effort(split_model_effort(record.get("model"))[1])
+    effort = normalize_reasoning_effort(explicit) if explicit is not None else suffix_effort
+    # Normalizers historically materialize a literal ``unknown`` field. Treat
+    # that sentinel as undisclosed and retain an informative name suffix.
+    if effort == "unknown" and suffix_effort != "unknown":
+        effort = suffix_effort
+    return canonical, effort
+
+
+def _recommendation_entries(recommendations: Any) -> list[dict[str, Any]]:
+    """Accept the persisted plan object as well as a flat list."""
+    if isinstance(recommendations, list):
+        return [item for item in recommendations if isinstance(item, dict)]
+    if isinstance(recommendations, dict):
+        entries: list[dict[str, Any]] = []
+        for group in ("agent_plan", "coding_plan"):
+            value = recommendations.get(group)
+            if isinstance(value, list):
+                entries.extend(item for item in value if isinstance(item, dict))
+        return entries
+    return []
 
 
 def canonical_model_key(
@@ -63,8 +137,7 @@ def canonical_model_key(
 ) -> str:
     base, _ = split_model_effort(name)
     normalized = _NON_ALNUM.sub(" ", base.casefold()).strip()
-    creator_name = _NON_ALNUM.sub(" ", str(creator or "").casefold()).strip()
-    if creator_name in {"anthropic", "anthropic pbc"} and normalized.startswith(("opus ", "sonnet ", "haiku ")):
+    if normalized.startswith(("opus ", "sonnet ", "haiku ", "fable ")):
         normalized = f"claude {normalized}"
     alias_key = _NON_ALNUM.sub(" ", str(name or "").casefold()).strip()
     if aliases:
@@ -72,6 +145,20 @@ def canonical_model_key(
         if target:
             normalized = _NON_ALNUM.sub(" ", target.casefold()).strip()
     return normalized
+
+
+def _model_family_name(model: dict[str, Any], aliases: dict[str, str] | None = None) -> Any:
+    """Use AA's release identity while keeping explicit legacy aliases authoritative."""
+    raw_name = model.get("model")
+    raw_alias_key = _NON_ALNUM.sub(" ", str(raw_name or "").casefold()).strip()
+    if aliases and raw_alias_key in aliases:
+        return raw_name
+    if _source_type(model) == "artificial_analysis_model":
+        release = (model.get("source") or {}).get("release")
+        release_name = release.get("name") if isinstance(release, dict) else None
+        if isinstance(release_name, str) and release_name.strip():
+            return release_name.strip()
+    return raw_name
 
 
 def min_max_scores(values: Iterable[float]) -> dict[float, float]:
@@ -90,15 +177,40 @@ def _record_score(model: dict[str, Any], source_type: str) -> float | None:
     return float(value) if isinstance(value, (int, float)) else None
 
 
+def normalize_third_party_weights(raw: Any = None) -> dict[str, float]:
+    if raw is None:
+        return dict(THIRD_PARTY_WEIGHTS)
+    if not isinstance(raw, dict):
+        raise DashboardError("三方榜单权重必须是对象")
+    expected = set(THIRD_PARTY_WEIGHTS)
+    if set(raw) != expected:
+        raise DashboardError("三方榜单权重必须包含 AA、Arena 和 LLM Stats")
+    weights: dict[str, float] = {}
+    for source in THIRD_PARTY_WEIGHTS:
+        value = raw[source]
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+            raise DashboardError("三方榜单权重必须是有效数字")
+        numeric = float(value)
+        if numeric < 0 or numeric > 1:
+            raise DashboardError("三方榜单权重必须在 0 到 1 之间")
+        weights[source] = numeric
+    if not math.isclose(sum(weights.values()), 1.0, abs_tol=1e-9):
+        raise DashboardError("三方榜单权重合计必须为 100%")
+    return weights
+
+
 def build_model_overview(
     models: list[dict[str, Any]],
     local_records: list[dict[str, Any]],
     expected_cases: set[str],
     aliases: dict[str, str] | None = None,
+    weights: dict[str, float] | None = None,
+    recommendations: list[dict[str, Any]] | dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    effective_weights = normalize_third_party_weights(weights)
     source_records: dict[str, list[dict[str, Any]]] = {
         source: [model for model in models if _source_type(model) == source]
-        for source in THIRD_PARTY_WEIGHTS
+        for source in effective_weights
     }
     normalized_by_source: dict[str, dict[float, float]] = {}
     for source, records in source_records.items():
@@ -108,28 +220,32 @@ def build_model_overview(
     groups: dict[str, dict[str, Any]] = {}
     for source, records in source_records.items():
         for record in records:
-            source_meta = record.get("source") or {}
-            creator = source_meta.get("organization") or source_meta.get("creator_name") or record.get("tool")
-            canonical = canonical_model_key(record.get("model"), creator=creator, aliases=aliases)
+            family_name = _model_family_name(record, aliases)
+            canonical, effort = model_configuration(record, aliases)
             if not canonical:
                 continue
+            configuration_key = f"{canonical}:{effort}"
             group = groups.setdefault(
-                canonical,
+                configuration_key,
                 {
                     "model_key": canonical,
-                    "model": split_model_effort(record.get("model"))[0] or record.get("model"),
+                    "configuration_key": configuration_key,
+                    "reasoning_effort": effort,
+                    "model": split_model_effort(family_name)[0] or family_name,
                     "sources": {},
                     "third_party_score": None,
                     "third_party_rank": None,
                     "local_configurations": [],
                 },
             )
+            if family_name != record.get("model"):
+                group["model"] = split_model_effort(family_name)[0] or family_name
             group["sources"].setdefault(source, []).append(record)
 
     for group in groups.values():
         weighted = 0.0
         complete = True
-        for source, weight in THIRD_PARTY_WEIGHTS.items():
+        for source, weight in effective_weights.items():
             variants = group["sources"].get(source, [])
             variants.sort(
                 key=lambda item: (
@@ -138,16 +254,33 @@ def build_model_overview(
                 )
             )
             if not variants:
-                complete = False
+                if weight > 0:
+                    complete = False
                 continue
             representative = variants[0]
             raw_score = _record_score(representative, source)
             if raw_score is None:
-                complete = False
+                if weight > 0:
+                    complete = False
+                group["sources"][source] = {
+                    "representative": representative,
+                    "variants": variants,
+                    "raw_score": None,
+                    "normalized_score": None,
+                    "weight": weight,
+                }
                 continue
-            normalized = normalized_by_source[source].get(float(raw_score))
+            normalized = normalized_by_source.get(source, {}).get(float(raw_score))
             if normalized is None:
-                complete = False
+                if weight > 0:
+                    complete = False
+                group["sources"][source] = {
+                    "representative": representative,
+                    "variants": variants,
+                    "raw_score": raw_score,
+                    "normalized_score": None,
+                    "weight": weight,
+                }
                 continue
             weighted += normalized * weight
             group["sources"][source] = {
@@ -166,15 +299,15 @@ def build_model_overview(
             arena_meta = arena_source["representative"].get("source") or {}
             if arena_meta.get("input_price_per_m") is None and arena_meta.get("output_price_per_m") is None:
                 endpoints = (aa_source["representative"].get("source") or {}).get("variants") or []
-                _, arena_effort = split_model_effort(arena_source["representative"].get("model"))
+                arena_effort = model_configuration(arena_source["representative"], aliases)[1]
                 candidates = [
                     endpoint for endpoint in endpoints
                     if isinstance(endpoint, dict)
                     and (endpoint.get("input_price_per_m") is not None or endpoint.get("output_price_per_m") is not None)
                 ]
-                effort_matches = [endpoint for endpoint in candidates if split_model_effort(endpoint.get("name"))[1] == arena_effort]
-                if effort_matches or candidates:
-                    endpoint = (effort_matches or candidates)[0]
+                effort_matches = [endpoint for endpoint in candidates if normalize_reasoning_effort(split_model_effort(endpoint.get("name"))[1]) == arena_effort]
+                if effort_matches:
+                    endpoint = effort_matches[0]
                     arena_source["price_reference"] = {
                         "input_price_per_m": endpoint.get("input_price_per_m"),
                         "output_price_per_m": endpoint.get("output_price_per_m"),
@@ -185,10 +318,13 @@ def build_model_overview(
     local = build_local_scores(local_records, expected_cases, aliases=aliases)
     for configuration in local:
         canonical = configuration["model_key"]
+        configuration_key = configuration.get("configuration_key") or f"{canonical}:{configuration.get('reasoning_effort', 'unknown')}"
         group = groups.setdefault(
-            canonical,
+            configuration_key,
             {
                 "model_key": canonical,
+                "configuration_key": configuration_key,
+                "reasoning_effort": configuration.get("reasoning_effort", "unknown"),
                 "model": configuration["model"],
                 "sources": {},
                 "third_party_score": None,
@@ -208,6 +344,28 @@ def build_model_overview(
             else None
         )
         group["local_configurations"].append(configuration)
+
+    # Recommendations are configuration identities, never a score wildcard.
+    for recommendation in _recommendation_entries(recommendations):
+        canonical, effort = model_configuration(recommendation, aliases)
+        if not canonical:
+            continue
+        configuration_key = f"{canonical}:{effort}"
+        group = groups.setdefault(configuration_key, {
+            "model_key": canonical, "configuration_key": configuration_key,
+            "reasoning_effort": effort, "model": recommendation.get("model") or canonical,
+            "sources": {}, "third_party_score": None, "third_party_rank": None,
+            "local_configurations": [],
+        })
+        group.setdefault("legion", {"matched": False, "is_core": False, "entries": []})
+        group["legion"]["entries"].append(recommendation)
+        group["legion"]["matched"] = True
+        purposes = recommendation.get("core_purpose_types")
+        group["legion"]["is_core"] = group["legion"]["is_core"] or (bool(purposes) if isinstance(purposes, list) else bool(recommendation.get("is_core")))
+
+    for group in groups.values():
+        group.setdefault("legion", {"matched": False, "is_core": False, "entries": []})
+        group.setdefault("supplemental", not bool(group["sources"]) and bool(group["legion"]["entries"]))
 
     ranked = [group for group in groups.values() if group["third_party_score"] is not None]
     ranked.sort(key=lambda item: (-item["third_party_score"], item["model_key"]))
@@ -233,7 +391,7 @@ def build_model_overview(
         ),
     )
     return {
-        "weights": THIRD_PARTY_WEIGHTS,
+        "weights": effective_weights,
         "local_metric_weights": LOCAL_METRIC_WEIGHTS,
         "third_party_share": THIRD_PARTY_SHARE,
         "local_share": LOCAL_SHARE,
@@ -264,15 +422,16 @@ def build_local_scores(
             continue
         agent = str(record.get("agent") or record.get("tool") or "unknown")
         model = str(record.get("model") or "unknown")
-        effort = str(record.get("reasoning_effort") or "unknown")
-        key = (agent.casefold(), model.casefold(), effort.casefold())
+        canonical, effort = model_configuration(record, aliases)
+        key = (agent.casefold(), canonical, effort)
         score = sum(values[name] * weight for name, weight in LOCAL_METRIC_WEIGHTS.items())
         grouped[key][str(record.get("case_id") or "unknown")].append(score)
-        identity[key] = {"agent": agent, "model": model, "reasoning_effort": effort}
+        identity[key] = {"agent": agent, "model": split_model_effort(model)[0], "reasoning_effort": effort}
 
     result = []
     for key, cases in grouped.items():
         item = identity[key]
+        canonical, effort = model_configuration(item, aliases)
         case_scores = {case_id: round(sum(scores) / len(scores), 2) for case_id, scores in cases.items()}
         local_score = round(sum(case_scores.values()) / len(case_scores), 2)
         tested = set(case_scores)
@@ -281,7 +440,9 @@ def build_local_scores(
         result.append(
             {
                 **item,
-                "model_key": canonical_model_key(item["model"], aliases=aliases),
+                "model_key": canonical,
+                "configuration_key": f"{canonical}:{effort}",
+                "reasoning_effort": effort,
                 "local_score": local_score,
                 "case_scores": case_scores,
                 "case_count": len(tested),
@@ -296,53 +457,92 @@ def build_local_scores(
     return sorted(result, key=lambda item: (-item["local_score"], item["model_key"], item["agent"].casefold()))
 
 
-def build_agent_overview(models: list[dict[str, Any]]) -> dict[str, Any]:
-    baselines: dict[str, dict[str, Any]] = {}
-    baselines_by_name: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for model in models:
-        if _source_type(model) != "artificial_analysis_model":
-            continue
-        source = model.get("source") or {}
-        baselines_by_name[canonical_model_key(model.get("model"), creator=source.get("creator_name") or model.get("tool"))].append(model)
-        for variant in source.get("variants") or []:
-            if not isinstance(variant, dict):
-                continue
-            for value in (variant.get("slug"), variant.get("id")):
-                if value:
-                    baselines[str(value)] = model
+def _tool_key(value: Any) -> str:
+    text = _NON_ALNUM.sub(" ", str(value or "").casefold()).strip()
+    if text in {"codex", "codex cli", "codex harness"}:
+        return "codex"
+    if text in {"claude", "claude code"}:
+        return "claude"
+    return text
+
+
+def build_agent_overview(
+    models: list[dict[str, Any]],
+    recommendations: list[dict[str, Any]] | dict[str, Any] | None = None,
+    aliases: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    model_rows = build_model_overview(models, [], set(), aliases=aliases)["models"]
+    model_sources_index = {(row["model_key"], row["reasoning_effort"]): row["sources"] for row in model_rows}
+    model_sources_index = {
+        (row["model_key"], row["reasoning_effort"]): row["sources"]
+        for row in build_model_overview(models, [], set(), aliases=aliases)["models"]
+    }
     agents = [model for model in models if _source_type(model) == "artificial_analysis_agent"]
     agents.sort(key=lambda model: int((model.get("source") or {}).get("rank") or 10**9))
     rows = []
     for model in agents:
-        source = model.get("source") or {}
-        creator = source.get("creator") if isinstance(source.get("creator"), dict) else {}
-        canonical = canonical_model_key(model.get("model"), creator=creator.get("model"))
-        candidates = baselines_by_name.get(canonical, [])
-        agent_effort = str(model.get("reasoning_effort") or split_model_effort(model.get("model"))[1]).casefold()
-        exact = baselines.get(str(source.get("host_model_slug") or ""))
-        effort_matches = [candidate for candidate in candidates if str(candidate.get("reasoning_effort") or split_model_effort(candidate.get("model"))[1]).casefold() == agent_effort]
-        baseline = effort_matches[0] if effort_matches else exact or (candidates[0] if candidates else None)
-        baseline_effort = str(baseline.get("reasoning_effort") or split_model_effort(baseline.get("model"))[1]).casefold() if baseline else ""
-        same_configuration = baseline is not None and agent_effort == baseline_effort
+        canonical, effort = model_configuration(model, aliases)
+        sources = model_sources_index.get((canonical, effort), {})
+        baseline = (sources.get("artificial_analysis_model") or {}).get("representative")
         agent_score = (model.get("scores") or {}).get("aa_terminal_bench_v4")
         baseline_score = (baseline.get("scores") or {}).get("aa_model_terminal_bench_v4") if baseline else None
         uplift = (
             round(float(agent_score) - float(baseline_score), 2)
-            if same_configuration and isinstance(agent_score, (int, float)) and isinstance(baseline_score, (int, float))
+            if isinstance(agent_score, (int, float)) and isinstance(baseline_score, (int, float))
             else None
         )
-        rows.append(
-            {
-                "agent": model,
-                "baseline": baseline,
-                "terminal_bench_uplift": uplift,
-                "comparison_status": (
-                    "comparable_terminal_bench_v4"
-                    if uplift is not None
-                    else "baseline_not_matched" if baseline is None else "configuration_mismatch" if not same_configuration else "shared_metric_missing"
-                ),
+        rows.append({
+            "agent": model,
+            "model_key": canonical,
+            "reasoning_effort": effort,
+            "baseline": baseline,
+            "model_sources": sources,
+            "terminal_bench_uplift": uplift,
+            "comparison_status": (
+                "comparable_terminal_bench_v4" if uplift is not None
+                else "baseline_not_matched" if baseline is None else "shared_metric_missing"
+            ),
+            "supplemental": False,
+            "legion": {"matched": False, "is_core": False, "entries": []},
+        })
+
+    for recommendation in _recommendation_entries(recommendations):
+        canonical, effort = model_configuration(recommendation, aliases)
+        if not canonical:
+            continue
+        tool = _tool_key(recommendation.get("tool"))
+        purposes = recommendation.get("core_purpose_types")
+        is_core = bool(purposes) if isinstance(purposes, list) else bool(recommendation.get("is_core"))
+        matches = [
+            entry for entry in rows
+            if entry["model_key"] == canonical and entry["reasoning_effort"] == effort
+            and _tool_key(entry["agent"].get("tool")) == tool
+        ]
+        if not matches:
+            sources = model_sources_index.get((canonical, effort), {})
+            entry = {
+                "agent": {
+                    "tool": recommendation.get("tool") or "",
+                    "model": recommendation["model"],
+                    "reasoning_effort": effort,
+                    "scores": {},
+                    "source": {"type": "legion"},
+                },
+                "model_key": canonical,
+                "reasoning_effort": effort,
+                "baseline": (sources.get("artificial_analysis_model") or {}).get("representative"),
+                "terminal_bench_uplift": None,
+                "comparison_status": "supplemental",
+                "supplemental": True,
+                "model_sources": sources,
+                "legion": {"matched": False, "is_core": False, "entries": []},
             }
-        )
+            rows.append(entry)
+            matches = [entry]
+        for entry in matches:
+            entry["legion"]["matched"] = True
+            entry["legion"]["is_core"] = entry["legion"]["is_core"] or is_core
+            entry["legion"]["entries"].append(recommendation)
     return {"agents": rows, "count": len(rows)}
 
 

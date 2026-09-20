@@ -148,6 +148,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     local.get("records", []),
                     expected_case_ids(self.server.cases_root),
                     aliases=data.get("model_aliases"),
+                    weights=self.dashboard_store.leaderboard_weights(),
+                    recommendations=data.get("recommendations"),
                 )
                 overview["snapshots"] = {
                     source: self.dashboard_store.leaderboard_snapshots(source)
@@ -158,10 +160,18 @@ class DashboardHandler(BaseHTTPRequestHandler):
             except DashboardError as error:
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
             return
+        if path == "/api/leaderboards/weights":
+            try:
+                self._send_json(HTTPStatus.OK, {"weights": self.dashboard_store.leaderboard_weights()})
+            except DashboardError as error:
+                self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+            return
         if path == "/api/leaderboards/agents":
             try:
                 data = self.dashboard_store.read()
-                overview = build_agent_overview(data["models"])
+                overview = build_agent_overview(
+                    data["models"], recommendations=data.get("recommendations"), aliases=data.get("model_aliases")
+                )
                 overview["snapshots"] = self.dashboard_store.leaderboard_snapshots("artificial_analysis_agent")
                 self._send_json(HTTPStatus.OK, overview)
             except DashboardError as error:
@@ -229,6 +239,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         try:
             payload = self._read_json_body()
+            if path == "/api/leaderboards/legion/refresh":
+                self._refresh_legion_leaderboards(payload)
+                return
             if path == "/api/models":
                 model = self.dashboard_store.add_model(payload)
                 self._send_json(HTTPStatus.CREATED, {"model": model})
@@ -253,6 +266,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     raise DashboardError("请求数据必须是对象")
                 alias = self.dashboard_store.save_model_alias(payload.get("alias"), payload.get("canonical"))
                 self._send_json(HTTPStatus.OK, {"alias": alias})
+                return
+            if path == "/api/leaderboards/weights":
+                if not isinstance(payload, dict):
+                    raise DashboardError("请求数据必须是对象")
+                weights = self.dashboard_store.save_leaderboard_weights(payload.get("weights"))
+                self._send_json(HTTPStatus.OK, {"weights": weights})
                 return
             if path == "/api/agent-usage/import":
                 self._import_agent_usage(payload)
@@ -322,6 +341,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def _import_arena_webdev(self, payload: Any) -> None:
         if not isinstance(payload, dict):
             raise DashboardError("请求数据必须是对象")
+        self._send_json(HTTPStatus.OK, self._sync_leaderboard("arena_webdev"))
+
+    def _fetch_arena_webdev(self) -> list[dict[str, Any]]:
         first = self.json_fetcher(ARENA_DATASET_URL, None)
         if not isinstance(first, dict) or not isinstance(first.get("rows"), list):
             raise DashboardError("Arena WebDev 数据格式无效")
@@ -344,33 +366,84 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 prices.update(normalize_arena_webdev_prices(self.text_fetcher(ARENA_WEBDEV_URL)))
             except DashboardError:
                 pass
-        models = normalize_arena_webdev_rows(document, prices=prices)
-        result = self.dashboard_store.sync_arena_webdev(models)
-        self._send_json(HTTPStatus.OK, {**result, "received": len(models)})
+        return normalize_arena_webdev_rows(document, prices=prices)
 
     def _import_artificial_analysis(self, payload: Any) -> None:
         if not isinstance(payload, dict):
             raise DashboardError("请求数据必须是对象")
-        document = self.text_fetcher(ARTIFICIAL_ANALYSIS_URL)
-        models = normalize_artificial_analysis_html(document)
-        result = self.dashboard_store.sync_artificial_analysis(models)
-        self._send_json(HTTPStatus.OK, {**result, "received": len(models)})
+        self._send_json(HTTPStatus.OK, self._sync_leaderboard("artificial_analysis_agent"))
 
     def _import_artificial_analysis_models(self, payload: Any) -> None:
         if not isinstance(payload, dict):
             raise DashboardError("请求数据必须是对象")
-        document = self.text_fetcher(ARTIFICIAL_ANALYSIS_MODELS_URL)
-        models = normalize_artificial_analysis_models_html(document, self.binary_fetcher)
-        result = self.dashboard_store.sync_artificial_analysis_models(models)
-        self._send_json(HTTPStatus.OK, {**result, "received": len(models)})
+        self._send_json(HTTPStatus.OK, self._sync_leaderboard("artificial_analysis_model"))
 
     def _import_llm_stats(self, payload: Any) -> None:
         if not isinstance(payload, dict):
             raise DashboardError("请求数据必须是对象")
-        document = self.json_fetcher(LLM_STATS_INDEX_URL, None)
-        models = normalize_llm_stats_indexes(document)
-        result = self.dashboard_store.sync_llm_stats(models)
-        self._send_json(HTTPStatus.OK, {**result, "received": len(models)})
+        self._send_json(HTTPStatus.OK, self._sync_leaderboard("llm_stats"))
+
+    def _sync_leaderboard(self, source: str) -> dict[str, Any]:
+        if source == "arena_webdev":
+            models = self._fetch_arena_webdev()
+            result = self.dashboard_store.sync_arena_webdev(models)
+        elif source == "artificial_analysis_agent":
+            models = normalize_artificial_analysis_html(self.text_fetcher(ARTIFICIAL_ANALYSIS_URL))
+            result = self.dashboard_store.sync_artificial_analysis(models)
+        elif source == "artificial_analysis_model":
+            models = normalize_artificial_analysis_models_html(
+                self.text_fetcher(ARTIFICIAL_ANALYSIS_MODELS_URL), self.binary_fetcher
+            )
+            result = self.dashboard_store.sync_artificial_analysis_models(models)
+        elif source == "llm_stats":
+            models = normalize_llm_stats_indexes(self.json_fetcher(LLM_STATS_INDEX_URL, None))
+            result = self.dashboard_store.sync_llm_stats(models)
+        else:
+            raise DashboardError("未知榜单来源")
+        return {**result, "received": len(models)}
+
+    def _legion_coverage(self) -> dict[str, Any]:
+        data = self.dashboard_store.read()
+        options = {"recommendations": data.get("recommendations"), "aliases": data.get("model_aliases")}
+        models = build_model_overview(data["models"], [], set(), **options)["models"]
+        agents = build_agent_overview(data["models"], **options)["agents"]
+        missing_models = []
+        for row in models:
+            if not row.get("legion", {}).get("matched"):
+                continue
+            missing = [
+                source for source in ("artificial_analysis_model", "arena_webdev", "llm_stats")
+                if not isinstance(row["sources"].get(source), dict)
+                or row["sources"][source].get("raw_score") is None
+            ]
+            if missing:
+                missing_models.append({"model": row["model"], "reasoning_effort": row["reasoning_effort"], "sources": missing})
+        missing_agents = [
+            {"tool": row["agent"]["tool"], "model": row["agent"]["model"], "reasoning_effort": row["reasoning_effort"]}
+            for row in agents if row.get("legion", {}).get("matched")
+            and (row["agent"].get("scores") or {}).get("artificial_analysis_index") is None
+        ]
+        return {"missing_models": missing_models, "missing_agents": missing_agents}
+
+    def _refresh_legion_leaderboards(self, payload: Any) -> None:
+        if not isinstance(payload, dict):
+            raise DashboardError("请求数据必须是对象")
+        coverage = self._legion_coverage()
+        needed = {source for row in coverage["missing_models"] for source in row["sources"]}
+        if coverage["missing_agents"]:
+            needed.add("artificial_analysis_agent")
+        results = []
+        # Fetch each missing source once from its complete catalog. Keeping complete
+        # snapshots preserves the min-max score population and the published ranks.
+        for source in ("artificial_analysis_model", "arena_webdev", "llm_stats", "artificial_analysis_agent"):
+            if source not in needed:
+                continue
+            try:
+                results.append({"source": source, "status": "updated", **self._sync_leaderboard(source)})
+            except DashboardError as error:
+                results.append({"source": source, "status": "failed", "error": str(error)})
+        result = {"sources": results, **self._legion_coverage()}
+        self._send_json(HTTPStatus.OK, result)
 
     def _import_benchmark(self, payload: Any) -> None:
         if not isinstance(payload, dict):

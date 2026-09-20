@@ -24,7 +24,7 @@ class LocalDisplayTests(unittest.TestCase):
             **overrides,
         }
 
-    def displayed(self, records, mode="best", search="", case_id=PELICAN_CASE):
+    def displayed(self, records, mode="best", search="", case_id=PELICAN_CASE, require_preview=False):
         script = r"""
             const fs = require("node:fs");
             const vm = require("node:vm");
@@ -37,7 +37,7 @@ class LocalDisplayTests(unittest.TestCase):
             if (start < 0 || end < 0) throw new Error("Local display functions missing");
             const context = vm.createContext({ state });
             vm.runInContext(source.slice(start, end), context);
-            const records = vm.runInContext("visibleLocalRecords()", context);
+            const records = vm.runInContext("visibleLocalRecords(undefined, state.require_preview)", context);
             process.stdout.write(JSON.stringify(records));
         """
         result = subprocess.run(
@@ -47,6 +47,7 @@ class LocalDisplayTests(unittest.TestCase):
                 "localHistory": mode,
                 "localSearch": search,
                 "localCase": case_id,
+                "require_preview": require_preview,
             }),
             text=True,
             capture_output=True,
@@ -135,6 +136,23 @@ class LocalDisplayTests(unittest.TestCase):
         self.assertEqual(self.displayed(records, search="SAMPLE-MODEL"), [best])
         self.assertEqual(self.displayed(records, search="latest-lower"), [])
         self.assertEqual(self.displayed(records, mode="all", search="latest-lower"), [latest])
+
+    def test_showcase_filters_previews_before_best_selection(self):
+        scored_without_preview = self.record("older-scored", 0, preview_url=None, evaluated=True)
+        newer_ungraded_preview = self.record("newer-preview", None, preview_url="/preview/newer", evaluated=False, elapsed_seconds=2065)
+        records = [newer_ungraded_preview, scored_without_preview]
+
+        self.assertEqual(self.displayed(records), [scored_without_preview])
+        self.assertEqual(self.displayed(records, require_preview=True), [newer_ungraded_preview])
+
+    def test_showcase_preview_filter_keeps_latest_and_effort_groups(self):
+        high = self.record("high-preview", .4, reasoning_effort="high")
+        low_without_preview = self.record("low-scored", .9, reasoning_effort="low", preview_url=None)
+        low_preview = self.record("low-preview", None, reasoning_effort="low")
+        records = [high, low_preview, low_without_preview]
+
+        self.assertEqual(self.displayed(records, mode="latest", require_preview=True), [high, low_preview])
+        self.assertEqual(self.displayed(records, mode="all", require_preview=True), [high, low_preview])
 
     def test_other_cases_keep_latest_per_configuration(self):
         pelican = self.record("pelican", 1)

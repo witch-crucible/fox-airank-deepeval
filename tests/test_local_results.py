@@ -144,6 +144,38 @@ class LocalResultsTests(unittest.TestCase):
         self.assertIsNotNone(record["preview_url"])
         self.assertIsNone(record["preview_unavailable_reason"])
 
+    def test_external_script_shell_is_not_a_preview(self):
+        (self.workspace / "index.html").write_text(
+            '<script src="dist/bundle.js"></script>', encoding="utf-8"
+        )
+
+        record = self.collect()["records"][0]
+
+        self.assertIsNone(record["preview_url"])
+        self.assertIn("单文件", record["preview_unavailable_reason"])
+        with patch("model_dashboard.local_results.CASES_ROOT", self.root / "empty-cases"):
+            self.assertIsNone(resolve_pelican_preview(self.runs, "sample", "codex"))
+
+    def test_external_script_after_read_limit_is_not_a_preview(self):
+        (self.workspace / "index.html").write_text(
+            "<!-- padding -->" * 10_000 + '<script src="dist/bundle.js"></script>',
+            encoding="utf-8",
+        )
+
+        record = self.collect()["records"][0]
+
+        self.assertIsNone(record["preview_url"])
+        self.assertIn("外部脚本", record["preview_unavailable_reason"])
+
+    def test_script_text_and_comments_do_not_trigger_external_script_check(self):
+        (self.workspace / "index.html").write_text(
+            "<!-- <script src='comment.js'></script> -->"
+            "<script>const text = '<script src=\\\"text.js\\\">';</script>",
+            encoding="utf-8",
+        )
+
+        self.assertIsNotNone(self.collect()["records"][0]["preview_url"])
+
     def test_identity_scoped_previews_keep_each_models_own_html(self):
         identities = {
             "first": {"agent": "Agent", "model": "model-a", "intelligence": "high"},

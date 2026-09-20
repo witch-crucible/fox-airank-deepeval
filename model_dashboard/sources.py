@@ -19,6 +19,7 @@ from .domain import (
     optional_text,
     utc_now,
 )
+from .leaderboards import normalize_reasoning_effort, split_model_effort
 
 
 MAX_BODY_BYTES = 2 * 1024 * 1024
@@ -55,11 +56,7 @@ def arena_price_key(value: Any) -> str:
 
 
 def model_effort(value: Any) -> str:
-    efforts = {
-        match.casefold()
-        for match in re.findall(r"\((?:[^()]*,\s*)?(none|minimal|low|medium|high|xhigh|max)(?:\s+effort)?\)", str(value or ""), flags=re.I)
-    }
-    return next(iter(efforts)) if len(efforts) == 1 else ""
+    return split_model_effort(value)[1]
 
 
 def url_origin(url: str) -> tuple[str, str, int | None]:
@@ -157,6 +154,7 @@ def normalize_arena_webdev_rows(
                 {
                     "tool": "Arena WebDev",
                     "model": model_name,
+                    "reasoning_effort": optional_text(row.get("reasoning_effort"), "reasoning_effort", 80) or model_effort(model_name),
                     "scores": {"arena_webdev": rating},
                     "notes": notes,
                 },
@@ -607,6 +605,9 @@ def normalize_llm_stats_indexes(
                 {
                     "tool": organization or "LLM Stats",
                     "model": model_name,
+                    "reasoning_effort": normalize_reasoning_effort(
+                        optional_text(row.get("reasoning_effort"), "reasoning_effort", 80) or model_effort(model_name)
+                    ),
                     "scores": scores,
                     "notes": f"LLM Stats Score 第 {rank} 名",
                 },
