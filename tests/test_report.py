@@ -4,11 +4,16 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from benchmark.report import (
+    ToolSummary,
     collect_history,
     collect_run_report,
+    collect_tool_summary,
     execution_time_score,
     latest_test_run,
+    load_test_run,
+    render_history_html,
     render_history_markdown,
+    render_html,
     render_markdown,
     write_history_report,
     write_run_report,
@@ -90,9 +95,10 @@ class LatestTestRunTests(unittest.TestCase):
         with TemporaryDirectory() as raw:
             tool_dir = Path(raw) / "deepeval" / "codex"
             tool_dir.mkdir(parents=True)
-            for name in ("test_run_20260829_090000.json", "test_run_20260829_100000.json", "notes.json"):
+            for name in ("test_run_20260829_090000.json", "test_run_20260829_100000.json", "notes.json", "test_run_notes.json"):
                 (tool_dir / name).write_text("{}", encoding="utf-8")
             latest = latest_test_run(tool_dir)
+            self.assertIsNotNone(latest)
             assert latest is not None
             self.assertEqual(latest.name, "test_run_20260829_100000.json")
 
@@ -171,7 +177,7 @@ class RenderMarkdownTests(unittest.TestCase):
             report = collect_run_report(root / "run-1", ())
             markdown = render_markdown(report)
             self.assertIn("评测对比报告：run-1", markdown)
-            self.assertIn("| Codex CLI | gpt-5.6-sol | high | 0 / 1 | 0% |", markdown)
+            self.assertIn("| codex | Codex CLI | gpt-5.6-sol | high | 0 / 1 | 0% |", markdown)
             self.assertIn("0.90 ✓", markdown)
             self.assertIn("0.50 ✗", markdown)
             self.assertIn("❌ 未通过", markdown)
@@ -186,6 +192,71 @@ class RenderMarkdownTests(unittest.TestCase):
             (root / "run-1").mkdir()
             markdown = render_markdown(collect_run_report(root / "run-1", ()))
             self.assertIn("没有找到任何 DeepEval 评测产物", markdown)
+
+
+class RenderHtmlTests(unittest.TestCase):
+    def test_html_contains_matrix_and_conclusion(self) -> None:
+        with TemporaryDirectory() as raw:
+            root = Path(raw)
+            build_run(
+                root,
+                "run-1",
+                "codex",
+                "draw-pelican-bicycle",
+                {
+                    "Task Correctness [GEval]": 0.9,
+                    "Robustness, Safety and Regression [GEval]": 0.75,
+                    "Delivery Evidence [GEval]": 0.5,
+                },
+                identity={"agent": "Codex CLI", "model": "gpt-5.6-sol", "intelligence": "high"},
+            )
+            report = collect_run_report(root / "run-1", ())
+            html = render_html(report)
+            self.assertIn("<!doctype html>", html)
+            self.assertIn("<title>评测对比报告：run-1</title>", html)
+            self.assertIn("Codex CLI", html)
+            self.assertIn("gpt-5.6-sol", html)
+            self.assertIn("draw-pelican-bicycle", html)
+            self.assertIn("平均执行耗时", html)
+            # 通过/未通过结论以 CSS 徽章渲染，不依赖 emoji
+            self.assertIn('class="badge pass"', html)
+            self.assertIn('class="badge fail"', html)
+            self.assertIn("99.31", html)
+            # 自包含：内联样式，不引用外部资源
+            self.assertNotIn("http://", html)
+            self.assertNotIn("https://", html)
+            self.assertNotIn("<link", html)
+            self.assertNotIn("<script", html)
+
+    def test_html_without_artifacts(self) -> None:
+        with TemporaryDirectory() as raw:
+            root = Path(raw)
+            (root / "run-1").mkdir()
+            html = render_html(collect_run_report(root / "run-1", ()))
+            self.assertIn("没有找到任何 DeepEval 评测产物", html)
+
+    def test_history_html_across_runs(self) -> None:
+        with TemporaryDirectory() as raw:
+            root = Path(raw)
+            build_run(
+                root, "run-a", "codex", "draw-pelican-bicycle",
+                {"Task Correctness [GEval]": 0.9, "Robustness, Safety and Regression [GEval]": 0.8, "Delivery Evidence [GEval]": 0.8},
+                identity={"agent": "Codex CLI", "model": "gpt-5.6-sol", "intelligence": "high"},
+            )
+            build_run(
+                root, "run-b", "claude", "draw-pelican-bicycle",
+                {"Task Correctness [GEval]": 0.95, "Robustness, Safety and Regression [GEval]": 0.85, "Delivery Evidence [GEval]": 0.9},
+                identity={"agent": "Claude Code", "model": "claude-4.5", "intelligence": "high"},
+            )
+            (root / "empty-run").mkdir()
+            history = collect_history(root)
+            html = render_history_html(history)
+            self.assertIn("<title>跨 run 历史对比</title>", html)
+            self.assertIn("run-a", html)
+            self.assertIn("run-b", html)
+            self.assertIn("Codex CLI", html)
+            self.assertIn("Claude Code", html)
+            self.assertIn("耗时分", html)
 
 
 class HistoryTests(unittest.TestCase):
@@ -222,13 +293,102 @@ class HistoryTests(unittest.TestCase):
             report = write_run_report(run_dir, ("codex",))
             history = write_history_report(root)
             self.assertTrue((run_dir / "report.md").is_file())
+            self.assertTrue((run_dir / "report.html").is_file())
             self.assertTrue((run_dir / "report.json").is_file())
             self.assertTrue((root / "history-report.md").is_file())
+            self.assertTrue((root / "history-report.html").is_file())
             self.assertTrue((root / "history-report.json").is_file())
             self.assertEqual(len(history), 1)
             reloaded = json.loads((root / "history-report.json").read_text(encoding="utf-8"))
             self.assertEqual(len(reloaded["runs"]), 1)
             self.assertEqual(report["run_id"], "run-a")
+
+    def test_write_html_only_format_skips_markdown(self) -> None:
+        with TemporaryDirectory() as raw:
+            root = Path(raw)
+            build_run(
+                root, "run-a", "codex", "draw-pelican-bicycle",
+                {"Task Correctness [GEval]": 0.9, "Robustness, Safety and Regression [GEval]": 0.8, "Delivery Evidence [GEval]": 0.8},
+            )
+            run_dir = root / "run-a"
+            write_run_report(run_dir, ("codex",), formats=("html",))
+            self.assertTrue((run_dir / "report.html").is_file())
+            self.assertFalse((run_dir / "report.md").is_file())
+            self.assertTrue((run_dir / "report.json").is_file())
+            write_history_report(root, formats=("html",))
+            self.assertTrue((root / "history-report.html").is_file())
+            self.assertFalse((root / "history-report.md").is_file())
+
+
+class ModelTestTotalTests(unittest.TestCase):
+    def _logic_only_summary(self) -> ToolSummary:
+        from benchmark.report import CaseRow
+
+        rows = [
+            CaseRow(
+                case_id="logic-case",
+                title="逻辑",
+                category="logic_analysis",
+                metrics={"Task Correctness": {"score": 0.8, "success": True}},
+                passed=True,
+                evaluated=True,
+            )
+        ]
+        return ToolSummary(
+            tool="codex", agent="a", model="m", intelligence="high",
+            test_run_file=None, run_duration_seconds=None,
+            judge_model=None, metric_version=None, rows=rows,
+        )
+
+    def test_missing_categories_use_present_weights(self) -> None:
+        summary = self._logic_only_summary()
+        self.assertEqual(summary.model_test_score("logic"), 80.0)
+        self.assertIsNone(summary.model_test_score("correction"))
+        self.assertIsNone(summary.model_test_score("generation"))
+        self.assertEqual(summary.model_test_total, 80.0)
+
+    def test_empty_summary_total_is_none(self) -> None:
+        summary = ToolSummary(
+            tool="codex", agent="a", model="m", intelligence="high",
+            test_run_file=None, run_duration_seconds=None,
+            judge_model=None, metric_version=None, rows=[],
+        )
+        self.assertIsNone(summary.model_test_total)
+
+    def test_corrupt_test_run_raises_with_context(self) -> None:
+        with TemporaryDirectory() as raw:
+            root = Path(raw)
+            run_dir = root / "run-bad"
+            tool_dir = run_dir / "deepeval" / "codex"
+            tool_dir.mkdir(parents=True)
+            (tool_dir / "test_run_20260829_090000.json").write_text("{broken", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "损坏"):
+                collect_tool_summary(run_dir, "codex")
+
+    def test_corrupt_latest_falls_back_to_previous(self) -> None:
+        with TemporaryDirectory() as raw:
+            root = Path(raw)
+            run_dir = build_run(
+                root, "run-1", "codex", "draw-pelican-bicycle",
+                {"Task Correctness [GEval]": 0.9},
+            )
+            tool_dir = run_dir / "deepeval" / "codex"
+            (tool_dir / "test_run_20260829_100000.json").write_text("{broken", encoding="utf-8")
+            summary = collect_tool_summary(run_dir, "codex")
+            self.assertEqual(summary.test_run_file, "test_run_20260829_090000.json")
+            self.assertEqual(summary.evaluated, 1)
+
+    def test_load_test_run_rejects_corrupt_json(self) -> None:
+        with TemporaryDirectory() as raw:
+            bad = Path(raw) / "bad.json"
+            bad.write_text("{broken", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "无法解析"):
+                load_test_run(bad)
+
+    def test_empty_metrics_render_no_spurious_column(self) -> None:
+        report = collect_run_report(Path("/nonexistent-run"), ("codex",))
+        markdown = render_markdown(report)
+        self.assertIn("没有找到任何 DeepEval 评测产物", markdown)
 
 
 if __name__ == "__main__":

@@ -471,8 +471,8 @@ def build_agent_overview(
     recommendations: list[dict[str, Any]] | dict[str, Any] | None = None,
     aliases: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    model_rows = build_model_overview(models, [], set(), aliases=aliases)["models"]
-    model_sources_index = {(row["model_key"], row["reasoning_effort"]): row["sources"] for row in model_rows}
+    # One overview pass feeds both indexes: the agent rows and Legion coverage
+    # share the same min-max normalizations.
     model_sources_index = {
         (row["model_key"], row["reasoning_effort"]): row["sources"]
         for row in build_model_overview(models, [], set(), aliases=aliases)["models"]
@@ -543,7 +543,114 @@ def build_agent_overview(
             entry["legion"]["matched"] = True
             entry["legion"]["is_core"] = entry["legion"]["is_core"] or is_core
             entry["legion"]["entries"].append(recommendation)
-    return {"agents": rows, "count": len(rows)}
+    # Keep the historical flat representation above: clients use it for
+    # configuration-level details.  The grouped view is deliberately derived
+    # from those rows so its Legion matching cannot broaden the old identity
+    # (tool + model + effort) semantics.
+    purpose_order = list((recommendations or {}).get("purpose_types", [])) if isinstance(recommendations, dict) else []
+    if not purpose_order:
+        purpose_order = ["Ask", "Plan", "Build", "Review", "Ship"]
+    purpose_rank = {purpose: index for index, purpose in enumerate(purpose_order)}
+
+    groups: dict[str, dict[str, Any]] = {}
+    for configuration in rows:
+        tool_key = _tool_key(configuration["agent"].get("tool"))
+        group = groups.setdefault(
+            tool_key,
+            {
+                "agent_key": tool_key,
+                "agent": configuration["agent"].get("tool") or tool_key,
+                "configurations": [],
+                "configuration_count": 0,
+                "legion": {
+                    "matched": False,
+                    "is_core": False,
+                    "entries": [],
+                    "primary_purpose_types": [],
+                    "secondary_purpose_types": [],
+                    "core_purpose_types": [],
+                },
+            },
+        )
+        group["configurations"].append(configuration)
+
+    def config_order(item: dict[str, Any]) -> tuple[int, int, str, str]:
+        source_type = str((item["agent"].get("source") or {}).get("type") or "")
+        supplemental = bool(item.get("supplemental")) or source_type == "legion"
+        rank = (item["agent"].get("source") or {}).get("rank")
+        numeric_rank = int(rank) if isinstance(rank, (int, float)) else 10**9
+        return (1 if supplemental else 0, numeric_rank, item["model_key"], item["reasoning_effort"])
+
+    def ordered_unique(values: Iterable[str]) -> list[str]:
+        seen: set[str] = set()
+        return [value for value in sorted((str(value) for value in values if value), key=lambda value: (purpose_rank.get(value, 10**9), value)) if not (value in seen or seen.add(value))]
+
+    def row_score(item: dict[str, Any]) -> float | None:
+        value = (item["agent"].get("scores") or {}).get("artificial_analysis_index")
+        return float(value) if isinstance(value, (int, float)) else None
+
+    def best_configuration(configurations: list[dict[str, Any]], value_getter: Any) -> tuple[float | None, dict[str, Any] | None]:
+        candidates = [(value_getter(item), item) for item in configurations]
+        candidates = [(value, item) for value, item in candidates if value is not None]
+        if not candidates:
+            return None, None
+        candidates.sort(key=lambda pair: (-pair[0], config_order(pair[1])))
+        return candidates[0]
+
+    for group in groups.values():
+        configurations = sorted(group["configurations"], key=config_order)
+        group["configurations"] = configurations
+        group["configuration_count"] = len(configurations)
+        score, score_configuration = best_configuration(configurations, row_score)
+        uplift, uplift_configuration = best_configuration(
+            configurations,
+            lambda item: item.get("terminal_bench_uplift")
+            if isinstance(item.get("terminal_bench_uplift"), (int, float))
+            else None,
+        )
+        group["score_sort_value"] = score
+        group["score_sort_configuration"] = score_configuration
+        group["uplift_sort_value"] = uplift
+        group["uplift_sort_configuration"] = uplift_configuration
+
+        legion = group["legion"]
+        matched_entries: list[dict[str, Any]] = []
+        for configuration in configurations:
+            config_legion = configuration.get("legion") or {}
+            if not config_legion.get("matched"):
+                continue
+            legion["matched"] = True
+            legion["is_core"] = legion["is_core"] or bool(config_legion.get("is_core"))
+            matched_entries.extend(config_legion.get("entries") or [])
+        legion["entries"] = matched_entries
+        primary: list[str] = []
+        secondary: list[str] = []
+        core: list[str] = []
+        for entry in matched_entries:
+            entry_primary = entry.get("primary_purpose_types")
+            entry_secondary = entry.get("secondary_purpose_types")
+            entry_core = entry.get("core_purpose_types")
+            if isinstance(entry_primary, list):
+                primary.extend(str(value) for value in entry_primary)
+            if isinstance(entry_secondary, list):
+                secondary.extend(str(value) for value in entry_secondary)
+            if isinstance(entry_core, list):
+                core.extend(str(value) for value in entry_core)
+            if not isinstance(entry_core, list) and entry.get("is_core"):
+                legion["is_core"] = True
+        primary_values = set(primary)
+        legion["primary_purpose_types"] = ordered_unique(primary)
+        legion["secondary_purpose_types"] = ordered_unique(value for value in secondary if value not in primary_values)
+        legion["core_purpose_types"] = ordered_unique(core)
+
+    def group_order(group: dict[str, Any]) -> tuple[Any, ...]:
+        score = group["score_sort_value"]
+        uplift = group["uplift_sort_value"]
+        score_rank = config_order(group["score_sort_configuration"])[1] if group["score_sort_configuration"] else 10**9
+        return (score is None, -(score or 0), score_rank, group["agent"].casefold())
+
+    grouped = sorted(groups.values(), key=group_order)
+    return {"agents": rows, "count": len(rows), "agent_groups": grouped, "group_count": len(grouped)}
 
 
 def snapshot_row_key(row: dict[str, Any]) -> str:

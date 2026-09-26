@@ -144,6 +144,63 @@ class LeaderboardConfigurationTests(unittest.TestCase):
         self.assertEqual(agents[2]["agent"]["scores"], {})
         self.assertEqual(set(agents[2]["model_sources"]), {"artificial_analysis_model", "arena_webdev", "llm_stats"})
 
+    def test_agent_groups_aggregate_aliases_and_keep_compatibility_fields(self):
+        models = [
+            {"tool": "Codex", "model": "Alpha", "reasoning_effort": "high", "scores": {"artificial_analysis_index": 70, "aa_terminal_bench_v4": 40}, "source": {"type": "artificial_analysis_agent", "rank": 2}},
+            {"tool": "Codex CLI", "model": "Beta", "reasoning_effort": "medium", "scores": {"artificial_analysis_index": 90, "aa_terminal_bench_v4": 20}, "source": {"type": "artificial_analysis_agent", "rank": 1}},
+        ]
+        result = build_agent_overview(models)
+        self.assertEqual(result["count"], 2)
+        self.assertEqual(result["group_count"], 1)
+        group = result["agent_groups"][0]
+        self.assertEqual(group["agent_key"], "codex")
+        self.assertEqual(group["configuration_count"], 2)
+        self.assertEqual(group["score_sort_value"], 90)
+        self.assertEqual(group["score_sort_configuration"]["model_key"], "beta")
+        self.assertEqual([item["model_key"] for item in group["configurations"]], ["beta", "alpha"])
+
+    def test_agent_group_metrics_keep_negative_and_null_values_deterministic(self):
+        models = [
+            {"tool": "Model", "model": "One", "reasoning_effort": "unknown", "scores": {"aa_model_terminal_bench_v4": 0}, "source": {"type": "artificial_analysis_model", "rank": 1}},
+            {"tool": "Model", "model": "Two", "reasoning_effort": "unknown", "scores": {"aa_model_terminal_bench_v4": 0}, "source": {"type": "artificial_analysis_model", "rank": 2}},
+            {"tool": "A", "model": "One", "scores": {"artificial_analysis_index": -5, "aa_terminal_bench_v4": -3}, "source": {"type": "artificial_analysis_agent", "rank": 2}},
+            {"tool": "A", "model": "Two", "scores": {"artificial_analysis_index": -5, "aa_terminal_bench_v4": -3}, "source": {"type": "artificial_analysis_agent", "rank": 1}},
+            {"tool": "B", "model": "Three", "scores": {}, "source": {"type": "artificial_analysis_agent", "rank": 3}},
+        ]
+        group = next(item for item in build_agent_overview(models)["agent_groups"] if item["agent_key"] == "a")
+        self.assertEqual(group["score_sort_value"], -5)
+        self.assertEqual(group["uplift_sort_value"], -3)
+        self.assertEqual(group["score_sort_configuration"]["model_key"], "two")
+        self.assertEqual(group["uplift_sort_configuration"]["model_key"], "two")
+        empty = next(item for item in build_agent_overview(models)["agent_groups"] if item["agent_key"] == "b")
+        self.assertIsNone(empty["score_sort_value"])
+        self.assertIsNone(empty["uplift_sort_value"])
+
+    def test_agent_group_aggregates_legion_purposes_without_cross_matching(self):
+        models = [
+            {"tool": "Codex", "model": "Alpha", "reasoning_effort": "high", "scores": {"artificial_analysis_index": 70}, "source": {"type": "artificial_analysis_agent", "rank": 1}},
+            {"tool": "Codex", "model": "Alpha", "reasoning_effort": "max", "scores": {"artificial_analysis_index": 80}, "source": {"type": "artificial_analysis_agent", "rank": 2}},
+        ]
+        recommendations = {"purpose_types": ["Ask", "Plan", "Build"], "agent_plan": [
+            {"tool": "Codex CLI", "model": "Alpha", "reasoning_effort": "high", "primary_purpose_types": ["Build"], "secondary_purpose_types": ["Plan"], "core_purpose_types": ["Build"]},
+            {"tool": "Codex", "model": "Alpha", "reasoning_effort": "max", "primary_purpose_types": ["Plan"], "secondary_purpose_types": ["Build"], "core_purpose_types": []},
+        ]}
+        group = build_agent_overview(models, recommendations)["agent_groups"][0]
+        self.assertTrue(group["legion"]["matched"])
+        self.assertTrue(group["legion"]["is_core"])
+        self.assertEqual(group["legion"]["primary_purpose_types"], ["Plan", "Build"])
+        self.assertEqual(group["legion"]["secondary_purpose_types"], [])
+        self.assertEqual(group["legion"]["core_purpose_types"], ["Build"])
+        self.assertTrue(all(item["legion"]["matched"] for item in group["configurations"]))
+
+    def test_supplemental_only_agent_group_has_no_fabricated_metrics(self):
+        result = build_agent_overview([], [{"tool": "Codex", "model": "Alpha", "reasoning_effort": "high", "primary_purpose_types": ["Plan"]}])
+        group = result["agent_groups"][0]
+        self.assertEqual(group["configuration_count"], 1)
+        self.assertIsNone(group["score_sort_value"])
+        self.assertIsNone(group["uplift_sort_value"])
+        self.assertTrue(group["configurations"][0]["supplemental"])
+
 
 if __name__ == "__main__":
     unittest.main()

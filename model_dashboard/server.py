@@ -3,16 +3,21 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
+import threading
 import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 from urllib.parse import parse_qs, unquote, urlparse
 from urllib.request import urlopen  # 兼容既有测试与外部 monkeypatch
 
+from .ai_insights import InsightConfig, normalize_goal, run_codex_insight, snapshot_hash, validate_analysis
+from .insight_data import build_insight_snapshot
+from .efficiency import build_efficiency_overview, normalize_balance_weights
 from .domain import (
     IMPORT_FIELDS,
     MODEL_TEST_WEIGHTS,
@@ -75,6 +80,11 @@ STATIC_CONTENT_TYPES = {
 }
 
 
+#: 路由 handler 直接写响应，因此没有返回值。
+RouteHandler = Callable[..., None]
+CompiledRoutes = tuple[tuple[re.Pattern[str], tuple[str, ...], RouteHandler], ...]
+
+
 def expected_case_ids(cases_root: Path = CASES_ROOT) -> set[str]:
     case_ids: set[str] = set()
     for path in cases_root.glob("*/*/case.json"):
@@ -128,182 +138,237 @@ class DashboardHandler(BaseHTTPRequestHandler):
         return self.server.binary_fetcher  # type: ignore[attr-defined,no-any-return]
 
     def do_GET(self) -> None:
-        parsed = urlparse(self.path)
-        path = parsed.path
-        if path == "/":
-            self._send_bytes(HTTPStatus.OK, INDEX_PATH.read_bytes(), "text/html; charset=utf-8")
-            return
-        if path == "/api/models":
-            self._send_json(HTTPStatus.OK, self.dashboard_store.read())
-            return
-        if path == "/api/local-benchmarks":
-            self._send_json(HTTPStatus.OK, collect_local_results(self.server.runs_root))
-            return
-        if path == "/api/leaderboards/models":
-            try:
-                data = self.dashboard_store.read()
-                local = collect_local_results(self.server.runs_root)
-                overview = build_model_overview(
-                    data["models"],
-                    local.get("records", []),
-                    expected_case_ids(self.server.cases_root),
-                    aliases=data.get("model_aliases"),
-                    weights=self.dashboard_store.leaderboard_weights(),
-                    recommendations=data.get("recommendations"),
-                )
-                overview["snapshots"] = {
-                    source: self.dashboard_store.leaderboard_snapshots(source)
-                    for source in ("arena_webdev", "artificial_analysis_model", "llm_stats")
-                }
-                overview["warnings"] = local.get("warnings", [])
-                self._send_json(HTTPStatus.OK, overview)
-            except DashboardError as error:
-                self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
-            return
-        if path == "/api/leaderboards/weights":
-            try:
-                self._send_json(HTTPStatus.OK, {"weights": self.dashboard_store.leaderboard_weights()})
-            except DashboardError as error:
-                self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
-            return
-        if path == "/api/leaderboards/agents":
-            try:
-                data = self.dashboard_store.read()
-                overview = build_agent_overview(
-                    data["models"], recommendations=data.get("recommendations"), aliases=data.get("model_aliases")
-                )
-                overview["snapshots"] = self.dashboard_store.leaderboard_snapshots("artificial_analysis_agent")
-                self._send_json(HTTPStatus.OK, overview)
-            except DashboardError as error:
-                self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
-            return
-        if path.startswith("/api/leaderboards/"):
-            try:
-                parts = path.removeprefix("/api/leaderboards/").strip("/").split("/")
-                if len(parts) in {1, 2} and parts[0] not in {"models", "agents"}:
-                    source_type = parts[0]
-                    params = parse_qs(parsed.query)
-                    if len(parts) == 2 and parts[1] == "snapshots":
-                        raw_limit = params.get("limit", ["50"])[0]
-                        try:
-                            limit = int(raw_limit)
-                        except ValueError as error:
-                            raise DashboardError("快照条数无效") from error
-                        self._send_json(HTTPStatus.OK, {"snapshots": self.dashboard_store.leaderboard_snapshots(source_type, limit)})
-                        return
-                    if len(parts) == 1:
-                        self._send_json(
-                            HTTPStatus.OK,
-                            self.dashboard_store.leaderboard_comparison(
-                                source_type,
-                                params.get("snapshot", [None])[0],
-                                params.get("compare", [None])[0],
-                            ),
-                        )
-                        return
-            except DashboardError as error:
-                self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
-                return
-        if path == "/api/recommendations/releases":
-            try:
-                raw_limit = parse_qs(parsed.query).get("limit", ["50"])[0]
-                limit = int(raw_limit)
-                self._send_json(HTTPStatus.OK, self.dashboard_store.recommendation_releases(limit))
-            except (DashboardError, ValueError) as error:
-                self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
-            return
-        if path.startswith("/api/local-benchmarks/preview/"):
-            parts = path.removeprefix("/api/local-benchmarks/preview/").split("/")
-            preview = resolve_pelican_preview(self.server.runs_root, *(unquote(part) for part in parts)) if len(parts) == 2 else None
-            if preview is not None:
-                try:
-                    content = preview.read_bytes()
-                except OSError:
-                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "作品文件无法读取"})
+        path = urlparse(self.path).path
+        try:
+            if not self._dispatch(GET_ROUTES, path):
+                static_path = resolve_static_path(path)
+                if static_path is not None:
+                    content_type = STATIC_CONTENT_TYPES[static_path.suffix.casefold()]
+                    self._send_bytes(HTTPStatus.OK, static_path.read_bytes(), content_type)
                     return
-                self._send_bytes(HTTPStatus.OK, content, "text/html; charset=utf-8", preview=True)
-            else:
-                self._send_json(HTTPStatus.NOT_FOUND, {"error": "未找到鹈鹕作品"})
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "页面不存在"})
+        except DashboardError as error:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+        except Exception:
+            self.log_error("处理请求时发生未预期错误")
+            self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "服务器处理失败"})
+
+    def _dispatch(self, routes: Sequence[tuple[Any, ...]], path: str, *args: Any) -> bool:
+        """按路由表执行 handler；handler 自行写响应，未命中返回 False。"""
+        for regex, names, handler in routes:
+            matched = regex.match(path)
+            if matched is None:
+                continue
+            handler(self, *args, *(matched.group(name) for name in names))
+            return True
+        return False
+
+    # --- GET 路由 ---
+
+    def _get_index(self) -> None:
+        self._send_bytes(HTTPStatus.OK, INDEX_PATH.read_bytes(), "text/html; charset=utf-8")
+
+    def _get_health(self) -> None:
+        self._send_json(HTTPStatus.OK, {"status": "ok"})
+
+    def _get_models(self) -> None:
+        self._send_json(HTTPStatus.OK, self.dashboard_store.read())
+
+    def _get_local_benchmarks(self) -> None:
+        self._send_json(HTTPStatus.OK, collect_local_results(self.server.runs_root))
+
+    def _insight_snapshot(self) -> dict[str, Any]:
+        return build_insight_snapshot(
+            self.dashboard_store.read(), collect_local_results(self.server.runs_root),
+            expected_case_ids(self.server.cases_root),
+        )
+
+    def _insight_response(self, snapshot: dict[str, Any]) -> dict[str, Any]:
+        analysis = self.dashboard_store.latest_ai_insight()
+        return {
+            "config": self.server.insight_config.public(),
+            "analysis": analysis,
+            "stale": bool(analysis and analysis.get("snapshot_hash") != snapshot_hash(snapshot)),
+            "busy": self.server.insight_lock.locked(),
+            "coverage": snapshot["coverage"], "warnings": snapshot["warnings"],
+        }
+
+    def _get_ai_insights(self) -> None:
+        self._send_json(HTTPStatus.OK, self._insight_response(self._insight_snapshot()))
+
+    def _post_ai_insights(self, payload: Any) -> None:
+        goal = normalize_goal(payload)
+        if not self.server.insight_lock.acquire(blocking=False):
+            self._send_json(HTTPStatus.CONFLICT, {"error": "已有 AI 分析正在生成，请稍后刷新结果"})
             return
-        if path == "/api/health":
-            self._send_json(HTTPStatus.OK, {"status": "ok"})
+        try:
+            snapshot = self._insight_snapshot()
+            if not snapshot["candidates"]:
+                raise DashboardError("当前没有可分析的有效模型指标，请先同步榜单或完成本地实测")
+            config = self.server.insight_config
+            raw = self.server.insight_runner(goal, snapshot, config)
+            analysis = validate_analysis(raw, snapshot, goal, config)
+            self.dashboard_store.save_ai_insight(analysis)
+        finally:
+            self.server.insight_lock.release()
+        self._send_json(HTTPStatus.OK, self._insight_response(self._insight_snapshot()))
+
+    def _get_efficiency(self) -> None:
+        params = self._query()
+        scope = params.get("scope", ["focus"])[0]
+        try:
+            overview = build_efficiency_overview(
+                self.dashboard_store.read()["models"],
+                focus=params.get("focus", [None])[0],
+                scope=scope,
+                weights=normalize_balance_weights(params.get("weights", [None])[0]),
+            )
+        except DashboardError as error:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
             return
-        static_path = resolve_static_path(path)
-        if static_path is not None:
-            content_type = STATIC_CONTENT_TYPES[static_path.suffix.casefold()]
-            self._send_bytes(HTTPStatus.OK, static_path.read_bytes(), content_type)
+        self._send_json(HTTPStatus.OK, overview)
+
+    def _query(self) -> dict[str, list[str]]:
+        return parse_qs(urlparse(self.path).query)
+
+    def _get_model_leaderboard(self) -> None:
+        try:
+            data = self.dashboard_store.read()
+            local = collect_local_results(self.server.runs_root)
+            overview = build_model_overview(
+                data["models"],
+                local.get("records", []),
+                expected_case_ids(self.server.cases_root),
+                aliases=data.get("model_aliases"),
+                weights=self.dashboard_store.leaderboard_weights(data),
+                recommendations=data.get("recommendations"),
+            )
+            overview["snapshots"] = {
+                source: self.dashboard_store.leaderboard_snapshots(source)
+                for source in ("arena_webdev", "artificial_analysis_model", "llm_stats")
+            }
+            overview["warnings"] = local.get("warnings", [])
+            self._send_json(HTTPStatus.OK, overview)
+        except DashboardError as error:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+
+    def _get_leaderboard_weights(self) -> None:
+        try:
+            self._send_json(HTTPStatus.OK, {"weights": self.dashboard_store.leaderboard_weights()})
+        except DashboardError as error:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+
+    def _get_agent_leaderboard(self) -> None:
+        try:
+            data = self.dashboard_store.read()
+            overview = build_agent_overview(
+                data["models"],
+                recommendations=data.get("recommendations"),
+                aliases=data.get("model_aliases"),
+            )
+            overview["snapshots"] = self.dashboard_store.leaderboard_snapshots("artificial_analysis_agent")
+            self._send_json(HTTPStatus.OK, overview)
+        except DashboardError as error:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+
+    def _get_leaderboard_comparison(self, source_type: str) -> None:
+        params = self._query()
+        try:
+            self._send_json(
+                HTTPStatus.OK,
+                self.dashboard_store.leaderboard_comparison(
+                    source_type,
+                    params.get("snapshot", [None])[0],
+                    params.get("compare", [None])[0],
+                ),
+            )
+        except DashboardError as error:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+
+    def _get_leaderboard_snapshots(self, source_type: str) -> None:
+        try:
+            limit = int(self._query().get("limit", ["50"])[0])
+        except ValueError as error:
+            raise DashboardError("快照条数无效") from error
+        try:
+            self._send_json(
+                HTTPStatus.OK,
+                {"snapshots": self.dashboard_store.leaderboard_snapshots(source_type, limit)},
+            )
+        except DashboardError as error:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+
+    def _get_recommendation_releases(self) -> None:
+        try:
+            limit = int(self._query().get("limit", ["50"])[0])
+            self._send_json(HTTPStatus.OK, self.dashboard_store.recommendation_releases(limit))
+        except (DashboardError, ValueError) as error:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+
+    def _get_pelican_preview(self, run: str, tool: str) -> None:
+        preview = resolve_pelican_preview(self.server.runs_root, unquote(run), unquote(tool))
+        if preview is None:
+            self._send_json(HTTPStatus.NOT_FOUND, {"error": "未找到鹈鹕作品"})
             return
-        self._send_json(HTTPStatus.NOT_FOUND, {"error": "页面不存在"})
+        try:
+            content = preview.read_bytes()
+        except OSError:
+            self._send_json(HTTPStatus.NOT_FOUND, {"error": "作品文件无法读取"})
+            return
+        self._send_bytes(HTTPStatus.OK, content, "text/html; charset=utf-8", preview=True)
+
+    # --- POST 路由 ---
+
+    def _post_model(self, payload: Any) -> None:
+        model = self.dashboard_store.add_model(payload)
+        self._send_json(HTTPStatus.CREATED, {"model": model})
+
+    def _post_agent_usage(self, payload: Any) -> None:
+        entry, created = self.dashboard_store.upsert_agent_usage(payload)
+        self._send_json(HTTPStatus.CREATED if created else HTTPStatus.OK, {"entry": entry, "created": created})
+
+    def _post_recommendations(self, payload: Any) -> None:
+        recommendations = self.dashboard_store.save_recommendations(payload)
+        self._send_json(HTTPStatus.OK, {"recommendations": recommendations})
+
+    def _post_recommendation_publish(self, payload: Any) -> None:
+        if not isinstance(payload, dict):
+            raise DashboardError("请求数据必须是对象")
+        release = self.dashboard_store.publish_recommendations(payload.get("note", ""))
+        self._send_json(HTTPStatus.CREATED, {"release": release})
+
+    def _post_model_alias(self, payload: Any) -> None:
+        if not isinstance(payload, dict):
+            raise DashboardError("请求数据必须是对象")
+        alias = self.dashboard_store.save_model_alias(payload.get("alias"), payload.get("canonical"))
+        self._send_json(HTTPStatus.OK, {"alias": alias})
+
+    def _post_leaderboard_weights(self, payload: Any) -> None:
+        if not isinstance(payload, dict):
+            raise DashboardError("请求数据必须是对象")
+        weights = self.dashboard_store.save_leaderboard_weights(payload.get("weights"))
+        self._send_json(HTTPStatus.OK, {"weights": weights})
+
+    def _post_model_archive(self, payload: Any, model_id: str) -> None:
+        # 路径段保留百分号编码，模型 ID 可能含空格或括号，落库前必须先解码。
+        model_id = unquote(model_id)
+        if not model_id:
+            raise DashboardError("模型 ID 不能为空")
+        if not isinstance(payload, dict) or not isinstance(payload.get("archived"), bool):
+            raise DashboardError("archived 必须是布尔值")
+        model = self.dashboard_store.set_model_archived(model_id, payload["archived"])
+        self._send_json(HTTPStatus.OK, {"model": model})
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
         try:
             payload = self._read_json_body()
-            if path == "/api/leaderboards/legion/refresh":
-                self._refresh_legion_leaderboards(payload)
-                return
-            if path == "/api/models":
-                model = self.dashboard_store.add_model(payload)
-                self._send_json(HTTPStatus.CREATED, {"model": model})
-                return
-            if path == "/api/agent-usage":
-                entry, created = self.dashboard_store.upsert_agent_usage(payload)
-                status = HTTPStatus.CREATED if created else HTTPStatus.OK
-                self._send_json(status, {"entry": entry, "created": created})
-                return
-            if path == "/api/recommendations":
-                recommendations = self.dashboard_store.save_recommendations(payload)
-                self._send_json(HTTPStatus.OK, {"recommendations": recommendations})
-                return
-            if path == "/api/recommendations/publish":
-                if not isinstance(payload, dict):
-                    raise DashboardError("请求数据必须是对象")
-                release = self.dashboard_store.publish_recommendations(payload.get("note", ""))
-                self._send_json(HTTPStatus.CREATED, {"release": release})
-                return
-            if path == "/api/leaderboards/model-aliases":
-                if not isinstance(payload, dict):
-                    raise DashboardError("请求数据必须是对象")
-                alias = self.dashboard_store.save_model_alias(payload.get("alias"), payload.get("canonical"))
-                self._send_json(HTTPStatus.OK, {"alias": alias})
-                return
-            if path == "/api/leaderboards/weights":
-                if not isinstance(payload, dict):
-                    raise DashboardError("请求数据必须是对象")
-                weights = self.dashboard_store.save_leaderboard_weights(payload.get("weights"))
-                self._send_json(HTTPStatus.OK, {"weights": weights})
-                return
-            if path == "/api/agent-usage/import":
-                self._import_agent_usage(payload)
-                return
-            if path.startswith("/api/models/") and path.endswith("/archive"):
-                model_id = unquote(path.removeprefix("/api/models/").removesuffix("/archive").strip("/"))
-                if not model_id:
-                    raise DashboardError("模型 ID 不能为空")
-                if not isinstance(payload, dict) or not isinstance(payload.get("archived"), bool):
-                    raise DashboardError("archived 必须是布尔值")
-                model = self.dashboard_store.set_model_archived(model_id, payload["archived"])
-                self._send_json(HTTPStatus.OK, {"model": model})
-                return
-            if path == "/api/import":
-                self._import(payload)
-                return
-            if path == "/api/import/arena-webdev":
-                self._import_arena_webdev(payload)
-                return
-            if path == "/api/import/artificial-analysis":
-                self._import_artificial_analysis(payload)
-                return
-            if path == "/api/import/artificial-analysis-models":
-                self._import_artificial_analysis_models(payload)
-                return
-            if path == "/api/import/llm-stats":
-                self._import_llm_stats(payload)
-                return
-            if path == "/api/import/benchmark":
-                self._import_benchmark(payload)
-                return
-            self._send_json(HTTPStatus.NOT_FOUND, {"error": "接口不存在"})
+        except DashboardError as error:
+            self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+            return
+        try:
+            if not self._dispatch(POST_ROUTES, path, payload):
+                self._send_json(HTTPStatus.NOT_FOUND, {"error": "接口不存在"})
         except DashboardError as error:
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
         except Exception:
@@ -432,7 +497,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         needed = {source for row in coverage["missing_models"] for source in row["sources"]}
         if coverage["missing_agents"]:
             needed.add("artificial_analysis_agent")
-        results = []
+        results: list[dict[str, Any]] = []
         # Fetch each missing source once from its complete catalog. Keeping complete
         # snapshots preserves the min-max score population and the published ranks.
         for source in ("artificial_analysis_model", "arena_webdev", "llm_stats", "artificial_analysis_agent"):
@@ -442,8 +507,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 results.append({"source": source, "status": "updated", **self._sync_leaderboard(source)})
             except DashboardError as error:
                 results.append({"source": source, "status": "failed", "error": str(error)})
-        result = {"sources": results, **self._legion_coverage()}
-        self._send_json(HTTPStatus.OK, result)
+        # 重新计算：返回的必须是补齐之后仍然缺失的清单，而不是同步前的快照。
+        self._send_json(HTTPStatus.OK, {"sources": results, **self._legion_coverage()})
 
     def _import_benchmark(self, payload: Any) -> None:
         if not isinstance(payload, dict):
@@ -494,6 +559,67 @@ class DashboardHandler(BaseHTTPRequestHandler):
         print(f"[{self.log_date_time_string()}] {format % args}")
 
 
+def compile_routes(routes: dict[str, RouteHandler]) -> CompiledRoutes:
+    """把 ``/api/models/{model_id}/archive`` 形式的路由编译成匹配表。
+
+    占位符只匹配单个路径段，因此 ``/api/leaderboards/a/b`` 不会被
+    ``/api/leaderboards/{source_type}`` 抢先命中。
+    """
+    compiled: list[tuple[re.Pattern[str], tuple[str, ...], RouteHandler]] = []
+    for pattern, handler in routes.items():
+        names: list[str] = []
+        segments: list[str] = []
+        for segment in pattern.split("/"):
+            if segment.startswith("{") and segment.endswith("}"):
+                name = segment[1:-1]
+                names.append(name)
+                segments.append(f"(?P<{name}>[^/]+)")
+            else:
+                segments.append(re.escape(segment))
+        compiled.append((re.compile("^" + "/".join(segments) + "$"), tuple(names), handler))
+    return tuple(compiled)
+
+
+GET_ROUTES = compile_routes(
+    {
+        "/": DashboardHandler._get_index,
+        "/api/health": DashboardHandler._get_health,
+        "/api/models": DashboardHandler._get_models,
+        "/api/local-benchmarks": DashboardHandler._get_local_benchmarks,
+        "/api/ai-insights": DashboardHandler._get_ai_insights,
+        "/api/efficiency": DashboardHandler._get_efficiency,
+        "/api/leaderboards/models": DashboardHandler._get_model_leaderboard,
+        "/api/leaderboards/weights": DashboardHandler._get_leaderboard_weights,
+        "/api/leaderboards/agents": DashboardHandler._get_agent_leaderboard,
+        "/api/leaderboards/{source_type}": DashboardHandler._get_leaderboard_comparison,
+        "/api/leaderboards/{source_type}/snapshots": DashboardHandler._get_leaderboard_snapshots,
+        "/api/recommendations/releases": DashboardHandler._get_recommendation_releases,
+        "/api/local-benchmarks/preview/{run}/{tool}": DashboardHandler._get_pelican_preview,
+    }
+)
+
+POST_ROUTES = compile_routes(
+    {
+        "/api/leaderboards/legion/refresh": DashboardHandler._refresh_legion_leaderboards,
+        "/api/models": DashboardHandler._post_model,
+        "/api/models/{model_id}/archive": DashboardHandler._post_model_archive,
+        "/api/agent-usage": DashboardHandler._post_agent_usage,
+        "/api/agent-usage/import": DashboardHandler._import_agent_usage,
+        "/api/recommendations": DashboardHandler._post_recommendations,
+        "/api/ai-insights": DashboardHandler._post_ai_insights,
+        "/api/recommendations/publish": DashboardHandler._post_recommendation_publish,
+        "/api/leaderboards/model-aliases": DashboardHandler._post_model_alias,
+        "/api/leaderboards/weights": DashboardHandler._post_leaderboard_weights,
+        "/api/import": DashboardHandler._import,
+        "/api/import/arena-webdev": DashboardHandler._import_arena_webdev,
+        "/api/import/artificial-analysis": DashboardHandler._import_artificial_analysis,
+        "/api/import/artificial-analysis-models": DashboardHandler._import_artificial_analysis_models,
+        "/api/import/llm-stats": DashboardHandler._import_llm_stats,
+        "/api/import/benchmark": DashboardHandler._import_benchmark,
+    }
+)
+
+
 def create_server(
     host: str,
     port: int,
@@ -503,7 +629,10 @@ def create_server(
     binary_fetcher: Callable[[str], bytes] = fetch_bytes,
     runs_root: Path = RUNS_ROOT,
     cases_root: Path = CASES_ROOT,
+    insight_runner: Callable[[str, dict[str, Any], InsightConfig], Any] = run_codex_insight,
+    insight_config: InsightConfig | None = None,
 ) -> ThreadingHTTPServer:
+    config = insight_config if insight_config is not None else InsightConfig.from_env()
     server = ThreadingHTTPServer((host, port), DashboardHandler)
     server.store = DashboardStore(data_path=data_path)  # type: ignore[attr-defined]
     server.json_fetcher = json_fetcher  # type: ignore[attr-defined]
@@ -512,6 +641,9 @@ def create_server(
     server.arena_price_fetch_enabled = json_fetcher is fetch_json or text_fetcher is not fetch_text  # type: ignore[attr-defined]
     server.runs_root = runs_root  # type: ignore[attr-defined]
     server.cases_root = cases_root  # type: ignore[attr-defined]
+    server.insight_config = config  # type: ignore[attr-defined]
+    server.insight_runner = insight_runner  # type: ignore[attr-defined]
+    server.insight_lock = threading.Lock()  # type: ignore[attr-defined]
     return server
 
 

@@ -8,7 +8,7 @@ INDEX_PATH = Path(__file__).resolve().parent.parent / 'model_dashboard' / 'stati
 
 
 class LeaderboardDisplayTests(unittest.TestCase):
-    def render(self, models=None, agents=None, legion_only=False, aa_only=False):
+    def render(self, models=None, agents=None, agent_groups=None, legion_only=False, aa_only=False, agent_sort="score"):
         script = r'''
           const fs = require('node:fs');
           const vm = require('node:vm');
@@ -27,9 +27,9 @@ class LeaderboardDisplayTests(unittest.TestCase):
           const app = new Element('main');
           const el = (tag, css, text) => new Element(tag, css, text);
           const context = vm.createContext({
-            app, el, state: { modelLeaderboard: { models: payload.models }, agentLeaderboard: { agents: payload.agents },
+            app, el, state: { modelLeaderboard: { models: payload.models }, agentLeaderboard: { agents: payload.agents, agent_groups: payload.agent_groups },
               leaderboardSearch: '', leaderboardPage: 1, leaderboardPageSize: 50, leaderboardLegionOnly: payload.legion_only,
-              modelLeaderboardAaOnly: payload.aa_only },
+              modelLeaderboardAaOnly: payload.aa_only, agentLeaderboardSort: payload.agent_sort },
             number: value => value == null ? '—' : String(value), leaderboardSyncPromise: null,
             orderedModelLeaderboardSources: () => [{key: 'artificial_analysis_model', label: 'AA', heading: 'AA', weight: .5},
               {key: 'arena_webdev', label: 'Arena', heading: 'Arena', weight: .35}, {key: 'llm_stats', label: 'LLM Stats', heading: 'LLM Stats', weight: .15}],
@@ -42,7 +42,7 @@ class LeaderboardDisplayTests(unittest.TestCase):
           const start = source.indexOf('    function leaderboardSourceCell(');
           const end = source.indexOf('    function renderSettingsPage(', start);
           vm.runInContext(source.slice(start, end), context);
-          const agentStart = source.indexOf('    function renderAgentLeaderboardPage(');
+          const agentStart = source.indexOf('    function agentConfigurationRank(');
           const agentEnd = source.indexOf('    async function loadHistoryComparison(', agentStart);
           vm.runInContext(source.slice(agentStart, agentEnd), context);
           vm.runInContext(payload.agents === null ? 'renderModelLeaderboardPage()' : 'renderAgentLeaderboardPage()', context);
@@ -56,7 +56,8 @@ class LeaderboardDisplayTests(unittest.TestCase):
           process.stdout.write(JSON.stringify({text: app.textContent, rows}));
         '''
         result = subprocess.run(['node', '-e', script, str(INDEX_PATH)],
-                                input=json.dumps({'models': models or [], 'agents': agents, 'legion_only': legion_only, 'aa_only': aa_only}),
+                                input=json.dumps({'models': models or [], 'agents': agents, 'agent_groups': agent_groups,
+                                                  'legion_only': legion_only, 'aa_only': aa_only, 'agent_sort': agent_sort}),
                                 capture_output=True, text=True, check=True)
         return json.loads(result.stdout)
 
@@ -75,7 +76,8 @@ class LeaderboardDisplayTests(unittest.TestCase):
         self.assertIn('智能度', result['rows'][0]['text'])
         self.assertEqual(result['rows'][0]['cells'], 8)
         self.assertIn('★ Vibe Coding Legion', result['rows'][1]['text'])
-        self.assertIn('★ Build / Ship', result['rows'][1]['text'])
+        self.assertIn('★ Build', result['rows'][1]['text'])
+        self.assertIn('Ship', result['rows'][1]['text'])
         self.assertIn('leaderboard-legion-core', result['rows'][1]['classes'])
         self.assertIn('high', result['rows'][1]['text'])
         self.assertIn('未注明', result['rows'][2]['text'])
@@ -126,14 +128,65 @@ class LeaderboardDisplayTests(unittest.TestCase):
         entry = {'agent': {'tool': 'Codex', 'model': 'Alpha', 'reasoning_effort': 'medium', 'scores': {}, 'source': {}},
                  'legion': self.legion(False), 'supplemental': True, 'baseline': None, 'terminal_bench_uplift': None}
         result = self.render(agents=[entry], legion_only=True)
-        self.assertEqual(result['rows'][0]['cells'], 9)
-        row = result['rows'][1]
+        self.assertEqual(result['rows'][0]['cells'], 1)
+        row = result['rows'][2]
         self.assertIn('☆ Vibe Coding Legion', row['text'])
         self.assertIn('Legion 补充配置', row['text'])
         self.assertIn('medium', row['text'])
         self.assertIn('无同配置成绩', row['text'])
         self.assertIn('无同配置 TB4', row['text'])
         self.assertNotIn('leaderboard-legion-core', row['classes'])
+
+    def test_agent_groups_sort_by_score_or_uplift_and_keep_configuration_details(self):
+        def configuration(tool, model, score, uplift, rank):
+            return {
+                'agent': {'tool': tool, 'model': model, 'scores': {'artificial_analysis_index': score},
+                          'source': {'rank': rank}},
+                'reasoning_effort': 'high', 'terminal_bench_uplift': uplift,
+                'legion': {'matched': False, 'is_core': False, 'entries': []},
+                'supplemental': False, 'baseline': None,
+            }
+
+        alpha = configuration('Alpha Agent', 'Alpha Model', 91, 2, 2)
+        beta = configuration('Beta Agent', 'Beta Model', 82, 18, 1)
+        groups = [
+            {'agent': 'Beta Agent', 'configurations': [beta], 'legion': {'matched': False}},
+            {'agent': 'Alpha Agent', 'configurations': [alpha], 'legion': {'matched': False}},
+        ]
+        score = self.render(agents=[], agent_groups=groups)
+        score_groups = [row for row in score['rows'] if 'agent-leaderboard-group' in row['classes']]
+        self.assertIn('Alpha Agent', score_groups[0]['text'])
+        self.assertIn('Agent 分值 91', score_groups[0]['text'])
+        self.assertIn('Alpha Model', score_groups[0]['text'])
+        uplift = self.render(agents=[], agent_groups=groups, agent_sort='uplift')
+        uplift_groups = [row for row in uplift['rows'] if 'agent-leaderboard-group' in row['classes']]
+        self.assertIn('Beta Agent', uplift_groups[0]['text'])
+        self.assertIn('提升 +18 个百分点', uplift_groups[0]['text'])
+
+    def test_agent_legion_filter_keeps_only_matched_configurations_and_group_tags(self):
+        matched = {
+            'agent': {'tool': 'Codex', 'model': 'Legion Model', 'scores': {'artificial_analysis_index': 70}, 'source': {'rank': 2}},
+            'reasoning_effort': 'high', 'terminal_bench_uplift': 5, 'supplemental': False, 'baseline': None,
+            'legion': {'matched': True, 'is_core': True, 'entries': [{
+                'tool': 'Codex', 'primary_purpose_types': ['Build'], 'secondary_purpose_types': ['Review'],
+                'core_purpose_types': ['Build'],
+            }]},
+        }
+        other = {
+            'agent': {'tool': 'Codex', 'model': 'Other Model', 'scores': {'artificial_analysis_index': 99}, 'source': {'rank': 1}},
+            'reasoning_effort': 'max', 'terminal_bench_uplift': 30, 'supplemental': False, 'baseline': None,
+            'legion': {'matched': False, 'is_core': False, 'entries': []},
+        }
+        groups = [{'agent': 'Codex', 'configurations': [other, matched], 'legion': {
+            'matched': True, 'is_core': True, 'entries': matched['legion']['entries'],
+            'primary_purpose_types': ['Build'], 'secondary_purpose_types': ['Review'], 'core_purpose_types': ['Build'],
+        }}]
+        result = self.render(agents=[], agent_groups=groups, legion_only=True)
+        self.assertIn('★ Vibe Coding Legion', result['text'])
+        self.assertIn('★ Build', result['text'])
+        self.assertIn('Review', result['text'])
+        self.assertIn('Agent 分值 70', result['text'])
+        self.assertNotIn('Other Model', result['text'])
 
 
 if __name__ == '__main__':

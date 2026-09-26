@@ -368,12 +368,22 @@ def normalize_artificial_analysis_html(
                         for item in row.get("evals", [])
                         if isinstance(item, dict)
                     ],
-                    "cost_usd_per_task": mean.get("costUsd"),
-                    "wall_time_seconds_per_task": mean.get("agentWallTimeSec"),
+                    "cost_usd_per_task": finite_number(mean.get("costUsd")),
+                    "wall_time_seconds_per_task": finite_number(mean.get("agentWallTimeSec")),
                 },
             )
         )
     return models
+
+
+def finite_number(value: Any) -> float | int | None:
+    """只保留有限数字，避免 NaN/Infinity 破坏 JSON 序列化。"""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    if number != number or number in (float("inf"), float("-inf")):
+        return None
+    return int(number) if number.is_integer() else round(number, 6)
 
 
 def artificial_analysis_manifest_references(document: str) -> list[dict[str, str]]:
@@ -494,7 +504,10 @@ def normalize_artificial_analysis_models_html(
                     "name": variant.get("name"),
                     "input_price_per_m": variant.get("price1mInputTokens"),
                     "output_price_per_m": variant.get("price1mOutputTokens"),
-                    "cost_usd_per_task": cost.get("total") if isinstance(cost, dict) else None,
+                    "price_1m_blended": finite_number(variant.get("price1mBlended0To3To1")),
+                    "cost_usd_per_task": finite_number(cost.get("total")) if isinstance(cost, dict) else None,
+                    "intelligence_cost_per_task": finite_number(cost.get("total")) if isinstance(cost, dict) else None,
+                    "intelligence_time_per_task": finite_number(variant.get("intelligenceIndexTimePerTask")),
                     "speed_tokens_per_second": speed.get("medianOutputSpeed"),
                     "prompt_speeds": variant.get("performanceByPromptType"),
                 }
@@ -502,6 +515,10 @@ def normalize_artificial_analysis_models_html(
         timescale = row.get("timescaleData") if isinstance(row.get("timescaleData"), dict) else {}
         intelligence = row.get("intelligenceIndex")
         terminal_bench = row.get("terminalBench40")
+        intelligence_cost = row.get("intelligenceIndexCostPerTask")
+        intelligence_cost = (
+            intelligence_cost.get("cost") if isinstance(intelligence_cost, dict) else None
+        )
         models.append(
             normalize_model(
                 {
@@ -535,6 +552,13 @@ def normalize_artificial_analysis_models_html(
                     "creator_name": creator.get("name"),
                     "index_version": index_version,
                     "is_estimated": row.get("intelligenceIndexIsEstimated") is True,
+                    "price_1m_input": finite_number(row.get("price1mInputTokens")),
+                    "price_1m_output": finite_number(row.get("price1mOutputTokens")),
+                    "price_1m_blended": finite_number(row.get("price1mBlended0To3To1")),
+                    "intelligence_cost_per_task": (
+                        finite_number(intelligence_cost.get("total")) if isinstance(intelligence_cost, dict) else None
+                    ),
+                    "intelligence_time_per_task": finite_number(row.get("intelligenceIndexTimePerTask")),
                     "variants": variants,
                 },
             )

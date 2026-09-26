@@ -18,4 +18,7 @@ score-pelican = "benchmark.pelican_scoring:main"
 include = ["benchmark*", "model_dashboard*"]
 
 [tool.setuptools.package-data]
-model_dashboard = ["seed_data.json", "static/*.html"]
+model_dashboard = ["seed_data.json", "static/**/*"]
+
+[tool.setuptools]
+include-package-data = true

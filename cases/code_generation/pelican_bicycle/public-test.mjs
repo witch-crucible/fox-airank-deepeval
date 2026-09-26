@@ -23,12 +23,23 @@ async function check(name, fn) {
   }
 }
 
-const browser = await chromium.launch();
+const browser = await chromium.launch().catch((err) => {
+  console.error(`✗ 启动浏览器失败\n  ${err.message}`);
+  console.log(`\n0/${results.length} 项通过，截图见 verification/`);
+  process.exit(1);
+});
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 const errors = [];
 page.on("pageerror", (e) => errors.push(String(e)));
-await page.goto(pathToFileURL(join(root, "index.html")).href);
-await page.waitForFunction("window.pelican && document.body.dataset.ready === 'yes'", null, { timeout: 10000 });
+try {
+  await page.goto(pathToFileURL(join(root, "index.html")).href);
+  await page.waitForFunction("window.pelican && document.body.dataset.ready === 'yes'", null, { timeout: 10000 });
+} catch (err) {
+  console.error(`✗ 页面加载失败\n  ${err.message}`);
+  await browser.close();
+  console.log(`\n0/${results.length} 项通过，截图见 verification/`);
+  process.exit(1);
+}
 
 const seek = (t) => page.evaluate((tt) => window.pelican.seek(tt), t);
 const snap = () => page.evaluate(() => window.pelican.snapshot());
@@ -38,8 +49,11 @@ const shot = (name) => page.screenshot({ path: join(shotDir, `${name}.png`) });
 async function markerDist(a, b) {
   return page.evaluate(
     ([ia, ib]) => {
-      const ra = document.getElementById(ia).getBoundingClientRect();
-      const rb = document.getElementById(ib).getBoundingClientRect();
+      const ea = document.getElementById(ia);
+      const eb = document.getElementById(ib);
+      if (!ea || !eb) return NaN;
+      const ra = ea.getBoundingClientRect();
+      const rb = eb.getBoundingClientRect();
       return Math.hypot(ra.x + ra.width / 2 - (rb.x + rb.width / 2), ra.y + ra.height / 2 - (rb.y + rb.height / 2));
     },
     [a, b],
@@ -50,6 +64,9 @@ async function assertContacts(phase) {
   const dnFP = await markerDist("marker-foot-near", "marker-pedal-near");
   const dfFP = await markerDist("marker-foot-far", "marker-pedal-far");
   const dwg = await markerDist("marker-wing-tip", "marker-grip");
+  assert.ok(Number.isFinite(dnFP), `${phase}: 接触标记缺失（marker-foot-near / marker-pedal-near）`);
+  assert.ok(Number.isFinite(dfFP), `${phase}: 接触标记缺失（marker-foot-far / marker-pedal-far）`);
+  assert.ok(Number.isFinite(dwg), `${phase}: 接触标记缺失（marker-wing-tip / marker-grip）`);
   assert.ok(dnFP <= 1.5, `${phase}: 近侧脚-踏板 DOM 距离 ${dnFP.toFixed(2)}px > 1.5px`);
   assert.ok(dfFP <= 1.5, `${phase}: 远侧脚-踏板 DOM 距离 ${dfFP.toFixed(2)}px > 1.5px`);
   assert.ok(dwg <= 1.5, `${phase}: 翅尖-车把 DOM 距离 ${dwg.toFixed(2)}px > 1.5px`);
@@ -154,7 +171,7 @@ await check("阶段3 越过石头：跳跃轨迹高于石头且无碰撞", async
     const s = await snap();
     const stone = s.stones.find((x) => x.id.startsWith("stone-1"));
     if (s.mode === "hop" && stone && Math.abs(stone.gap) < 40) {
-      hit = { t, s };
+      hit = { t, s, stoneId: stone.id };
       break;
     }
   }
@@ -170,7 +187,7 @@ await check("阶段3 越过石头：跳跃轨迹高于石头且无碰撞", async
       wheelBottom: a.bottom,
       stoneTop: bb.top,
     };
-  }, `ent-${hit.s.stones[0].id}`);
+  }, `ent-${hit.stoneId}`);
   assert.ok(!overlap.err, overlap.err);
   assert.ok(!overlap.overlap, `前轮 bbox 底 ${overlap.wheelBottom} 与石头顶 ${overlap.stoneTop} 重叠`);
   await assertContacts("跃障中");
@@ -213,6 +230,7 @@ await check("阶段4 坠落物：鹈鹕刹车并在落点前停住", async () =>
   assert.equal(s.mode, "stopped", "掉落物落地时鹈鹕应已停住");
   assert.equal(s.v, 0);
   const d2 = s.drops.find((x) => x.id.startsWith("drop-1"));
+  assert.ok(d2, "drop-1 不存在");
   assert.ok(d2.landed, "掉落物应已落地");
   assert.ok(s.frontX <= d2.x - 110 + 1, `停车位置 ${s.frontX} 超出安全线 ${d2.x - 110}`);
   await assertContacts("停车避让");

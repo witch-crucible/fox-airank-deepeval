@@ -503,6 +503,10 @@ def parser() -> argparse.ArgumentParser:
     report.add_argument("--run-dir", type=Path)
     report.add_argument("--tool", action="append", dest="tools", default=[])
     report.add_argument("--history", action="store_true", help="汇总 runs/ 下全部 run 的历史对比")
+    report.add_argument(
+        "--format", choices=("md", "html", "both"), default="both",
+        help="输出格式：md=Markdown，html=自包含静态页面，both=两者（默认）",
+    )
     return root
 
 
@@ -517,18 +521,28 @@ def main(argv: Sequence[str] | None = None) -> None:
         if args.command == "report":
             from benchmark.report import write_history_report, write_run_report
 
+            formats = ("md", "html") if args.format == "both" else (args.format,)
             if args.history:
                 if args.run_dir is not None:
                     raise ValueError("--history 与 --run-dir 不能同时使用")
-                history = write_history_report(ROOT / "runs", cases)
-                print(f"历史报告: {ROOT / 'runs' / 'history-report.md'}（{len(history)} 个 run）")
+                history = write_history_report(ROOT / "runs", cases, formats=formats)
+                md = ROOT / "runs" / "history-report.md"
+                html = ROOT / "runs" / "history-report.html"
+                tail = f"（{len(history)} 个 run）"
+                if "md" in formats:
+                    print(f"历史报告(Markdown): {md}{tail}")
+                if "html" in formats:
+                    print(f"历史报告(静态页): {html}{tail}")
             else:
                 if args.run_dir is None:
                     raise ValueError("report 需要 --run-dir（或使用 --history）")
-                report = write_run_report(args.run_dir, args.tools, cases)
+                report = write_run_report(args.run_dir, args.tools, cases, formats=formats)
                 missing = [item["tool"] for item in report["tools"] if not item["cases"]]
                 warning = f"（未找到评测产物: {', '.join(missing)}）" if missing else ""
-                print(f"报告: {args.run_dir / 'report.md'}{warning}")
+                if "md" in formats:
+                    print(f"报告(Markdown): {args.run_dir / 'report.md'}{warning}")
+                if "html" in formats:
+                    print(f"报告(静态页): {args.run_dir / 'report.html'}{warning}")
             return
         cases = select_cases(cases, args.case_ids, args.category)
         if args.command == "prepare":

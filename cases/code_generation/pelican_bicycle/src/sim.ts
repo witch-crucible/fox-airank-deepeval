@@ -277,6 +277,7 @@ class Simulation {
     this.hopStoneId = "";
     this.stoneSeq = 0;
     this.dropSeq = 0;
+    this.brakeTarget = null;
     for (const ev of this.scheduler.events) ev.cycle = 0;
   }
 
@@ -315,12 +316,16 @@ class Simulation {
 
   step(dt: number): void {
     // 1) 统一调度器：按时间线生成实体
+    const base = this.entities.length;
     const fired = this.scheduler.update(this.t, this.bikeX, this.entities);
-    for (const id of fired) {
+    // fired[i] 与本步新增的第 i 个实体一一对应（同一 tick 可能触发多个事件，
+    // 不能一律取 entities 末尾，否则多触发时补丁会打到同一个实体上）。
+    const spawnedList = this.entities.slice(base);
+    fired.forEach((id, i) => {
+      const spawned: Entity | undefined = spawnedList[i];
       this.firedLog.push({ id, t: this.t });
-      const spawned = this.entities[this.entities.length - 1];
-      if (spawned && spawned.kind === "drop") spawned.spawnTime = this.t;
       if (spawned && spawned.kind === "drop") {
+        spawned.spawnTime = this.t;
         const d = spawned;
         const disc = d.v0 * d.v0 + 2 * d.g * (d.alt0 - d.r);
         const tauLand = disc > 0 ? (-d.v0 + Math.sqrt(disc)) / d.g : 0;
@@ -329,7 +334,7 @@ class Simulation {
       }
       if (id.startsWith("stone")) this.stoneSeq += 1;
       if (id.startsWith("drop")) this.dropSeq += 1;
-    }
+    });
 
     // 2) 掉落物运动学：闭式轨迹 alt(τ) = alt0 - v0·τ - ½·g·τ²
     for (const d of this.drops()) {
@@ -361,8 +366,6 @@ class Simulation {
       if (s < HOP_RAMP) this.lift = HOP_H * smoothstep(s / HOP_RAMP);
       else if (s > HOP_LEN - HOP_RAMP) this.lift = HOP_H * smoothstep((HOP_LEN - s) / HOP_RAMP);
       else this.lift = HOP_H;
-    } else if (this.mode !== "land") {
-      this.lift = 0;
     } else {
       this.lift = 0;
     }

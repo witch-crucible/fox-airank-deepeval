@@ -6,12 +6,13 @@
 
 from __future__ import annotations
 
+import html as _html
 import json
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Iterable, Sequence
 
 METRIC_SUFFIX = " [GEval]"
 TEST_RUN_PATTERN = re.compile(r"^test_run_(\d{8}_\d{6})\.json$")
@@ -29,6 +30,20 @@ MODEL_TEST_WEIGHTS = {
     "generation": 4,
     "logic": 8,
 }
+
+
+def weighted_average(pairs: Iterable[tuple[float | None, float]]) -> float | None:
+    """按可用权重归一化求加权平均；没有任何有效项时返回 None。
+
+    ModelTest 总分与看板评分共用此实现，避免两处出现不同的归一化口径。
+    """
+    present = [(value, weight) for value, weight in pairs if value is not None]
+    if not present:
+        return None
+    total_weight = sum(weight for _, weight in present)
+    if total_weight <= 0:
+        return None
+    return round(sum(value * weight for value, weight in present) / total_weight, 2)
 CATEGORY_TO_MODEL_TEST = {
     "code_correction": "correction",
     "code_generation": "generation",
@@ -150,15 +165,15 @@ class ToolSummary:
 
     @property
     def model_test_total(self) -> float | None:
-        """Weighted average of per-category model_test scores (0–100), same weights as dashboard."""
+        """按可用类别归一化后的 ModelTest 加权总分（0–100）。
+
+        缺失类别不按 0 分计入，只按已测类别的权重重新归一化，因此只跑部分分类时
+        仍会出分；这是评测报告的口径，与看板侧「还原原表」的严格口径用途不同。
+        """
         breakdown = self.model_test_breakdown
-        parts = {key: breakdown[key] for key in MODEL_TEST_WEIGHTS}
-        if any(value is not None for value in parts.values()):
-            weighted = sum(
-                (float(value or 0)) * weight for value, weight in zip(parts.values(), MODEL_TEST_WEIGHTS.values())
-            ) / sum(MODEL_TEST_WEIGHTS.values())
-            return round(weighted, 2)
-        return None
+        return weighted_average(
+            (breakdown[key], weight) for key, weight in MODEL_TEST_WEIGHTS.items()
+        )
 
 
 def _canonical_metric_name(name: str) -> str:
@@ -188,20 +203,27 @@ def _ordered_metrics(names: Sequence[str]) -> list[str]:
 
 def latest_test_run(tool_dir: Path) -> Path | None:
     """返回该工具目录下时间戳最新的 TestRun JSON（与 DeepEval 文件名规则一致）。"""
+    candidates = _candidate_test_runs(tool_dir)
+    return candidates[0] if candidates else None
+
+
+def _candidate_test_runs(tool_dir: Path) -> list[Path]:
+    """按时间戳从新到旧列出候选 TestRun 文件（损坏文件可回退到上一版）。"""
     candidates: list[tuple[str, Path]] = []
     if not tool_dir.is_dir():
-        return None
+        return []
     for path in tool_dir.glob("test_run_*.json"):
         match = TEST_RUN_PATTERN.match(path.name)
         if match:
             candidates.append((match.group(1), path))
-    if not candidates:
-        return None
-    return max(candidates, key=lambda item: item[0])[1]
+    return [path for _, path in sorted(candidates, key=lambda item: item[0], reverse=True)]
 
 
 def load_test_run(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise ValueError(f"评测产物损坏，无法解析: {path}（{error}）") from error
 
 
 def _identity_from_manifest(manifest: dict[str, Any], tool: str) -> dict[str, str]:
@@ -225,14 +247,26 @@ def collect_tool_summary(
     registry = case_registry or {}
     manifest = run_manifest or {}
     tool_dir = run_dir / "deepeval" / tool
-    test_run_path = latest_test_run(tool_dir)
     identity = _identity_from_manifest(manifest, tool)
     rows: list[CaseRow] = []
     duration: float | None = None
     judge_model: str | None = None
     metric_version: str | None = None
-    if test_run_path is not None:
-        data = load_test_run(test_run_path)
+    test_run_path: Path | None = None
+    data: dict[str, Any] | None = None
+    last_error: ValueError | None = None
+    for candidate in _candidate_test_runs(tool_dir):
+        try:
+            data = load_test_run(candidate)
+        except ValueError as error:
+            last_error = error
+            continue
+        test_run_path = candidate
+        last_error = None
+        break
+    if last_error is not None:
+        raise ValueError(f"工具 {tool} 的评测产物损坏: {last_error}") from last_error
+    if test_run_path is not None and data is not None:
         hyperparameters = data.get("hyperparameters") or {}
         judge_model = hyperparameters.get("judge_model")
         metric_version = hyperparameters.get("metric_version")
@@ -458,8 +492,9 @@ def render_markdown(report: dict[str, Any]) -> str:
         "耗时分独立展示，不改变现有 GEval 通过判定和 ModelTest 总分。",
         "",
     ]
-    lines += ["## 汇总", "", "| 工具 | Agent | 模型 | 智能度 | 通过 / 评测 | 通过率 | "
-              + " | ".join(f"{name} 均分" for name in metric_names)
+    metric_headers = "".join(f" | {name} 均分" for name in metric_names)
+    lines += ["## 汇总", "", "| 工具 | Agent | 模型 | 智能度 | 通过 / 评测 | 通过率 |"
+              + metric_headers
               + " | 平均执行耗时 | 耗时分 | ModelTest 修正 | ModelTest 生成 | ModelTest 逻辑 | ModelTest 总分 |",
               "|---" * (12 + len(metric_names)) + "|"]
     for tool in report["tools"]:
@@ -518,14 +553,15 @@ def render_markdown(report: dict[str, Any]) -> str:
             if cat_parts:
                 lines.append(f"- 分类通过：{', '.join(cat_parts)}")
         lines += ["", "| Case | 分类 | " + " | ".join(metric_names) + " | 执行耗时 / 上限 | 耗时分 | 执行状态 | 结论 |",
-                  "|---" * (6 + len(metric_names)) + "|"]
+                  "|---" * (6 + len(metric_names)) + "|"] if metric_names else ["", "| Case | 分类 | 执行耗时 / 上限 | 耗时分 | 执行状态 | 结论 |",
+                  "|---|---|---|---|---|---|"]
         for case in tool.get("cases", []):
             row = _case_row_from_dict(case)
             label = f"`{row.case_id}`"
             if row.title:
                 label += f" {row.title}"
             category = CATEGORY_LABELS.get(row.category, row.category or "—")
-            cells = [label, category] + [_format_cell(row, name) for name in metric_names]
+            cells = [label, category] + ([_format_cell(row, name) for name in metric_names] if metric_names else [])
             conclusion = "—" if not row.evaluated else ("✅ 通过" if row.passed else "❌ 未通过")
             duration = f"{_format_duration(row.elapsed_seconds)} / {_format_duration(row.timeout_seconds)}"
             cells += [duration, _format_score(row.time_score), row.execution_status, conclusion]
@@ -547,7 +583,8 @@ def render_history_markdown(history: list[dict[str, Any]]) -> str:
                     metric_names.append(name)
     lines += ["| Run | 工具 | Agent | 模型 | 智能度 | 通过 / 评测 | 通过率 | "
               + " | ".join(f"{name} 均分" for name in metric_names)
-              + " | 平均执行耗时 | 耗时分 | ModelTest 总分 |",
+              + (" | " if metric_names else "")
+              + "平均执行耗时 | 耗时分 | ModelTest 总分 |",
               "|---" * (10 + len(metric_names)) + "|"]
     for report in history:
         for tool in report["tools"]:
@@ -571,23 +608,299 @@ def render_history_markdown(history: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
-def write_run_report(run_dir: Path, tools: Sequence[str], cases: Sequence[Any] | None = None) -> dict[str, Any]:
-    """生成并写入 runs/<run-id>/report.json 与 report.md，返回报告数据。"""
+HTML_STYLE = """
+:root { color-scheme: light; }
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 2rem 1.5rem 4rem;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
+  color: #1f2329;
+  background: #f7f8fa;
+  line-height: 1.6;
+}
+.wrap { max-width: 1200px; margin: 0 auto; }
+h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
+h2 { font-size: 1.25rem; margin: 2.5rem 0 .75rem; padding-bottom: .4rem;
+  border-bottom: 2px solid #e5e6eb; }
+.meta { color: #86909c; font-size: .875rem; margin-bottom: 1.5rem; }
+table { border-collapse: collapse; width: 100%; margin: 1rem 0; background: #fff;
+  border: 1px solid #e5e6eb; border-radius: 8px; overflow: hidden;
+  font-size: .875rem; }
+thead th { background: #f2f3f5; text-align: left; padding: .6rem .7rem;
+  font-weight: 600; border-bottom: 1px solid #e5e6eb; white-space: nowrap;
+  position: sticky; top: 0; }
+tbody td { padding: .55rem .7rem; border-bottom: 1px solid #f2f3f5; vertical-align: top; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: #fafbfc; }
+code { background: #f2f3f5; padding: .1rem .35rem; border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .85em; }
+.summary-list { background: #fff; border: 1px solid #e5e6eb; border-radius: 8px;
+  padding: .5rem 1.25rem; margin: 1rem 0; }
+.summary-list li { margin: .35rem 0; }
+.badge { display: inline-block; padding: .05rem .45rem; border-radius: 999px;
+  font-size: .8rem; font-weight: 600; white-space: nowrap; }
+.badge.pass { background: #e8ffea; color: #1a7f37; border: 1px solid #b7ebc0; }
+.badge.fail { background: #fff1f0; color: #cf1322; border: 1px solid #ffccc7; }
+.status-empty { color: #86909c; }
+.note { color: #86909c; font-size: .85rem; margin: 1rem 0; }
+.scroller { overflow-x: auto; }
+"""
+
+def _esc(value: Any) -> str:
+    return _html.escape("" if value is None else str(value))
+
+
+def _html_metric_cell(row: CaseRow, name: str) -> str:
+    entry = row.metrics.get(name)
+    if entry is None:
+        return f'<span class="status-empty">{_esc("未评测" if row.evaluated else "—")}</span>'
+    if not isinstance(entry.get("score"), (int, float)):
+        return '<span class="badge fail">错误</span>'
+    mark = "✓" if entry.get("success") else "✗"
+    cls = "pass" if entry.get("success") else "fail"
+    return f'<span class="badge {cls}">{_esc(f"{entry['score']:.2f}")} {mark}</span>'
+
+
+def _html_conclusion(row: CaseRow) -> str:
+    if not row.evaluated:
+        return '<span class="status-empty">—</span>'
+    if row.passed:
+        return '<span class="badge pass">通过</span>'
+    return '<span class="badge fail">未通过</span>'
+
+
+def _html_table(headers: list[str], rows: list[list[str]], scroller: bool = True) -> str:
+    head = "".join(f"<th>{_esc(header)}</th>" for header in headers)
+    body = "".join(
+        "<tr>" + "".join(f"<td>{cell}</td>" for cell in row) + "</tr>" for row in rows
+    )
+    inner = f'<table><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
+    return f'<div class="scroller">{inner}</div>' if scroller else inner
+
+
+def _html_summary_rows(report: dict[str, Any], metric_names: list[str]) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for tool in report["tools"]:
+        summary = tool.get("summary", {})
+        evaluated = summary.get("evaluated", 0)
+        passed = summary.get("passed", 0)
+        rate = summary.get("pass_rate")
+        averages = summary.get("metric_averages", {})
+        mt = tool.get("model_test", {})
+        timing = tool.get("execution_timing", {})
+        cells = [
+            f'<code>{_esc(tool["tool"])}</code>',
+            _esc(tool.get("agent", "unknown")),
+            _esc(tool.get("model", "unknown")),
+            _esc(tool.get("intelligence", "unknown")),
+            f"{passed} / {evaluated}",
+            _esc(f"{rate * 100:.0f}%" if rate is not None else "—"),
+        ]
+        cells += [_esc(_format_score(averages.get(name))) for name in metric_names]
+        cells += [
+            _esc(_format_duration(timing.get("average_elapsed_seconds"))),
+            _esc(_format_score(timing.get("average_time_score"))),
+            _esc(_format_score(mt.get("correction"))),
+            _esc(_format_score(mt.get("generation"))),
+            _esc(_format_score(mt.get("logic"))),
+            _esc(_format_score(mt.get("total"))),
+        ]
+        rows.append(cells)
+    return rows
+
+
+def _html_case_rows(tool: dict[str, Any], metric_names: list[str]) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for case in tool.get("cases", []):
+        row = _case_row_from_dict(case)
+        label = f'<code>{_esc(row.case_id)}</code>'
+        if row.title:
+            label += f" {_esc(row.title)}"
+        category = CATEGORY_LABELS.get(row.category, row.category or "—")
+        cells = [label, _esc(category)]
+        if metric_names:
+            cells += [_html_metric_cell(row, name) for name in metric_names]
+        duration = f"{_format_duration(row.elapsed_seconds)} / {_format_duration(row.timeout_seconds)}"
+        cells += [
+            _esc(duration),
+            _esc(_format_score(row.time_score)),
+            _esc(row.execution_status),
+            _html_conclusion(row),
+        ]
+        rows.append(cells)
+    return rows
+
+
+def _html_tool_section(tool: dict[str, Any], metric_names: list[str]) -> str:
+    parts: list[str] = [f'<h2>{_esc(tool["tool"])}</h2>']
+    identity = f"{tool.get('agent', 'unknown')} / {tool.get('model', 'unknown')}"
+    if tool.get("intelligence") not in (None, "", "unknown"):
+        identity += f"（{_esc(tool['intelligence'])}）"
+    bullets = [f"<li>Agent / 模型：{identity}</li>"]
+    if tool.get("run_duration_seconds") is not None:
+        bullets.append(f"<li>裁判评测耗时：{tool['run_duration_seconds']:.1f}s</li>")
+    timing = tool.get("execution_timing", {})
+    if timing.get("total_elapsed_seconds") is not None:
+        bullets.append(
+            "<li>代理执行耗时：总计 "
+            f"{_esc(_format_duration(timing.get('total_elapsed_seconds')))}，"
+            f"平均 {_esc(_format_duration(timing.get('average_elapsed_seconds')))}，"
+            f"平均耗时分 {_esc(_format_score(timing.get('average_time_score')))}</li>"
+        )
+    if tool.get("judge_model"):
+        bullets.append(f"<li>裁判模型：{_esc(tool['judge_model'])}</li>")
+    if tool.get("metric_version"):
+        bullets.append(f"<li>指标版本：{_esc(tool['metric_version'])}</li>")
+    mt = tool.get("model_test", {})
+    if mt:
+        bullets.append(
+            "<li>ModelTest：修正 "
+            f"{_esc(_format_score(mt.get('correction')))}，生成 "
+            f"{_esc(_format_score(mt.get('generation')))}，逻辑 "
+            f"{_esc(_format_score(mt.get('logic')))}，总分 "
+            f"{_esc(_format_score(mt.get('total')))}</li>"
+        )
+    cat_stats = tool.get("category_stats", {})
+    if cat_stats:
+        cat_parts = []
+        for cat in CATEGORY_LABELS:
+            stat = cat_stats.get(cat, {})
+            if stat.get("evaluated"):
+                rate = stat.get("pass_rate")
+                text = (
+                    f"{CATEGORY_LABELS.get(cat, cat)} {stat['passed']}/{stat['evaluated']}"
+                    f" ({rate * 100:.0f}%)"
+                    if rate is not None
+                    else f"{CATEGORY_LABELS.get(cat, cat)} {stat['passed']}/{stat['evaluated']}"
+                )
+                cat_parts.append(text)
+        if cat_parts:
+            bullets.append(f"<li>分类通过：{_esc('，'.join(cat_parts))}</li>")
+    parts.append('<ul class="summary-list">' + "".join(bullets) + "</ul>")
+
+    headers = ["Case", "分类"] + metric_names + ["执行耗时 / 上限", "耗时分", "执行状态", "结论"]
+    parts.append(_html_table(headers, _html_case_rows(tool, metric_names)))
+    return "\n".join(parts)
+
+
+def _html_doc(title: str, body: str) -> str:
+    return (
+        "<!doctype html>\n<html lang=\"zh-CN\">\n<head>\n"
+        '<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        f"<title>{_esc(title)}</title>\n<style>{HTML_STYLE}</style>\n</head>\n"
+        f'<body><div class="wrap">\n{body}\n</div></body>\n</html>\n'
+    )
+
+
+def render_html(report: dict[str, Any]) -> str:
+    """渲染单 run 对比报告的静态页面（自包含 HTML，内联 CSS，无外部依赖）。"""
+    metric_names = _report_metric_names(report)
+    body = [f'<h1>评测对比报告：{_esc(report["run_id"])}</h1>']
+    generated = report.get("generated_at")
+    if generated:
+        body.append(f'<p class="meta">生成时间：{_esc(generated)}</p>')
+    if not any(tool["cases"] for tool in report["tools"]):
+        body.append('<p class="note">该 run 目录下没有找到任何 DeepEval 评测产物'
+                    '（deepeval/&lt;tool&gt;/test_run_*.json）。</p>')
+        return _html_doc(f"评测对比报告：{report['run_id']}", "\n".join(body))
+    body.append('<p class="note">耗时分按 '
+                'max(0, 100 × (1 - 执行耗时 / 超时上限)) 计算；仅正常完成的执行计分，'
+                '失败或超时为 0。耗时分独立展示，不改变现有 GEval 通过判定和 ModelTest 总分。</p>')
+    headers = ["工具", "Agent", "模型", "智能度", "通过 / 评测", "通过率"] + \
+        [f"{name} 均分" for name in metric_names] + \
+        ["平均执行耗时", "耗时分", "ModelTest 修正", "ModelTest 生成",
+         "ModelTest 逻辑", "ModelTest 总分"]
+    body.append(_html_table(headers, _html_summary_rows(report, metric_names)))
+    for tool in report["tools"]:
+        body.append(_html_tool_section(tool, metric_names))
+    return _html_doc(f"评测对比报告：{report['run_id']}", "\n".join(body))
+
+
+def render_history_html(history: list[dict[str, Any]]) -> str:
+    """渲染跨 run 历史对比的静态页面（自包含 HTML，内联 CSS，无外部依赖）。"""
+    body = ["<h1>跨 run 历史对比</h1>"]
+    if not history:
+        body.append('<p class="note">runs/ 目录下没有找到任何评测产物。</p>')
+        return _html_doc("跨 run 历史对比", "\n".join(body))
+    metric_names: list[str] = []
+    for report in history:
+        for tool in report["tools"]:
+            for name in (tool.get("summary", {}).get("metric_averages") or {}):
+                if name not in metric_names:
+                    metric_names.append(name)
+    headers = ["Run", "工具", "Agent", "模型", "智能度", "通过 / 评测", "通过率"] + \
+        [f"{name} 均分" for name in metric_names] + \
+        ["平均执行耗时", "耗时分", "ModelTest 总分"]
+    rows: list[list[str]] = []
+    for report in history:
+        for tool in report["tools"]:
+            summary = tool.get("summary", {})
+            evaluated = summary.get("evaluated", 0)
+            passed = summary.get("passed", 0)
+            rate = summary.get("pass_rate")
+            averages = summary.get("metric_averages", {})
+            mt_total = tool.get("model_test", {}).get("total")
+            timing = tool.get("execution_timing", {})
+            cells = [
+                f'<code>{_esc(report["run_id"])}</code>',
+                f'<code>{_esc(tool["tool"])}</code>',
+                _esc(tool.get("agent", "unknown")),
+                _esc(tool.get("model", "unknown")),
+                _esc(tool.get("intelligence", "unknown")),
+                f"{passed} / {evaluated}",
+                _esc(f"{rate * 100:.0f}%" if rate is not None else "—"),
+            ]
+            cells += [_esc(_format_score(averages.get(name))) for name in metric_names]
+            cells += [
+                _esc(_format_duration(timing.get("average_elapsed_seconds"))),
+                _esc(_format_score(timing.get("average_time_score"))),
+                _esc(_format_score(mt_total)),
+            ]
+            rows.append(cells)
+    body.append(_html_table(headers, rows))
+    return _html_doc("跨 run 历史对比", "\n".join(body))
+
+
+def write_run_report(
+    run_dir: Path,
+    tools: Sequence[str],
+    cases: Sequence[Any] | None = None,
+    formats: Sequence[str] = ("md", "html"),
+) -> dict[str, Any]:
+    """生成并写入 runs/<run-id>/report.json 与静态页面（report.md / report.html）。
+
+    ``formats`` 控制文本与静态页输出：``"md"`` 写 Markdown，``"html"`` 写自包含静态页；
+    两者可同时选择（默认）。``report.json`` 始终写入，作为后续渲染的数据源。
+    """
     report = collect_run_report(run_dir, tools, cases)
     (run_dir / "report.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    (run_dir / "report.md").write_text(render_markdown(report), encoding="utf-8")
+    if "md" in formats:
+        (run_dir / "report.md").write_text(render_markdown(report), encoding="utf-8")
+    if "html" in formats:
+        (run_dir / "report.html").write_text(render_html(report), encoding="utf-8")
     return report
 
 
-def write_history_report(runs_root: Path, cases: Sequence[Any] | None = None) -> list[dict[str, Any]]:
-    """生成并写入 runs/history-report.json 与 history-report.md。"""
+def write_history_report(
+    runs_root: Path,
+    cases: Sequence[Any] | None = None,
+    formats: Sequence[str] = ("md", "html"),
+) -> list[dict[str, Any]]:
+    """生成并写入 runs/history-report.json 与静态页面（history-report.md / history-report.html）。"""
     history = collect_history(runs_root, cases)
     (runs_root / "history-report.json").write_text(
         json.dumps({"generated_at": datetime.now(timezone.utc).isoformat(), "runs": history},
                    ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    (runs_root / "history-report.md").write_text(render_history_markdown(history), encoding="utf-8")
+    if "md" in formats:
+        (runs_root / "history-report.md").write_text(render_history_markdown(history), encoding="utf-8")
+    if "html" in formats:
+        (runs_root / "history-report.html").write_text(render_history_html(history), encoding="utf-8")
     return history

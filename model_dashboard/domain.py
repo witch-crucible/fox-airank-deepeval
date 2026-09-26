@@ -8,12 +8,10 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from benchmark.report import MODEL_TEST_WEIGHTS, weighted_average
 
-MODEL_TEST_WEIGHTS = {
-    "correction": 3,
-    "generation": 4,
-    "logic": 8,
-}
+
+# 权重与加权算法以 benchmark.report 为唯一定义，避免评测报告与看板各算一套。
 SCORE_FIELDS = {
     "skill_call",
     "code_review",
@@ -99,12 +97,12 @@ def calculate_scores(raw_scores: Any) -> dict[str, float | int | None]:
         "generation": scores["model_test_generation"],
         "logic": scores["model_test_logic"],
     }
+    # 严格口径：还原原表综合分时要求三类齐全，避免用部分数据凑出总分。
     if all(value is not None for value in model_test_parts.values()):
-        weighted_total = sum(
-            float(model_test_parts[name]) * weight
+        scores["model_test_total"] = weighted_average(
+            (float(model_test_parts[name]), weight)
             for name, weight in MODEL_TEST_WEIGHTS.items()
-        ) / sum(MODEL_TEST_WEIGHTS.values())
-        scores["model_test_total"] = round(weighted_total, 2)
+        )
 
     composite_parts = [
         scores["manual_total"],

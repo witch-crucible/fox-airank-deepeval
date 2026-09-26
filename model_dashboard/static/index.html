@@ -230,7 +230,51 @@
     .panel-header p { max-width: 70ch; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
     .panel-header .segmented { max-width: 560px; flex-shrink: 0; }
     .panel-kicker { display: block; margin-bottom: 12px; color: var(--accent); font: 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .ai-insights-layout { display: grid; gap: 34px; }
+    .ai-insights-controls { border-top: 1px solid var(--line-strong); padding-top: 24px; }
+    .ai-insights-controls textarea { width: 100%; min-height: 112px; resize: vertical; border: 1px solid var(--line-strong); border-radius: 4px; padding: 12px 14px; color: var(--ink); background: #fff; font: inherit; line-height: 1.6; }
+    .ai-insights-controls textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+    .ai-insights-meta, .ai-insights-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+    .ai-insights-meta, .ai-insights-status, .ai-insights-config { color: var(--muted); font-size: 12px; line-height: 1.7; }
+    .ai-insights-config { margin: 0; padding: 14px 16px; border-left: 2px solid var(--line-strong); background: #f7f7f4; }
+    .ai-insights-notice { margin: 0; padding: 12px 15px; border-left: 2px solid var(--accent); background: #f1f5fc; color: var(--ink); font-size: 12px; line-height: 1.7; }
+    .ai-insights-notice.warning { border-color: #b48643; background: #fff8e8; color: #73501c; }
+    .ai-insights-notice.error { border-color: #a84436; background: #fff2ef; color: #8b3025; }
+    .ai-insights-result { display: grid; gap: 24px; }
+    .ai-insights-summary { margin: 0; max-width: 78ch; color: var(--ink); font: 400 22px/1.65 var(--serif); white-space: pre-wrap; overflow-wrap: anywhere; }
+    .ai-insights-section { min-width: 0; border-top: 1px solid var(--line); padding-top: 18px; }
+    .ai-insights-section h2 { margin: 0 0 14px; font: 600 20px var(--serif); }
+    .ai-insights-list { display: grid; gap: 12px; }
+    .ai-insights-card { min-width: 0; padding: 16px 18px; border: 1px solid var(--line); background: #fff; }
+    .ai-insights-card h3 { margin: 0 0 7px; font: 600 15px/1.5 var(--sans); overflow-wrap: anywhere; }
+    .ai-insights-card p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .ai-insights-card p + p { margin-top: 8px; }
+    .ai-insights-evidence { display: grid; gap: 8px; margin-top: 13px; }
+    .ai-evidence-item { padding: 10px 12px; border-left: 2px solid var(--accent); background: #f5f7fa; font-size: 11px; line-height: 1.65; overflow-wrap: anywhere; }
+    .ai-evidence-item strong { display: block; color: var(--ink); font-weight: 600; }
+    .ai-evidence-item p { margin: 3px 0 0; color: var(--muted); }
+    .ai-insights-footnote { margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.65; }
     .chart { padding: 0 0 14px; }
+    .scatter { margin: 4px 0 10px; }
+    .scatter svg { display: block; width: 100%; height: auto; }
+    .scatter-legend { display: flex; flex-wrap: wrap; gap: 18px; padding: 6px 0 0; color: var(--muted); font-size: 11px; }
+    .scatter-legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .scatter-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+    .scatter-dot.focus { background: #3567c9; }
+    .scatter-dot.muted { background: #a9bedd; }
+    .scatter-dot.quadrant { background: #eaf1ff; border: 1px dashed #9dbdf0; border-radius: 2px; }
+    .scatter-line { width: 16px; height: 0; border-top: 2px solid #aa8040; display: inline-block; }
+    .efficiency-table tr.is-attractive { background: #f5f9ff; }
+    .efficiency-table td.quadrant-cell { color: var(--accent-dark); font-size: 11px; white-space: nowrap; }
+    .efficiency-table table { min-width: 640px; }
+    .balance-group { padding: 6px 0 18px; }
+    .balance-group h3 { margin: 0 0 10px; font: 600 19px var(--serif); }
+    .balance-table table { min-width: 880px; }
+    .balance-table tr.is-best { background: var(--gold-soft); }
+    .balance-table td.balance-score { font-weight: 600; color: var(--ink); }
+    .balance-table td.balance-parts { color: var(--muted); font: 11px var(--mono); }
+    .efficiency-note { margin: 0 0 14px; color: var(--muted); font-size: 12px; }
+    .efficiency-note strong { color: var(--gold-deep); font-weight: 600; }
     .ranking-split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; padding-bottom: 8px; }
     .ranking-split-col { min-width: 0; }
     .ranking-split-col h3 { margin: 0; font: 600 20px var(--serif); }
@@ -353,6 +397,21 @@
     .leaderboard-identity > small { margin-top: 4px; line-height: 1.5; }
     .leaderboard-legion-badge { display: block; margin-top: 6px; color: #32694f; font-size: 12px; font-weight: 600; }
     .leaderboard-legion-core .leaderboard-legion-badge { color: #946517; }
+    .leaderboard-purpose-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+    .leaderboard-purpose-tag { display: inline-flex; align-items: center; border: 1px solid #b8d0c2; border-radius: 999px; padding: 2px 7px; color: #32694f; font-size: 10px; line-height: 1.3; }
+    .leaderboard-purpose-tag.core { border-color: #d8b66a; background: #fff2c9; color: #805810; font-weight: 700; }
+    .leaderboard-purpose-tag.secondary { border-color: var(--line); background: #f5f5f3; color: var(--muted); }
+    .agent-leaderboard-group > td { padding: 0; }
+    .agent-leaderboard-group details { padding: 0; }
+    .agent-leaderboard-group summary { display: grid; grid-template-columns: 54px minmax(180px, 1fr) minmax(220px, 1.3fr) 72px; align-items: center; gap: 14px; padding: 16px 18px; cursor: pointer; list-style: none; }
+    .agent-leaderboard-group summary::-webkit-details-marker { display: none; }
+    .agent-leaderboard-group summary::after { content: "展开配置"; justify-self: end; grid-column: 4; color: var(--muted); font-size: 11px; }
+    .agent-leaderboard-group details[open] summary::after { content: "收起配置"; }
+    .agent-group-identity { min-width: 0; }
+    .agent-group-identity > strong { display: block; font-size: 15px; }
+    .agent-group-best { color: var(--muted); font-size: 12px; }
+    .agent-configuration-table { margin: 0; border-top: 1px solid var(--line); }
+    .agent-configuration-table th:first-child, .agent-configuration-table td:first-child { padding-left: 28px; }
     .leaderboard-effort { white-space: nowrap; font-weight: 600; }
     .leaderboard-sync-result { margin-bottom: 16px; font-size: 13px; line-height: 1.7; }
     .loading { min-height: 60vh; display: grid; place-items: center; color: var(--muted); }
@@ -386,6 +445,11 @@
     .legion-hero-art::after { content: ""; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 36px #0008; }
     .legion-hero-art img { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; }
     .recommendations-panel { margin-bottom: 36px; }
+    .recommendation-source-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 24px; margin: 0 0 30px; padding: 0 0 22px; border-bottom: 1px solid var(--line-strong); }
+    .recommendation-source-title { display: block; margin-bottom: 6px; font: 600 18px var(--serif); }
+    .recommendation-source-copy p { max-width: 76ch; margin: 0; color: var(--muted); font-size: 11px; line-height: 1.8; }
+    .recommendation-source-switch { align-self: start; }
+    .recommendation-source-count { margin-left: 5px; color: inherit; opacity: .68; font: 9px var(--mono); }
     .recommendation-actions { display: flex; align-items: center; justify-content: end; flex-wrap: wrap; gap: 8px; }
     .recommendation-release-status { padding: 5px 8px; border-radius: 3px; background: var(--gold-soft); color: var(--gold-deep); font: 10px var(--mono); white-space: nowrap; }
     .recommendation-release-status.current { background: #e8f4ed; color: #286342; }
@@ -457,6 +521,18 @@
     .recommendation-metric small { display: block; color: var(--muted); font-size: 9px; }
     .recommendation-metric strong { display: block; margin-top: 3px; font: 500 12px var(--mono); }
     .recommendation-capability-empty { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.6; }
+    .automatic-recommendations-panel .recommendation-list { padding: 0 0 4px; }
+    .automatic-recommendation-item { border-color: #d6e0ef; background: #fafcff; box-shadow: inset 3px 0 0 #5f7bb5; }
+    .automatic-recommendation-item .recommendation-identity small { color: #3d619f; font-weight: 600; }
+    .automatic-recommendation-kind { background: #edf2fa; color: #425d8d; }
+    .automatic-recommendation-usecase { margin: 12px 0 0; padding: 10px 12px; border: 1px solid #dce5f2; border-radius: 4px; background: var(--paper); }
+    .automatic-recommendation-usecase span { display: block; margin-bottom: 3px; color: var(--muted); font: 9px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+    .automatic-recommendation-usecase strong { color: var(--ink-soft); font-size: 11px; font-weight: 500; line-height: 1.7; }
+    .automatic-recommendation-detail { margin: 10px 0 0; color: var(--ink-soft); font-size: 11px; line-height: 1.75; }
+    .automatic-recommendation-detail strong { display: block; margin-bottom: 3px; color: var(--muted); font: 9px var(--mono); }
+    .automatic-recommendation-summary { margin: 0 0 10px; max-width: 88ch; color: var(--ink-soft); font-size: 12px; line-height: 1.8; white-space: pre-wrap; }
+    .automatic-recommendations-panel .ai-insights-evidence { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
+    .automatic-recommendations-panel .ai-evidence-item { padding: 0 0 0 10px; border-left: 1px solid var(--accent-mid); background: transparent; }
     #recommendations-dialog { width: min(1080px, calc(100% - 32px)); }
     #recommendations-form { padding: 0; }
     #recommendations-editor { padding: 22px 26px 8px; }
@@ -570,6 +646,7 @@
       .ranking-split { grid-template-columns: 1fr; gap: 28px; }
       .panel-header { flex-wrap: wrap; }
       .panel-header .segmented { max-width: 100%; flex-shrink: 1; }
+      .recommendation-source-bar { grid-template-columns: 1fr; gap: 16px; }
       .legion-hero-art { max-width: 720px; }
       .local-controls { gap: 12px; }
       .local-controls .local-field:first-child { flex: 1 1 260px; }
@@ -628,6 +705,9 @@
       .hero-chips { gap: 8px 16px; }
       .hero-chip { font-size: 11px; }
       .panel-header { padding-top: 20px; }
+      .agent-leaderboard-group summary { grid-template-columns: 36px minmax(150px, 1fr) 58px; gap: 9px; padding: 14px 12px; }
+      .agent-group-best { grid-column: 2 / -1; }
+      .agent-leaderboard-group summary::after { grid-column: 3; grid-row: 1; }
       .legion-hero { margin: 20px 0 30px; padding: 20px; border-radius: 10px; }
       .legion-hero h1 { font-size: clamp(31px, 10vw, 44px); }
       .ranking-row { grid-template-columns: 24px minmax(110px, 1fr) 55px; }
@@ -642,6 +722,9 @@
       .dialog-head { padding: 18px; gap: 12px; }
       .dialog-head h2 { font-size: 20px; }
       form, .score-content { padding: 20px 18px; }
+      .ai-insights-controls textarea { min-height: 130px; }
+      .ai-insights-summary { font-size: 19px; }
+      .ai-insights-card { padding: 14px; }
       .score-identity strong { font-size: 21px; }
       .score-metric-head { align-items: flex-start; }
       #local-scores, #local-details, #pelican-showcase, #local-method, .panel { scroll-margin-top: 20px; }
@@ -669,6 +752,8 @@
           <button type="button" data-view="dashboard" aria-pressed="false" aria-label="看板模式">本地实测</button>
           <button type="button" data-view="agent-reference" aria-pressed="false">Agent 三方榜单</button>
           <button type="button" data-view="reference" aria-pressed="false">Model 三方榜单</button>
+          <button type="button" data-view="efficiency" aria-pressed="false">效率对比</button>
+          <button type="button" data-view="ai-insights" aria-pressed="false">AI 总结与推荐</button>
           <button type="button" data-view="agent-usage" aria-pressed="false">Agent 使用人数</button>
           <button type="button" data-view="pricing" aria-pressed="false">订阅费用快照</button>
           <button type="button" data-view="settings" aria-pressed="false">配置</button>
@@ -890,6 +975,7 @@ OpenCode,450,社区公开数据</pre>
       modelLeaderboardError: "",
       agentLeaderboard: { agents: [], snapshots: [] },
       agentLeaderboardError: "",
+      agentLeaderboardSort: "score",
       leaderboardSearch: "",
       leaderboardLegionOnly: false,
       modelLeaderboardAaOnly: false,
@@ -897,6 +983,17 @@ OpenCode,450,社区公开数据</pre>
       leaderboardPage: 1,
       leaderboardPageSize: 50,
       history: { source: "arena_webdev", data: null, error: "" },
+      efficiency: { scope: "focus", charts: [], focus: {}, updated_at: "" },
+      efficiencyError: "",
+      balancePreset: "balanced",
+      aiInsights: null,
+      aiInsightsError: "",
+      aiInsightsLoaded: false,
+      aiInsightsLoading: false,
+      aiInsightsGenerating: false,
+      aiInsightsGoal: "",
+      aiInsightsPromise: null,
+      aiInsightsReadVersion: 0,
       previewId: "",
       metric: "model_test_total",
       search: "",
@@ -1097,13 +1194,15 @@ OpenCode,450,社区公开数据</pre>
     async function loadData() {
       app.setAttribute("aria-busy", "true");
       try {
-        const [models, local, publication, modelLeaderboard, agentLeaderboard, history] = await Promise.allSettled([
+        const [models, local, publication, modelLeaderboard, agentLeaderboard, history, efficiency] = await Promise.allSettled([
           api("/api/models"),
           api("/api/local-benchmarks"),
           api("/api/recommendations/releases"),
           api("/api/leaderboards/models"),
           api("/api/leaderboards/agents"),
-          api("/api/leaderboards/arena_webdev")
+          api("/api/leaderboards/arena_webdev"),
+          api(`/api/efficiency?scope=${encodeURIComponent(state.efficiency.scope || "focus")}&weights=${encodeURIComponent(balanceWeightsQuery(state.balancePreset))}`),
+          refreshAiInsights({ render: false })
         ]);
         if (models.status === "fulfilled") state.data = models.value;
         else showToast(`参考数据读取失败：${models.reason.message}`, true);
@@ -1120,6 +1219,10 @@ OpenCode,450,社区公开数据</pre>
         state.history = history.status === "fulfilled"
           ? { source: "arena_webdev", data: history.value, error: "" }
           : { source: "arena_webdev", data: null, error: history.reason.message };
+        state.efficiencyError = efficiency.status === "rejected" ? efficiency.reason.message : "";
+        state.efficiency = efficiency.status === "fulfilled"
+          ? efficiency.value
+          : { scope: state.efficiency.scope || "focus", charts: [], focus: {}, updated_at: "" };
         render();
         scrollToViewAnchor();
       } catch (error) {
@@ -1190,6 +1293,16 @@ OpenCode,450,社区公开数据</pre>
 
       if (state.view === "reference") {
         renderModelLeaderboardPage();
+        return;
+      }
+
+      if (state.view === "efficiency") {
+        renderEfficiencyPage();
+        return;
+      }
+
+      if (state.view === "ai-insights") {
+        renderAiInsightsPage();
         return;
       }
 
@@ -1874,16 +1987,42 @@ OpenCode,450,社区公开数据</pre>
       const badge = el("span", "leaderboard-legion-badge", `${legion.is_core ? "★" : "☆"} Vibe Coding Legion`);
       badge.title = legion.is_core ? "Legion 核心配置" : "Legion 配置（未设为核心）";
       identity.append(badge);
+      if (Array.isArray(legion.primary_purpose_types) || Array.isArray(legion.secondary_purpose_types)) {
+        appendLeaderboardPurposeTags(
+          identity,
+          legion.primary_purpose_types || [],
+          legion.secondary_purpose_types || [],
+          legion.core_purpose_types || []
+        );
+        if (row.supplemental) identity.append(el("small", "", "Legion 补充配置"));
+        return;
+      }
       const entries = legion.entries || [];
       entries.forEach(entry => {
         const core = Array.isArray(entry.core_purpose_types) ? entry.core_purpose_types : entry.is_core ? entry.primary_purpose_types || [] : [];
-        const purposes = entry.primary_purpose_types || [];
-        identity.append(el("small", "", [entry.tool, purposes.map(purpose => `${core.includes(purpose) ? "★ " : ""}${purpose}`).join(" / ")].filter(Boolean).join(" · ")));
+        if (entry.tool) identity.append(el("small", "", entry.tool));
+        appendLeaderboardPurposeTags(identity, entry.primary_purpose_types || [], entry.secondary_purpose_types || [], core);
       });
       if (row.supplemental) identity.append(el("small", "", "Legion 补充配置"));
     }
 
-    function leaderboardLegionToolbar(panel, search = null, includeModelMode = false) {
+    function appendLeaderboardPurposeTags(container, primary, secondary, core) {
+      const primaryValues = [...new Set(primary || [])];
+      const primaryKeys = new Set(primaryValues.map(value => String(value).toLocaleLowerCase("zh-CN")));
+      const coreKeys = new Set((core || []).map(value => String(value).toLocaleLowerCase("zh-CN")));
+      const secondaryValues = [...new Set(secondary || [])]
+        .filter(value => !primaryKeys.has(String(value).toLocaleLowerCase("zh-CN")));
+      if (!primaryValues.length && !secondaryValues.length) return;
+      const tags = el("span", "leaderboard-purpose-tags");
+      primaryValues.forEach(value => {
+        const isCore = coreKeys.has(String(value).toLocaleLowerCase("zh-CN"));
+        tags.append(el("span", `leaderboard-purpose-tag${isCore ? " core" : ""}`, `${isCore ? "★ " : ""}${value}`));
+      });
+      secondaryValues.forEach(value => tags.append(el("span", "leaderboard-purpose-tag secondary", value)));
+      container.append(tags);
+    }
+
+    function leaderboardLegionToolbar(panel, search = null, includeModelMode = false, includeAgentSort = false) {
       const toolbar = el("div", "leaderboard-toolbar");
       if (search) toolbar.append(search);
       if (includeModelMode) {
@@ -1892,6 +2031,19 @@ OpenCode,450,社区公开数据</pre>
         aaOnly.addEventListener("change", () => { state.modelLeaderboardAaOnly = aaOnly.checked; state.leaderboardPage = 1; render(); });
         aaLabel.append(aaOnly, "纯 Artificial Analysis");
         toolbar.append(aaLabel);
+      }
+      if (includeAgentSort) {
+        const sort = el("div", "segmented");
+        sort.setAttribute("role", "group");
+        sort.setAttribute("aria-label", "Agent 榜单排序方式");
+        [["score", "Agent 分值"], ["uplift", "提升效果"]].forEach(([value, label]) => {
+          const button = el("button", "", label);
+          button.type = "button";
+          button.setAttribute("aria-pressed", String(state.agentLeaderboardSort === value));
+          button.addEventListener("click", () => { state.agentLeaderboardSort = value; render(); });
+          sort.append(button);
+        });
+        toolbar.append(sort);
       }
       const label = el("label", "leaderboard-legion-filter");
       const checkbox = el("input"); checkbox.type = "checkbox"; checkbox.checked = state.leaderboardLegionOnly;
@@ -2015,6 +2167,425 @@ OpenCode,450,社区公开数据</pre>
       app.append(panel, renderModelAliasPanel(), renderHistoryPanel(["arena_webdev", "artificial_analysis_model", "llm_stats"]));
     }
 
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    const EFFICIENCY_SCOPES = [
+      { key: "focus", label: "关注项" },
+      { key: "all", label: "全部" }
+    ];
+
+    function svgNode(tag, attrs = {}, text) {
+      const node = document.createElementNS(SVG_NS, tag);
+      Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, String(value)));
+      if (text !== undefined) node.textContent = text;
+      return node;
+    }
+
+    function efficiencyScale(values) {
+      const numbers = values.filter(value => Number.isFinite(value));
+      if (!numbers.length) return null;
+      const min = Math.min(...numbers);
+      const max = Math.max(...numbers);
+      if (max === min) {
+        return { project: () => 0.5, ticks: [min], format: value => number(value, 2) };
+      }
+      if (min > 0 && max / min > 20) {
+        const low = Math.log10(min);
+        const span = Math.log10(max) - low || 1;
+        return {
+          project: value => (Math.log10(Math.max(Number(value), Number.MIN_VALUE)) - low) / span,
+          ticks: [0, 0.25, 0.5, 0.75, 1].map(ratio => Math.pow(10, low + ratio * span)),
+          format: value => number(value, value < 10 ? 2 : 0)
+        };
+      }
+      const padding = (max - min) * 0.08;
+      const low = min - padding;
+      const span = max + padding - low || 1;
+      return {
+        project: value => (Number(value) - low) / span,
+        ticks: [0, 0.25, 0.5, 0.75, 1].map(ratio => low + ratio * span),
+        format: value => number(value, span < 5 ? 2 : 0)
+      };
+    }
+
+    function efficiencyScatter(chart) {
+      const points = (chart.points || []).filter(
+        point => Number.isFinite(Number(point.x)) && Number.isFinite(Number(point.y))
+      );
+      if (!points.length) {
+        return el("div", "empty", "暂无可绘制的数据：请先同步 AA Agent / Model 全榜，或切换到「全部」范围。");
+      }
+      const width = 720;
+      const height = 380;
+      const pad = { top: 18, right: 26, bottom: 50, left: 68 };
+      const plotWidth = width - pad.left - pad.right;
+      const plotHeight = height - pad.top - pad.bottom;
+      const xScale = efficiencyScale(points.map(point => Number(point.x)));
+      const yScale = efficiencyScale(points.map(point => Number(point.y)));
+      const projectX = value => pad.left + xScale.project(value) * plotWidth;
+      const projectY = value => pad.top + plotHeight - yScale.project(value) * plotHeight;
+      const svg = svgNode("svg", { viewBox: `0 0 ${width} ${height}`, role: "img", "aria-label": chart.title });
+
+      const quadrant = chart.quadrant;
+      if (quadrant) {
+        const quadrantX = projectX(quadrant.x_max);
+        const quadrantY = projectY(quadrant.y_min);
+        svg.append(svgNode("rect", {
+          x: pad.left, y: pad.top,
+          width: Math.max(quadrantX - pad.left, 0), height: Math.max(quadrantY - pad.top, 0),
+          fill: "#eaf1ff", "fill-opacity": 0.9
+        }));
+        svg.append(
+          svgNode("line", { x1: quadrantX, x2: quadrantX, y1: pad.top, y2: pad.top + plotHeight, stroke: "#9dbdf0", "stroke-width": 1, "stroke-dasharray": "4 4" }),
+          svgNode("line", { x1: pad.left, x2: pad.left + plotWidth, y1: quadrantY, y2: quadrantY, stroke: "#9dbdf0", "stroke-width": 1, "stroke-dasharray": "4 4" }),
+          svgNode("text", { x: pad.left + 10, y: pad.top + 16, "font-size": 10, fill: "#2f62bd" },
+            `${quadrant.label} · ${quadrant.count} 个 · ${quadrant.hint}`)
+        );
+      }
+
+      xScale.ticks.forEach(tick => {
+        svg.append(svgNode("line", {
+          x1: projectX(tick), x2: projectX(tick), y1: pad.top, y2: pad.top + plotHeight,
+          stroke: "#eef0f4", "stroke-width": 1
+        }));
+        svg.append(svgNode("text", {
+          x: projectX(tick), y: pad.top + plotHeight + 18, "text-anchor": "middle",
+          "font-size": 10, fill: "#6c727e"
+        }, xScale.format(tick)));
+      });
+      yScale.ticks.forEach(tick => {
+        svg.append(svgNode("line", {
+          x1: pad.left, x2: pad.left + plotWidth, y1: projectY(tick), y2: projectY(tick),
+          stroke: "#eef0f4", "stroke-width": 1
+        }));
+        svg.append(svgNode("text", {
+          x: pad.left - 10, y: projectY(tick) + 3, "text-anchor": "end",
+          "font-size": 10, fill: "#6c727e"
+        }, yScale.format(tick)));
+      });
+      svg.append(
+        svgNode("line", { x1: pad.left, x2: pad.left, y1: pad.top, y2: pad.top + plotHeight, stroke: "#cdd2dc", "stroke-width": 1 }),
+        svgNode("line", { x1: pad.left, x2: pad.left + plotWidth, y1: pad.top + plotHeight, y2: pad.top + plotHeight, stroke: "#cdd2dc", "stroke-width": 1 }),
+        svgNode("text", {
+          x: pad.left + plotWidth / 2, y: height - 10, "text-anchor": "middle", "font-size": 11, fill: "#454a55"
+        }, `${chart.x_label}${chart.x_unit ? ` (${chart.x_unit})` : ""}${chart.x_lower_is_better ? " · 越低越好" : ""}`),
+        svgNode("text", {
+          x: 18, y: pad.top + plotHeight / 2, "text-anchor": "middle", "font-size": 11, fill: "#454a55",
+          transform: `rotate(-90 18 ${pad.top + plotHeight / 2})`
+        }, `${chart.y_label}${chart.y_unit ? ` (${chart.y_unit})` : ""}`)
+      );
+
+      const paretoKeys = new Set(chart.pareto_keys || []);
+      const frontier = points
+        .filter(point => paretoKeys.has(point.key))
+        .sort((left, right) => Number(left.x) - Number(right.x));
+      if (frontier.length > 1) {
+        const firstY = projectY(Number(frontier[0].y));
+        const firstX = projectX(Number(frontier[0].x));
+        let path = firstX > pad.left
+          ? `M ${pad.left} ${firstY} L ${firstX} ${firstY}`
+          : `M ${firstX} ${firstY}`;
+        frontier.slice(1).forEach((point, index) => {
+          const previousY = projectY(Number(frontier[index].y));
+          const x = projectX(Number(point.x));
+          path += ` L ${x} ${previousY} L ${x} ${projectY(Number(point.y))}`;
+        });
+        path += ` L ${pad.left + plotWidth} ${projectY(Number(frontier[frontier.length - 1].y))}`;
+        svg.append(svgNode("path", {
+          d: path, fill: "none", stroke: "#aa8040", "stroke-width": 2,
+          "stroke-linejoin": "round", "stroke-linecap": "round"
+        }));
+      }
+
+      const labelled = [];
+      points.forEach(point => {
+        const cx = projectX(Number(point.x));
+        const cy = projectY(Number(point.y));
+        const focused = point.focused !== false;
+        const onFrontier = paretoKeys.has(point.key);
+        const dot = svgNode("circle", {
+          cx, cy, r: onFrontier ? (focused ? 6.5 : 5.5) : (focused ? 6 : 4.5),
+          fill: focused ? "#3567c9" : "#a9bedd",
+          "fill-opacity": focused ? 0.92 : 0.62,
+          stroke: onFrontier ? "#aa8040" : "#ffffff",
+          "stroke-width": onFrontier ? 1.8 : 1
+        });
+        dot.append(svgNode("title", {}, `${point.label} · ${chart.y_label} ${number(point.y, 2)} · ${chart.x_label} ${number(point.x, 2)}${chart.x_unit ? ` ${chart.x_unit}` : ""}`));
+        svg.append(dot);
+        if (!focused || !labelled.every(value => Math.abs(value - cy) > 12)) return;
+        labelled.push(cy);
+        svg.append(svgNode("text", { x: cx + 9, y: cy + 3.5, "font-size": 10, fill: "#20232a" },
+          point.label.length > 28 ? `${point.label.slice(0, 27)}…` : point.label));
+      });
+
+      const wrap = el("div", "scatter");
+      wrap.append(svg);
+      const legend = el("div", "scatter-legend");
+      const focused = el("span");
+      focused.append(el("i", "scatter-dot focus"), `关注项 ${points.filter(point => point.focused !== false).length} 个`);
+      legend.append(focused);
+      const others = points.filter(point => point.focused === false).length;
+      if (others) {
+        const muted = el("span");
+        muted.append(el("i", "scatter-dot muted"), `其余 ${others} 个`);
+        legend.append(muted);
+      }
+      if (quadrant) {
+        const mark = el("span");
+        mark.append(el("i", "scatter-dot quadrant"), `${quadrant.label} ${quadrant.count} 个（左上区域）`);
+        legend.append(mark);
+      }
+      if (frontier.length > 1) {
+        const mark = el("span");
+        mark.append(el("i", "scatter-line"), `Pareto 前沿 ${frontier.length} 个（包络线上的最优取舍）`);
+        legend.append(mark);
+      }
+      if (chart.source_url) {
+        const source = el("span");
+        const link = el("a", "", "Artificial Analysis 原始图表");
+        link.href = chart.source_url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        source.append(link);
+        legend.append(source);
+      }
+      wrap.append(legend);
+      return wrap;
+    }
+
+    function efficiencyTable(chart) {
+      const rows = (chart.points || []).filter(
+        point => Number.isFinite(Number(point.x)) && Number.isFinite(Number(point.y))
+      );
+      const wrap = el("div", "table-wrap efficiency-table");
+      const table = el("table");
+      const head = el("thead");
+      const headRow = el("tr");
+      ["名称", chart.y_label, chart.x_label, "象限", "Pareto", "名次"].forEach(label => headRow.append(el("th", "", label)));
+      head.append(headRow);
+      table.append(head);
+      const quadrant = chart.quadrant;
+      const inQuadrant = row => Boolean(quadrant)
+        && Number(row.x) <= Number(quadrant.x_max)
+        && Number(row.y) >= Number(quadrant.y_min);
+      const paretoKeys = new Set(chart.pareto_keys || []);
+      const body = el("tbody");
+      rows.forEach(row => {
+        const attractive = inQuadrant(row);
+        const tr = el("tr", attractive ? "is-attractive" : "");
+        const identity = el("td", "leaderboard-identity");
+        identity.append(el("strong", "", row.label));
+        if (row.effort) identity.append(el("small", "", row.effort));
+        const quadrantCell = el("td", "quadrant-cell", attractive ? "★ 高性价比" : "—");
+        tr.append(
+          identity,
+          el("td", "leaderboard-score", number(row.y, 2)),
+          el("td", "number", `${number(row.x, 2)}${chart.x_unit ? ` ${chart.x_unit}` : ""}`),
+          quadrantCell,
+          el("td", "quadrant-cell", paretoKeys.has(row.key) ? "★ 前沿" : "—"),
+          el("td", "number leaderboard-rank", row.rank ? `#${row.rank}` : "—")
+        );
+        body.append(tr);
+      });
+      if (!rows.length) {
+        const emptyRow = el("tr");
+        const cell = el("td", "empty", "当前范围没有可展示的数据");
+        cell.colSpan = 6;
+        emptyRow.append(cell);
+        body.append(emptyRow);
+      }
+      table.append(body);
+      wrap.append(table);
+      return wrap;
+    }
+
+    const FALLBACK_BALANCE_PRESETS = [
+      { key: "balanced", label: "均衡", weights: { capability: 0.4, cost: 0.3, time: 0.3 } },
+      { key: "capability", label: "能力优先", weights: { capability: 0.6, cost: 0.2, time: 0.2 } },
+      { key: "cost", label: "省钱优先", weights: { capability: 0.2, cost: 0.5, time: 0.3 } },
+      { key: "speed", label: "省时优先", weights: { capability: 0.2, cost: 0.3, time: 0.5 } }
+    ];
+
+    function balancePresets() {
+      const presets = (state.efficiency || {}).balance?.presets;
+      return Array.isArray(presets) && presets.length ? presets : FALLBACK_BALANCE_PRESETS;
+    }
+
+    function balanceWeightsQuery(presetKey) {
+      const presets = balancePresets();
+      const preset = presets.find(item => item.key === presetKey) || presets[0];
+      if (!preset || !preset.weights) return "";
+      const weights = preset.weights;
+      return `capability:${weights.capability},cost:${weights.cost},time:${weights.time}`;
+    }
+
+    function efficiencyUrl(scope) {
+      const params = new URLSearchParams();
+      params.set("scope", scope || ((state.efficiency || {}).scope || "focus"));
+      const weights = balanceWeightsQuery(state.balancePreset);
+      if (weights) params.set("weights", weights);
+      return `/api/efficiency?${params.toString()}`;
+    }
+
+    async function refreshEfficiency(scope) {
+      const nextScope = scope || ((state.efficiency || {}).scope || "focus");
+      state.efficiencyError = "";
+      app.setAttribute("aria-busy", "true");
+      try {
+        state.efficiency = await api(efficiencyUrl(nextScope));
+      } catch (error) {
+        state.efficiencyError = error.message;
+      } finally {
+        app.setAttribute("aria-busy", "false");
+        render();
+      }
+    }
+
+    async function setEfficiencyScope(scope) {
+      if ((state.efficiency || {}).scope === scope) return;
+      await refreshEfficiency(scope);
+    }
+
+    function renderBalancePanel(balance) {
+      if (!balance) return;
+      const panel = el("section", "panel panel-wide");
+      const presetButtons = el("div", "segmented");
+      balancePresets().forEach(preset => {
+        const button = el("button", "", preset.label);
+        button.type = "button";
+        button.setAttribute("aria-pressed", String(state.balancePreset === preset.key));
+        button.addEventListener("click", () => {
+          if (state.balancePreset === preset.key) return;
+          state.balancePreset = preset.key;
+          refreshEfficiency();
+        });
+        presetButtons.append(button);
+      });
+      const header = panelHeader(
+        "综合最优：三维平衡排名",
+        "先取 Pareto 前沿（不存在能力更高、成本更低且耗时更短的其他条目），再按「能力 / 成本 / 耗时」归一化加权打分；成本与耗时跨度超过 20 倍时按对数归一，避免极端值主导排名。",
+        "Efficiency / Balance"
+      );
+      header.append(presetButtons);
+      panel.append(header);
+      const preset = balancePresets().find(item => item.key === state.balancePreset) || balancePresets()[0];
+      const weights = balance.weights || {};
+      panel.append(el("p", "efficiency-note",
+        `当前权重 · ${preset ? preset.label : "均衡"}：能力 ${number((weights.capability || 0) * 100, 0)}% · 成本 ${number((weights.cost || 0) * 100, 0)}% · 耗时 ${number((weights.time || 0) * 100, 0)}%`));
+
+      (balance.groups || []).forEach(group => {
+        const rows = group.rows || [];
+        const block = el("div", "balance-group");
+        const caption = el("h3", "", `${group.label} 最优`);
+        block.append(caption);
+        if (!rows.length) {
+          block.append(el("p", "efficiency-note", "当前范围没有同时具备能力、成本与耗时三项数据的条目。"));
+          panel.append(block);
+          return;
+        }
+        const best = group.best || rows[0];
+        block.append(el("p", "efficiency-note",
+          `Pareto 前沿 ${group.pareto_count} 个 · 参与排名 ${rows.length} 个 · 最优：${best.label}（平衡分 ${number(best.balance_score, 2)}）`));
+        const wrap = el("div", "table-wrap balance-table");
+        const table = el("table");
+        const headRow = el("tr");
+        ["排名", "名称", group.capability_label || "能力", "成本 (USD)", "耗时 (秒)", "归一化 能力/成本/耗时", "平衡分", "前沿"].forEach(
+          label => headRow.append(el("th", "", label))
+        );
+        const head = el("thead");
+        head.append(headRow);
+        table.append(head);
+        const body = el("tbody");
+        rows.slice(0, 15).forEach(row => {
+          const tr = el("tr", row.key === best.key ? "is-best" : "");
+          const identity = el("td", "leaderboard-identity");
+          identity.append(el("strong", "", row.label));
+          if (row.effort) identity.append(el("small", "", row.effort));
+          const parts = row.scores || {};
+          tr.append(
+            el("td", "number leaderboard-rank", `#${row.balance_rank}`),
+            identity,
+            el("td", "leaderboard-score", number(row.capability, 2)),
+            el("td", "number", number(row.cost, 2)),
+            el("td", "number", number(row.time, 0)),
+            el("td", "number balance-parts", `${number(parts.capability, 0)} / ${number(parts.cost, 0)} / ${number(parts.time, 0)}`),
+            el("td", "number balance-score", number(row.balance_score, 2)),
+            el("td", "quadrant-cell", row.pareto ? "★ Pareto" : "—")
+          );
+          body.append(tr);
+        });
+        table.append(body);
+        wrap.append(table);
+        block.append(wrap);
+        if (rows.length > 15) block.append(el("p", "efficiency-note", `共 ${rows.length} 条，展示前 15 名。`));
+        const incomplete = (group.incomplete || []).filter(item => (item.missing || []).length);
+        if (incomplete.length) {
+          block.append(el("p", "efficiency-note",
+            `${incomplete.length} 个条目缺少 ${[...new Set(incomplete.flatMap(item => item.missing))].map(name => ({ capability: "能力", cost: "成本", time: "耗时" }[name] || name)).join("、")}，未参与排名。`));
+        }
+        panel.append(block);
+      });
+      app.append(panel);
+    }
+
+    function renderEfficiencyPage() {
+      const data = state.efficiency || { charts: [], scope: "focus", updated_at: "" };
+      const charts = Array.isArray(data.charts) ? data.charts : [];
+      const hero = el("section", "hero");
+      const heroText = el("div");
+      heroText.append(el("div", "eyebrow", "Efficiency / Artificial Analysis"));
+      const title = el("h1");
+      title.append("能力 vs 代价，", el("em", "", "一张图看清性价比"));
+      const chips = el("div", "hero-chips");
+      chips.append(
+        el("span", "hero-chip", `${charts.length} 张散点图`),
+        el("span", "hero-chip", data.scope === "focus" ? "仅展示关注项" : "展示全部条目"),
+        el("span", "hero-chip", `数据更新 ${dateTime(data.updated_at)}`)
+      );
+      heroText.append(
+        title,
+        el("p", "hero-copy", "纵轴是能力分（Coding Agent Index / Intelligence Index），横轴是单任务成本或耗时。点越靠左上，单位代价换来的能力越强。"),
+        chips
+      );
+      const source = el("aside", "source-note");
+      source.append(
+        el("div", "source-kicker", "Snapshot"),
+        el("strong", "", "Artificial Analysis"),
+        el("span", "", "字段与 AA 官方图表一致：cost / time per task"),
+        el("span", "", `本地更新 ${dateTime(data.updated_at)}`)
+      );
+      hero.append(heroText, source);
+      app.append(hero);
+      if (state.efficiencyError) app.append(el("div", "empty", `效率数据读取失败：${state.efficiencyError}`));
+
+      renderBalancePanel(data.balance);
+
+      charts.forEach(chart => {
+        const panel = el("section", "panel panel-wide");
+        const header = panelHeader(chart.title, chart.subtitle, `Efficiency / ${chart.key}`);
+        const scopeButtons = el("div", "segmented");
+        EFFICIENCY_SCOPES.forEach(option => {
+          const button = el("button", "", option.label);
+          button.type = "button";
+          button.setAttribute("aria-pressed", String(data.scope === option.key));
+          button.addEventListener("click", () => setEfficiencyScope(option.key));
+          scopeButtons.append(button);
+        });
+        header.append(scopeButtons);
+        panel.append(header);
+        panel.append(el("p", "efficiency-note",
+          `${chart.points.length} 个数据点 · 关注项命中 ${chart.focus_matched}/${chart.focus_total} · 全量 ${chart.total} 个可绘制条目`));
+        if (Array.isArray(chart.missing) && chart.missing.length) {
+          const note = el("p", "efficiency-note");
+          note.append("关注但未匹配到数据：", el("strong", "", chart.missing.join("、")));
+          panel.append(note);
+        }
+        const chartBox = el("div", "chart");
+        chartBox.append(efficiencyScatter(chart));
+        panel.append(chartBox, efficiencyTable(chart));
+        app.append(panel);
+      });
+    }
+
     function renderSettingsPage() {
       const weights = state.modelLeaderboard?.weights || Object.fromEntries(MODEL_LEADERBOARD_SOURCES.map(source => [source.key, source.defaultWeight]));
       const hero = el("section", "hero");
@@ -2073,57 +2644,419 @@ OpenCode,450,社区公开数据</pre>
       });
     }
 
+    function aiInsightText(value, fallback = "未记录") {
+      return value === null || value === undefined || value === "" ? fallback : String(value);
+    }
+
+    function renderAiInsightEvidence(evidence) {
+      const entries = Array.isArray(evidence) ? evidence.filter(item => item && typeof item === "object") : [];
+      if (!entries.length) return null;
+      const list = el("div", "ai-insights-evidence");
+      entries.forEach((item, index) => {
+        const card = el("article", "ai-evidence-item");
+        const identity = [aiInsightText(item.id, `证据 ${index + 1}`), aiInsightText(item.label, "模型数据")].join(" · ");
+        const measure = `${aiInsightText(item.value)}${item.unit ? ` ${aiInsightText(item.unit)}` : ""}`;
+        card.append(el("strong", "", identity), el("p", "", measure));
+        const provenance = [
+          ["来源", item.source],
+          ["日期", item.as_of],
+          ["模型", item.model],
+          ["工具", item.tool],
+          ["推理强度", item.reasoning_effort]
+        ].filter(([, value]) => value !== null && value !== undefined && value !== "")
+          .map(([label, value]) => `${label}：${aiInsightText(value)}`);
+        if (provenance.length) card.append(el("p", "", provenance.join(" · ")));
+        list.append(card);
+      });
+      return list;
+    }
+
+    function renderAiInsightsPage() {
+      const response = state.aiInsights;
+      const config = response?.config || null;
+      const analysis = response?.analysis && typeof response.analysis === "object" ? response.analysis : null;
+      const busy = Boolean(state.aiInsightsGenerating || response?.busy);
+      const goal = el("textarea");
+      goal.id = "ai-insights-goal";
+      goal.name = "goal";
+      goal.rows = 4;
+      goal.maxLength = 1000;
+      goal.setAttribute("maxlength", "1000");
+      goal.setAttribute("aria-describedby", "ai-insights-goal-count ai-insights-goal-help");
+      goal.value = state.aiInsightsGoal;
+      goal.disabled = busy;
+
+      const hero = el("section", "hero");
+      const heroText = el("div");
+      heroText.append(
+        el("div", "eyebrow", "AI assisted model analysis"),
+        el("h1", "", "模型数据，AI 总结与推荐"),
+        el("p", "hero-copy", "根据模型榜单与本地实测快照，按你的使用目标归纳发现、推荐候选，并逐项展示可核对的数据证据。分析沿用本机 Codex 无头调用；页面只在你点击生成后提交目标。")
+      );
+      hero.append(heroText);
+
+      const layout = el("div", "ai-insights-layout");
+      const controls = el("section", "ai-insights-controls");
+      controls.setAttribute("aria-labelledby", "ai-insights-controls-title");
+      const controlsTitle = el("h2", "", "告诉 AI 你的使用场景");
+      controlsTitle.id = "ai-insights-controls-title";
+      controls.append(controlsTitle);
+      const label = el("label", "field", "目标或偏好（最多 1000 字）");
+      label.htmlFor = "ai-insights-goal";
+      controls.append(label, goal, el("p", "field-hint", "例如：优先考虑复杂代码修改的稳定性，其次看响应速度；请比较适合日常重构和代码审查的配置。"));
+
+      const actionRow = el("div", "ai-insights-actions");
+      const goalCount = el("span", "ai-insights-meta", `${goal.value.length} / 1000`);
+      goalCount.id = "ai-insights-goal-count";
+      const generate = el("button", "btn btn-primary", busy ? "正在分析…" : "生成总结与推荐");
+      generate.type = "submit";
+      generate.disabled = busy || config?.available !== true || !goal.value.trim();
+      const form = el("form");
+      form.addEventListener("submit", event => {
+        event.preventDefault();
+        return runAiInsights(goal.value);
+      });
+      goal.addEventListener("input", () => {
+        state.aiInsightsGoal = goal.value.slice(0, 1000);
+        goalCount.textContent = `${goal.value.length} / 1000`;
+        generate.disabled = Boolean(state.aiInsightsGenerating || response?.busy)
+          || config?.available !== true || !goal.value.trim();
+      });
+      form.append(goalCount, generate);
+      actionRow.append(form);
+      const refreshStatus = el("button", "btn", state.aiInsightsLoading ? "正在读取…" : "读取最新状态");
+      refreshStatus.type = "button";
+      refreshStatus.disabled = Boolean(state.aiInsightsLoading || state.aiInsightsGenerating);
+      refreshStatus.addEventListener("click", () => refreshAiInsights());
+      actionRow.append(refreshStatus);
+      controls.append(actionRow);
+
+      const modelConfig = config
+        ? `调用方式：本机 Codex 无头调用 · 模型：${aiInsightText(config.model)} · 推理强度：${aiInsightText(config.reasoning_effort)} · 超时：${aiInsightText(config.timeout_seconds)} 秒`
+        : "正在读取本机 Codex 调用状态…";
+      controls.append(el("p", "ai-insights-config", modelConfig));
+      if (config && config.available !== true) {
+        controls.append(el("p", "ai-insights-notice warning", "本机 Codex CLI 当前不可用，无法生成新分析。请检查启动服务的终端是否能运行 Codex CLI；已保存的分析仍可查看。"));
+      }
+      if (state.aiInsightsLoading) controls.append(el("p", "ai-insights-notice", "正在读取服务器保存的分析结果与当前数据覆盖情况。"));
+      if (busy) controls.append(el("p", "ai-insights-notice", "正在通过本机 Codex 无头模式生成分析。请求可能持续数分钟；离开此页不会取消任务，完成后结果会保存在服务器。"));
+      if (state.aiInsightsError) {
+        const error = el("div", "ai-insights-notice error", `AI 分析状态：${state.aiInsightsError}。已有结果会继续保留。`);
+        controls.append(error);
+      }
+      if (response?.stale) controls.append(el("p", "ai-insights-notice warning", "当前分析使用的数据快照已过期。下方结果仍可参考；需要最新结论时，请重新生成。"));
+      (Array.isArray(response?.warnings) ? response.warnings : []).forEach(warning => {
+        controls.append(el("p", "ai-insights-notice warning", aiInsightText(warning)));
+      });
+
+      const result = el("section", "ai-insights-result");
+      if (analysis) {
+        const generatedAt = aiInsightText(analysis.generated_at, "时间未知");
+        const modelMeta = `${aiInsightText(analysis.model)} · ${aiInsightText(analysis.reasoning_effort)} · ${generatedAt}`;
+        result.append(el("p", "ai-insights-meta", `分析目标：${aiInsightText(analysis.goal, "未记录")} · ${modelMeta}`));
+        result.append(el("p", "ai-insights-summary", aiInsightText(analysis.summary, "分析结果没有提供总结正文。")));
+        const coverage = response?.coverage || analysis.coverage || {};
+        result.append(el("p", "ai-insights-meta", `数据覆盖：${aiInsightText(coverage.candidate_count, "未知")} 个候选 · ${aiInsightText(coverage.evidence_count, "未知")} 条证据`));
+
+        const findings = Array.isArray(analysis.findings) ? analysis.findings : [];
+        const findingSection = el("section", "ai-insights-section");
+        findingSection.append(el("h2", "", "主要发现"));
+        const findingList = el("div", "ai-insights-list");
+        if (!findings.length) findingList.append(el("p", "ai-insights-meta", "当前分析没有单独列出发现。"));
+        findings.forEach(finding => {
+          const card = el("article", "ai-insights-card");
+          card.append(el("h3", "", aiInsightText(finding?.title, "未命名发现")), el("p", "", aiInsightText(finding?.detail, "没有补充说明。")));
+          const evidence = renderAiInsightEvidence(finding?.evidence);
+          if (evidence) card.append(evidence);
+          findingList.append(card);
+        });
+        findingSection.append(findingList);
+        result.append(findingSection);
+
+        const recommendations = Array.isArray(analysis.recommendations) ? analysis.recommendations : [];
+        const recommendationSection = el("section", "ai-insights-section");
+        recommendationSection.append(el("h2", "", "推荐配置"));
+        const recommendationList = el("div", "ai-insights-list");
+        if (!recommendations.length) recommendationList.append(el("p", "ai-insights-meta", "当前分析没有推荐配置。"));
+        recommendations.forEach(recommendation => {
+          const candidate = recommendation?.candidate || {};
+          const card = el("article", "ai-insights-card");
+          const identity = [candidate.tool, candidate.model, candidate.reasoning_effort].filter(value => value !== null && value !== undefined && value !== "").map(aiInsightText).join(" · ");
+          card.append(el("h3", "", aiInsightText(recommendation?.use_case, "通用场景")));
+          card.append(el("p", "", `候选配置：${identity || "未提供"}`));
+          card.append(el("p", "", `推荐理由：${aiInsightText(recommendation?.reason, "未提供")}`));
+          card.append(el("p", "", `取舍：${aiInsightText(recommendation?.tradeoffs, "未提供")}`));
+          const evidence = renderAiInsightEvidence(recommendation?.evidence);
+          if (evidence) card.append(evidence);
+          recommendationList.append(card);
+        });
+        recommendationSection.append(recommendationList);
+        result.append(recommendationSection);
+
+        const limitations = Array.isArray(analysis.limitations) ? analysis.limitations : [];
+        const limitationSection = el("section", "ai-insights-section");
+        limitationSection.append(el("h2", "", "限制与注意事项"));
+        const limitationList = el("div", "ai-insights-list");
+        if (!limitations.length) limitationList.append(el("p", "ai-insights-meta", "分析未列出额外限制。"));
+        limitations.forEach(item => limitationList.append(el("p", "ai-insights-notice warning", aiInsightText(item))));
+        limitationSection.append(limitationList);
+        result.append(limitationSection);
+
+        (Array.isArray(analysis.warnings) ? analysis.warnings : []).forEach(warning => {
+          result.append(el("p", "ai-insights-notice warning", aiInsightText(warning)));
+        });
+      } else if (state.aiInsightsLoading) {
+        result.append(el("div", "empty", "正在读取已保存的 AI 总结…"));
+      } else if (busy) {
+        result.append(el("div", "empty", "分析仍在生成中，完成后会自动保存结果。"));
+      } else if (!state.aiInsightsLoaded && !state.aiInsightsError) {
+        result.append(el("div", "empty", "AI 分析状态尚未读取。"));
+      } else if (!state.aiInsightsError) {
+        result.append(el("div", "empty", "还没有 AI 分析结果。填写目标并点击“生成总结与推荐”后，结果会保存到服务器。"));
+      }
+
+      const coverage = response?.coverage;
+      if (coverage) {
+        controls.append(el("p", "ai-insights-meta", `当前可分析范围：${aiInsightText(coverage.candidate_count, "未知")} 个候选 · ${aiInsightText(coverage.evidence_count, "未知")} 条证据`));
+      }
+      const evidenceNote = el("p", "ai-insights-footnote", "证据区按服务器返回的记录展示数据编号、来源、时间、模型、工具和推理强度，方便回查原始模型数据。生成的文字建议仅供比较，具体结论以对应证据为准。");
+      result.append(evidenceNote);
+      layout.append(controls, result);
+      app.replaceChildren(hero, layout);
+    }
+
+    async function refreshAiInsights(options = {}) {
+      if (state.aiInsightsGenerating) return;
+      if (state.aiInsightsPromise) return state.aiInsightsPromise;
+      const requestVersion = ++state.aiInsightsReadVersion;
+      const shouldRender = options.render !== false;
+      state.aiInsightsLoading = true;
+      state.aiInsightsError = "";
+      if (shouldRender && state.view === "ai-insights") render();
+      const request = (async () => {
+        try {
+          const response = await api("/api/ai-insights");
+          if (requestVersion !== state.aiInsightsReadVersion) return;
+          state.aiInsights = response;
+          state.aiInsightsLoaded = true;
+          state.aiInsightsError = "";
+        } catch (error) {
+          if (requestVersion !== state.aiInsightsReadVersion) return;
+          state.aiInsightsLoaded = true;
+          state.aiInsightsError = error?.message || String(error);
+        } finally {
+          if (requestVersion === state.aiInsightsReadVersion) {
+            state.aiInsightsLoading = false;
+            state.aiInsightsPromise = null;
+            if (shouldRender && state.view === "ai-insights") render();
+          }
+        }
+      })();
+      state.aiInsightsPromise = request;
+      return request;
+    }
+
+    async function runAiInsights(goal) {
+      if (state.aiInsightsGenerating || state.aiInsights?.busy) return;
+      const submittedGoal = String(goal ?? "").slice(0, 1000);
+      state.aiInsightsGoal = submittedGoal;
+      if (!submittedGoal.trim()) {
+        state.aiInsightsError = "请先填写分析目标";
+        if (state.view === "ai-insights") render();
+        return;
+      }
+      if (state.aiInsights?.config?.available !== true) {
+        state.aiInsightsError = "本机 Codex CLI 不可用，请先重新读取状态";
+        if (state.view === "ai-insights") render();
+        return;
+      }
+      state.aiInsightsReadVersion += 1;
+      state.aiInsightsLoading = false;
+      state.aiInsightsPromise = null;
+      state.aiInsightsGenerating = true;
+      state.aiInsightsError = "";
+      if (state.view === "ai-insights") render();
+      try {
+        const response = await api("/api/ai-insights", {
+          method: "POST",
+          body: JSON.stringify({ goal: submittedGoal.trim() })
+        });
+        state.aiInsights = response;
+        state.aiInsightsLoaded = true;
+      } catch (error) {
+        state.aiInsightsError = error?.message || String(error);
+      } finally {
+        state.aiInsightsGenerating = false;
+        if (state.view === "ai-insights") render();
+      }
+    }
+
+    function agentConfigurationRank(entry) {
+      const rank = Number(entry.agent?.source?.rank);
+      return Number.isFinite(rank) && rank > 0 ? rank : Number.MAX_SAFE_INTEGER;
+    }
+
+    function agentConfigurationScore(entry) {
+      const value = Number(entry.agent?.scores?.artificial_analysis_index);
+      return entry.agent?.scores?.artificial_analysis_index != null && Number.isFinite(value) ? value : null;
+    }
+
+    function agentConfigurationUplift(entry) {
+      const value = Number(entry.terminal_bench_uplift);
+      return entry.terminal_bench_uplift != null && Number.isFinite(value) ? value : null;
+    }
+
+    function bestAgentConfiguration(configurations, metric) {
+      const value = metric === "uplift" ? agentConfigurationUplift : agentConfigurationScore;
+      return configurations.filter(entry => value(entry) !== null).slice().sort((left, right) =>
+        value(right) - value(left)
+        || agentConfigurationRank(left) - agentConfigurationRank(right)
+        || String(left.agent?.model || "").localeCompare(String(right.agent?.model || ""), "zh-CN")
+      )[0] || null;
+    }
+
+    function aggregateAgentLegion(configurations) {
+      const entries = configurations.flatMap(entry => entry.legion?.entries || []);
+      const unique = values => [...new Set(values.filter(Boolean))];
+      const primary = unique(entries.flatMap(entry => entry.primary_purpose_types || []));
+      const primaryKeys = new Set(primary.map(value => String(value).toLocaleLowerCase("zh-CN")));
+      const secondary = unique(entries.flatMap(entry => entry.secondary_purpose_types || []))
+        .filter(value => !primaryKeys.has(String(value).toLocaleLowerCase("zh-CN")));
+      const core = unique(entries.flatMap(entry => entry.core_purpose_types || []));
+      return {
+        matched: configurations.some(entry => entry.legion?.matched),
+        is_core: configurations.some(entry => entry.legion?.is_core),
+        entries,
+        primary_purpose_types: primary,
+        secondary_purpose_types: secondary,
+        core_purpose_types: core
+      };
+    }
+
+    function fallbackAgentGroups(entries) {
+      const groups = new Map();
+      entries.forEach(entry => {
+        const name = String(entry.agent?.tool || "—").trim() || "—";
+        const key = name.toLocaleLowerCase("zh-CN");
+        if (!groups.has(key)) groups.set(key, { agent_key: key, agent: name, configurations: [] });
+        groups.get(key).configurations.push(entry);
+      });
+      return [...groups.values()].map(group => ({
+        ...group,
+        configuration_count: group.configurations.length,
+        legion: aggregateAgentLegion(group.configurations)
+      }));
+    }
+
+    function visibleAgentGroups(data) {
+      const source = Array.isArray(data.agent_groups) ? data.agent_groups : fallbackAgentGroups(data.agents || []);
+      const views = source.map(group => {
+        const allConfigurations = group.configurations || [];
+        const configurations = state.leaderboardLegionOnly
+          ? allConfigurations.filter(entry => entry.legion?.matched)
+          : allConfigurations;
+        if (!configurations.length) return null;
+        const scoreConfiguration = bestAgentConfiguration(configurations, "score");
+        const upliftConfiguration = bestAgentConfiguration(configurations, "uplift");
+        return {
+          ...group,
+          configurations,
+          visible_configuration_count: configurations.length,
+          score_configuration: scoreConfiguration,
+          score_sort_value: scoreConfiguration ? agentConfigurationScore(scoreConfiguration) : null,
+          uplift_configuration: upliftConfiguration,
+          uplift_sort_value: upliftConfiguration ? agentConfigurationUplift(upliftConfiguration) : null,
+          legion: state.leaderboardLegionOnly ? aggregateAgentLegion(configurations) : (group.legion || aggregateAgentLegion(configurations))
+        };
+      }).filter(Boolean);
+      const metric = state.agentLeaderboardSort === "uplift" ? "uplift_sort_value" : "score_sort_value";
+      return views.sort((left, right) => {
+        const leftValue = left[metric]; const rightValue = right[metric];
+        if (leftValue == null || rightValue == null) {
+          if (leftValue == null && rightValue == null) return String(left.agent || left.display_name || "").localeCompare(String(right.agent || right.display_name || ""), "zh-CN");
+          return leftValue == null ? 1 : -1;
+        }
+        if (rightValue !== leftValue) return rightValue - leftValue;
+        if (state.agentLeaderboardSort === "uplift" && right.score_sort_value !== left.score_sort_value) {
+          if (left.score_sort_value == null || right.score_sort_value == null) return left.score_sort_value == null ? 1 : -1;
+          return right.score_sort_value - left.score_sort_value;
+        }
+        const leftBest = state.agentLeaderboardSort === "uplift" ? left.uplift_configuration : left.score_configuration;
+        const rightBest = state.agentLeaderboardSort === "uplift" ? right.uplift_configuration : right.score_configuration;
+        return agentConfigurationRank(leftBest) - agentConfigurationRank(rightBest)
+          || String(left.agent || left.display_name || "").localeCompare(String(right.agent || right.display_name || ""), "zh-CN");
+      });
+    }
+
+    function agentConfigurationTable(configurations) {
+      const wrap = el("div", "table-wrap"); const table = el("table", "agent-configuration-table");
+      const head = el("thead"); const headRow = el("tr");
+      ["AA 名次", "底层模型", "智能度", "Coding Agent Index", "Time per Task", "Cost per Task", "模型基线 / 同配置数据", "Agent 提升效果"].forEach(label => headRow.append(el("th", "", label)));
+      head.append(headRow); table.append(head); const body = el("tbody");
+      configurations.slice().sort((left, right) => Number(left.supplemental) - Number(right.supplemental)
+        || agentConfigurationRank(left) - agentConfigurationRank(right)
+        || String(left.agent?.model || "").localeCompare(String(right.agent?.model || ""), "zh-CN"))
+        .forEach(entry => {
+          const agent = entry.agent || {}; const source = agent.source || {}; const baseline = entry.baseline;
+          const tr = el("tr", leaderboardPodiumClass(source.rank));
+          const identity = el("td", "leaderboard-identity"); identity.append(el("strong", "", agent.model || "—"));
+          markLeaderboardLegion(tr, identity, entry);
+          const indexCell = el("td", "number");
+          if (agent.scores?.artificial_analysis_index == null) indexCell.append(el("span", "badge badge-empty", "无同配置成绩"));
+          else indexCell.append(leaderboardMetricLink(number(agent.scores.artificial_analysis_index), sourceDetailHref(agent), `在 Artificial Analysis 查看 ${agent.tool || "该 Agent"} 的 Coding Agent Index`));
+          tr.append(
+            el("td", "number leaderboard-rank", source.rank == null ? "—" : `#${number(source.rank, 0)}`), identity,
+            el("td", "leaderboard-effort", leaderboardEffort(entry.reasoning_effort || agent.reasoning_effort)), indexCell,
+            el("td", "number", source.wall_time_seconds_per_task == null ? "—" : `${number(source.wall_time_seconds_per_task)} s`),
+            el("td", "number", source.cost_usd_per_task == null ? "—" : `$${number(source.cost_usd_per_task)}`)
+          );
+          const baselineCell = el("td", "number");
+          if (baseline && baseline.scores?.aa_model_terminal_bench_v4 != null) baselineCell.append(leaderboardMetricLink(
+            `TB4 ${number(baseline.scores?.aa_model_terminal_bench_v4)}`, sourceDetailHref(baseline), `在 Artificial Analysis 查看 ${baseline.model || "该模型"} 的基线`
+          ));
+          else baselineCell.textContent = "无同配置 TB4";
+          if (entry.supplemental) {
+            const details = el("div", "leaderboard-cell");
+            orderedModelLeaderboardSources(state.modelLeaderboard?.weights).forEach(item => {
+              const modelSource = entry.model_sources?.[item.key];
+              if (modelSource) details.append(leaderboardSourceCell(modelSource, item.label));
+            });
+            if (details.childNodes.length) baselineCell.append(details);
+          }
+          const uplift = el("td", entry.terminal_bench_uplift > 0 ? "delta-up" : entry.terminal_bench_uplift < 0 ? "delta-down" : "delta-neutral");
+          uplift.textContent = entry.terminal_bench_uplift == null ? "不可直接量化" : `Terminal-Bench 4.0 ${entry.terminal_bench_uplift > 0 ? "+" : ""}${number(entry.terminal_bench_uplift)} 个百分点`;
+          tr.append(baselineCell, uplift); body.append(tr);
+        });
+      table.append(body); wrap.append(table); return wrap;
+    }
+
     function renderAgentLeaderboardPage() {
-      const data = state.agentLeaderboard || { agents: [] };
-      app.append(leaderboardHero("Agent", data.agents?.length || 0, "按 Agent、模型与智能度匹配 Legion 配置和星标。只用同配置的 Terminal-Bench 4.0 计算提升效果；补充配置独立展示已获得的模型成绩。"));
+      const data = state.agentLeaderboard || { agents: [], agent_groups: [] };
+      const groups = visibleAgentGroups(data);
+      app.append(leaderboardHero("Agent", groups.length, "按 Agent 聚合模型与智能度配置；可按 Coding Agent Index 或同配置 Terminal-Bench 4.0 提升效果排序，空值始终排在末尾。"));
       if (state.agentLeaderboardError) app.append(el("div", "empty", `Agent 榜单读取失败：${state.agentLeaderboardError}`));
       const panel = el("section", "panel panel-wide");
-      panel.append(panelHeader("Coding Agent Index", "Agent 总分与 Model Intelligence 使用不同评测套件，不直接相减。", "Agent / Artificial Analysis"));
-      leaderboardLegionToolbar(panel);
-      const wrap = el("div", "table-wrap leaderboard-table"); const table = el("table");
-      const head = el("thead"); const headRow = el("tr");
-      ["名次", "Agent", "底层模型", "智能度", "Coding Agent Index", "Time per Task", "Cost per Task", "模型基线 / 同配置数据", "Agent 提升效果"].forEach(label => headRow.append(el("th", "", label)));
-      head.append(headRow); table.append(head); const body = el("tbody");
-      const rows = (data.agents || []).filter(entry => !state.leaderboardLegionOnly || entry.legion?.matched);
-      rows.forEach(entry => {
-        const agent = entry.agent || {}; const source = agent.source || {}; const baseline = entry.baseline;
-        const tr = el("tr", leaderboardPodiumClass(source.rank));
-        const identity = el("td", "leaderboard-identity"); identity.append(el("strong", "", agent.model || "—"));
-        markLeaderboardLegion(tr, identity, entry);
-        const indexCell = el("td", "number");
-        if (agent.scores?.artificial_analysis_index == null) indexCell.append(el("span", "badge badge-empty", "无同配置成绩"));
-        else indexCell.append(leaderboardMetricLink(
-          number(agent.scores?.artificial_analysis_index),
-          sourceDetailHref(agent),
-          `在 Artificial Analysis 查看 ${agent.tool || "该 Agent"} 的 Coding Agent Index`
-        ));
-        tr.append(
-          el("td", "number leaderboard-rank", number(source.rank, 0)), el("td", "", agent.tool || "—"), identity,
-          el("td", "leaderboard-effort", leaderboardEffort(entry.reasoning_effort || agent.reasoning_effort)),
-          indexCell,
-          el("td", "number", source.wall_time_seconds_per_task == null ? "—" : `${number(source.wall_time_seconds_per_task)} s`),
-          el("td", "number", source.cost_usd_per_task == null ? "—" : `$${number(source.cost_usd_per_task)}`)
-        );
-        const baselineCell = el("td", "number");
-        if (baseline && baseline.scores?.aa_model_terminal_bench_v4 != null) baselineCell.append(leaderboardMetricLink(
-          `TB4 ${number(baseline.scores?.aa_model_terminal_bench_v4)}`,
-          sourceDetailHref(baseline),
-          `在 Artificial Analysis 查看 ${baseline.model || "该模型"} 的基线`
-        ));
-        else baselineCell.textContent = "无同配置 TB4";
-        if (entry.supplemental) {
-          const details = el("div", "leaderboard-cell");
-          orderedModelLeaderboardSources(state.modelLeaderboard?.weights).forEach(item => {
-            const modelSource = entry.model_sources?.[item.key];
-            if (modelSource) details.append(leaderboardSourceCell(modelSource, item.label));
-          });
-          if (details.childNodes.length) baselineCell.append(details);
-        }
-        const uplift = el("td", entry.terminal_bench_uplift > 0 ? "delta-up" : entry.terminal_bench_uplift < 0 ? "delta-down" : "delta-neutral");
-        uplift.textContent = entry.terminal_bench_uplift == null ? "不可直接量化" : `Terminal-Bench 4.0 ${entry.terminal_bench_uplift > 0 ? "+" : ""}${number(entry.terminal_bench_uplift)} 个百分点`;
-        tr.append(baselineCell, uplift); body.append(tr);
+      panel.append(panelHeader("Coding Agent Index", "默认按 Agent 分值排序；组级指标取当前可见配置的最佳有效值，Agent 总分不与 Model Intelligence 直接相减。", "Agent / Artificial Analysis"));
+      leaderboardLegionToolbar(panel, null, false, true);
+      const wrap = el("div", "table-wrap leaderboard-table"); const table = el("table"); const body = el("tbody");
+      groups.forEach((group, index) => {
+        const best = state.agentLeaderboardSort === "uplift" ? group.uplift_configuration : group.score_configuration;
+        const value = state.agentLeaderboardSort === "uplift" ? group.uplift_sort_value : group.score_sort_value;
+        const agentName = group.agent || group.display_name || group.tool || group.configurations[0]?.agent?.tool || "—";
+        const tr = el("tr", `agent-leaderboard-group ${leaderboardPodiumClass(index + 1)}`.trim());
+        const td = el("td"); td.colSpan = 9;
+        const details = el("details"); const summary = el("summary");
+        summary.append(el("span", "number leaderboard-rank", `#${index + 1}`));
+        const identity = el("span", "agent-group-identity");
+        identity.append(el("strong", "", agentName), el("small", "", `${group.visible_configuration_count} 个配置`));
+        markLeaderboardLegion(tr, identity, group);
+        const bestText = value == null
+          ? (state.agentLeaderboardSort === "uplift" ? "暂无可比提升效果" : "暂无 Agent 分值")
+          : `${state.agentLeaderboardSort === "uplift" ? `提升 ${value > 0 ? "+" : ""}${number(value)} 个百分点` : `Agent 分值 ${number(value)}`} · ${best?.agent?.model || "—"} · ${leaderboardEffort(best?.reasoning_effort || best?.agent?.reasoning_effort)}`;
+        summary.append(identity, el("span", "agent-group-best", bestText));
+        details.append(summary, agentConfigurationTable(group.configurations)); td.append(details); tr.append(td); body.append(tr);
       });
-      if (!rows.length) { const tr = el("tr"); const td = el("td", "empty", "同步 AA Agent 与 AA Model 后显示对照"); td.colSpan = 9; tr.append(td); body.append(tr); }
+      if (!groups.length) { const tr = el("tr"); const td = el("td", "empty", "同步 AA Agent 与 AA Model 后显示对照"); td.colSpan = 9; tr.append(td); body.append(tr); }
       table.append(body); wrap.append(table); panel.append(wrap); app.append(panel, renderHistoryPanel(["artificial_analysis_agent"]));
     }
 
@@ -3720,6 +4653,7 @@ OpenCode,450,社区公开数据</pre>
       if (view !== state.view) {
         state.view = view;
         render();
+        if (view === "ai-insights") refreshAiInsights();
       }
       if (document.getElementById(window.location.hash.slice(1))) scrollToViewAnchor();
       else window.scrollTo({ top: 0, behavior: "instant" });

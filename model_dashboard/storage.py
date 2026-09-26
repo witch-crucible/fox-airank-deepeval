@@ -17,6 +17,10 @@ PROJECT_ROOT = ROOT.parent
 SEED_PATH = ROOT / "seed_data.json"
 DEFAULT_DATA_PATH = PROJECT_ROOT / "var" / "sqlite" / f"{PROJECT_ROOT.name}.db"
 
+#: 可单独重建的数据表；写入时只重建真正受影响的表。
+TABLES = ("models", "pricing", "agent_usage", "recommendations", "meta")
+
+
 class DashboardStore:
     def __init__(self, seed_path: Path = SEED_PATH, data_path: Path = DEFAULT_DATA_PATH):
         self.seed_path, self.data_path = Path(seed_path), Path(data_path)
@@ -51,6 +55,10 @@ class DashboardStore:
                     snapshot_sha256 TEXT NOT NULL,
                     snapshot_json TEXT NOT NULL,
                     changes_json TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS ai_insights(
+                    id INTEGER PRIMARY KEY CHECK(id = 1),
+                    analysis_json TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS leaderboard_snapshots(
                     snapshot_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,18 +120,40 @@ class DashboardStore:
                 ),
             )
 
-    def _replace(self, c, data):
-        for table in ('models','pricing','agent_usage','recommendations','meta'): c.execute(f'DELETE FROM {table}')
-        for i, v in enumerate(data.get('models', [])): c.execute('INSERT INTO models VALUES (?,?)',(i,self._dump(v)))
-        pricing = data.get('pricing', []); pricing_was_object = isinstance(pricing, dict); pricing = [pricing] if pricing_was_object else pricing
-        for i, v in enumerate(pricing if isinstance(pricing,list) else []): c.execute('INSERT INTO pricing VALUES (?,?)',(i,self._dump(v)))
-        for i, v in enumerate(data.get('agent_usage', []) if isinstance(data.get('agent_usage', []),list) else []):
-            if isinstance(v,dict): c.execute('INSERT OR REPLACE INTO agent_usage VALUES (?,?,?)',(str(v.get('tool','')).casefold(),self._dump(v),i))
-        for group, rows in normalize_stored_recommendations(data.get('recommendations')).items(): c.execute('INSERT INTO recommendations VALUES (?,?)',(group,self._dump(rows)))
-        meta = data.get('meta', {}); meta = meta if isinstance(meta,dict) else {}
-        meta = dict(meta)
-        meta['__pricing_was_object'] = pricing_was_object
-        for k,v in meta.items(): c.execute('INSERT INTO meta VALUES (?,?)',(k,self._dump(v)))
+    def _replace(self, c, data, tables=None):
+        """重建受影响的表；``tables`` 为空时全量重建。
+
+        单条记录更新只重建对应表，避免为改一行 usage 而重写上千条模型 JSON。
+        """
+        data = data if isinstance(data, dict) else {}
+        targets = set(TABLES if tables is None else tables)
+        # __pricing_was_object 必须与 pricing 行同批落库，否则读取时会丢掉定价形态。
+        if 'pricing' in targets:
+            targets.add('meta')
+        for table in TABLES:
+            if table in targets:
+                c.execute(f'DELETE FROM {table}')
+        if 'models' in targets:
+            for i, v in enumerate(data.get('models', [])):
+                c.execute('INSERT INTO models VALUES (?,?)',(i,self._dump(v)))
+        if 'pricing' in targets:
+            pricing = data.get('pricing', []); pricing_was_object = isinstance(pricing, dict); pricing = [pricing] if pricing_was_object else pricing
+            for i, v in enumerate(pricing if isinstance(pricing,list) else []):
+                c.execute('INSERT INTO pricing VALUES (?,?)',(i,self._dump(v)))
+            data.setdefault('meta', {})['__pricing_was_object'] = pricing_was_object
+        if 'agent_usage' in targets:
+            usage = data.get('agent_usage', [])
+            if not isinstance(usage, list): usage = []
+            for i, v in enumerate(usage):
+                if isinstance(v,dict): c.execute('INSERT OR REPLACE INTO agent_usage VALUES (?,?,?)',(str(v.get('tool','')).casefold(),self._dump(v),i))
+        if 'recommendations' in targets:
+            for group, rows in normalize_stored_recommendations(data.get('recommendations')).items():
+                c.execute('INSERT INTO recommendations VALUES (?,?)',(group,self._dump(rows)))
+        if 'meta' in targets:
+            meta = data.get('meta', {}); meta = meta if isinstance(meta,dict) else {}
+            meta = dict(meta)
+            meta.setdefault('__pricing_was_object', isinstance(data.get('pricing'), dict))
+            for k,v in meta.items(): c.execute('INSERT INTO meta VALUES (?,?)',(k,self._dump(v)))
 
     def read(self):
         try:
@@ -139,19 +169,42 @@ class DashboardStore:
             return {'meta':meta,'models':models,'pricing':pricing,'agent_usage':usage,'recommendations':normalize_stored_recommendations(rec),'model_aliases':aliases}
         except (sqlite3.Error,json.JSONDecodeError,OSError) as e: raise DashboardError(f'无法读取看板数据库：{e}') from e
 
-    def write(self, data):
+    def latest_ai_insight(self) -> dict[str, Any] | None:
+        try:
+            with self._connect() as connection:
+                row = connection.execute('SELECT analysis_json FROM ai_insights WHERE id=1').fetchone()
+            return self._load(row[0]) if row else None
+        except (sqlite3.Error, json.JSONDecodeError, OSError) as error:
+            raise DashboardError('无法读取 AI 分析结果') from error
+
+    def save_ai_insight(self, analysis: dict[str, Any]) -> None:
+        with self._lock:
+            try:
+                with self._connect() as connection:
+                    connection.execute(
+                        'INSERT INTO ai_insights(id,analysis_json) VALUES (1,?) '
+                        'ON CONFLICT(id) DO UPDATE SET analysis_json=excluded.analysis_json',
+                        (self._dump(analysis),),
+                    )
+            except (sqlite3.Error, OSError) as error:
+                raise DashboardError('无法保存 AI 分析结果') from error
+
+    def write(self, data, tables=None):
         with self._lock:
             try:
                 with self._connect() as c:
-                    c.execute('BEGIN IMMEDIATE'); self._replace(c,data)
+                    c.execute('BEGIN IMMEDIATE'); self._replace(c,data, tables=tables)
                 if self.data_path.suffix.casefold() in {'.json', '.jsonl'}:
                     self.data_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
             except (sqlite3.Error,OSError,TypeError) as e: raise DashboardError(f'无法写入看板数据库：{e}') from e
-    def _mutate(self, fn):
+    def _mutate(self, fn, tables=None):
+        """写入一次变更；``tables`` 限定要重建的表，meta 随 updated_at 一起更新。"""
         with self._lock:
-            data=self.read(); result=fn(data); data.setdefault('meta',{})['updated_at']=utc_now(); self.write(data); return result
+            data=self.read(); result=fn(data); data.setdefault('meta',{})['updated_at']=utc_now()
+            self.write(data, tables=(*tables,'meta') if tables else tables)
+            return result
     def save_recommendations(self, raw):
-        value=normalize_recommendations(raw); self._mutate(lambda d:d.__setitem__('recommendations',value)); return value
+        value=normalize_recommendations(raw); self._mutate(lambda d:d.__setitem__('recommendations',value), tables=('recommendations',)); return value
 
     @classmethod
     def _recommendation_sha256(cls, value: dict[str, Any]) -> str:
@@ -340,7 +393,7 @@ class DashboardStore:
             raise DashboardError(f'无法读取建议发布历史：{error}') from error
     def add_model(self, raw):
         if not isinstance(raw,dict): raise DashboardError('模型数据必须是对象')
-        safe={k:v for k,v in raw.items() if k not in {'id','source','archived','archived_at'}}; model=normalize_model(safe,source={'type':'manual','name':'手工录入'}); self._mutate(lambda d:d['models'].append(model)); return model
+        safe={k:v for k,v in raw.items() if k not in {'id','source','archived','archived_at'}}; model=normalize_model(safe,source={'type':'manual','name':'手工录入'}); self._mutate(lambda d:d['models'].append(model), tables=('models',)); return model
     def upsert_agent_usage(self, raw):
         entry=normalize_agent_usage_entry(raw); created=True
         def fn(d):
@@ -349,7 +402,7 @@ class DashboardStore:
             for i,v in enumerate(usage):
                 if isinstance(v,dict) and str(v.get('tool','')).casefold()==entry['tool'].casefold(): usage[i]=entry; created=False; return
             usage.append(entry)
-        self._mutate(fn); return entry,created
+        self._mutate(fn, tables=('agent_usage',)); return entry,created
     def import_agent_usage(self, entries):
         if not entries: raise DashboardError('没有可导入的使用人数')
         created=updated=0
@@ -360,7 +413,7 @@ class DashboardStore:
                 v=normalize_agent_usage_entry(raw); key=v['tool'].casefold()
                 if key in idx: usage[idx[key]]=v; updated+=1
                 else: idx[key]=len(usage); usage.append(v); created+=1
-        self._mutate(fn); return {'created':created,'updated':updated,'received':len(entries)}
+        self._mutate(fn, tables=('agent_usage',)); return {'created':created,'updated':updated,'received':len(entries)}
     def set_model_archived(self, model_id, archived):
         result=None
         def fn(d):
@@ -369,7 +422,7 @@ class DashboardStore:
             if not matches: raise DashboardError('模型记录不存在')
             if len(matches)>1: raise DashboardError('本地数据包含重复的模型 ID，拒绝修改')
             result=matches[0]; result['archived']=archived; result['archived_at']=utc_now() if archived else ''; result['updated_at']=utc_now()
-        self._mutate(fn); return result
+        self._mutate(fn, tables=('models',)); return result
     def import_models(self, models, overwrite):
         created=updated=skipped=0
         def fn(d):
@@ -382,7 +435,7 @@ class DashboardStore:
                         old=d['models'][idx[key]]; m['id']=old.get('id',m['id']); self._preserve_archive(old,m); d['models'][idx[key]]=m; updated+=1
                     else: skipped+=1
                 else: idx[key]=len(d['models']); d['models'].append(m); created+=1
-        self._mutate(fn); return {'created':created,'updated':updated,'skipped':skipped}
+        self._mutate(fn, tables=('models',)); return {'created':created,'updated':updated,'skipped':skipped}
 
     def _sync(self, models, typ, key, meta, legacy_types=()):
         if not models:
@@ -490,12 +543,14 @@ class DashboardStore:
             return {'alias_key':alias,'canonical_key':canonical}
         except sqlite3.Error as error:
             raise DashboardError(f'无法保存模型关联：{error}') from error
-    def leaderboard_weights(self):
-        data=self.read()
+    def leaderboard_weights(self, data=None):
+        """读取三方权重；已调用过 read() 时可直接复用数据，避免重复全库读取。"""
+        if data is None:
+            data=self.read()
         return normalize_third_party_weights(data.get('meta',{}).get('leaderboard_weights'))
     def save_leaderboard_weights(self, raw):
         weights=normalize_third_party_weights(raw)
-        self._mutate(lambda data:data.setdefault('meta',{}).__setitem__('leaderboard_weights',weights))
+        self._mutate(lambda data:data.setdefault('meta',{}).__setitem__('leaderboard_weights',weights), tables=('meta',))
         return weights
     def sync_benchmark(self, models):
         created=updated=0

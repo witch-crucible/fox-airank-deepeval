@@ -319,7 +319,8 @@ def main() -> int:
     report_tools = [value for tool in tools for value in ("--tool", tool)]
     run([*benchmark, "report", "--run-dir", str(run_dir), *report_tools])
     print(f"\nDeepEval reports: {run_dir / 'deepeval'}")
-    print(f"对比报告: {run_dir / 'report.md'}")
+    print(f"对比报告(Markdown): {run_dir / 'report.md'}")
+    print(f"对比报告(静态页): {run_dir / 'report.html'}")
     return 0
 
 

@@ -1,12 +1,14 @@
 import argparse
+import hashlib
 import json
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 from unittest.mock import patch
 
 from benchmark.cli import Case
-from benchmark.paths import workspace_path
+from benchmark.paths import PELICAN_CASE, workspace_path
 from benchmark.pelican_scoring import (
     artifact_path,
     create_scoring_run,
@@ -84,6 +86,11 @@ class PelicanScoringTests(unittest.TestCase):
                     "intelligence": "unknown",
                 }
             }
+            expected_workspace = (
+                run_dir / "pelican" / "Command-Code" / "qwen-qwen3.8-max-0902"
+                / "unknown" / "commandcode" / case.id
+            )
+            self.assertEqual(workspace, expected_workspace)
             self.assertEqual(
                 workspace,
                 workspace_path(run_dir, "commandcode", case.id, identities),
@@ -94,7 +101,11 @@ class PelicanScoringTests(unittest.TestCase):
             self.assertEqual(execution["timeout_seconds"], 1800)
             self.assertEqual(execution["execution_mode"], "manual_result_import")
             self.assertEqual(execution["agent_identity"], identities["commandcode"])
-            self.assertEqual(len(execution["artifact_sha256"]), 64)
+            digest = execution["artifact_sha256"]
+            self.assertEqual(len(digest), 64)
+            self.assertEqual(digest, hashlib.sha256(b"<html>generated</html>").hexdigest())
+            copied = (workspace / "index.html").read_bytes()
+            self.assertEqual(hashlib.sha256(copied).hexdigest(), digest)
             result = json.loads((workspace / "result.json").read_text())
             self.assertEqual(result["changed_files"], ["index.html"])
             self.assertFalse(result["submodels_used"])
@@ -141,12 +152,12 @@ class PelicanScoringTests(unittest.TestCase):
 
         command = run.call_args.args[0]
         self.assertIn("benchmark.evaluation_worker", command)
-        self.assertEqual(command[-2:], ["--case", "draw-pelican-bicycle"])
+        self.assertEqual(command[-2:], ["--case", PELICAN_CASE])
         environment = run.call_args.kwargs["env"]
         self.assertNotIn("CONFIDENT_API_KEY", environment)
         self.assertEqual(environment["KEEP"], "yes")
         self.assertEqual(environment["DEEPEVAL_DISABLE_DOTENV"], "1")
-        write_report.assert_called_once()
+        write_report.assert_called_once_with(Path(directory), ["manual"], unittest.mock.ANY)
 
 
 if __name__ == "__main__":

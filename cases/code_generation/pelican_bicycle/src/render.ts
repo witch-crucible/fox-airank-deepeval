@@ -27,6 +27,16 @@ const LEG_FAR = "#c08a35";
 const FRAME = "#b0432e";
 const TIRE = "#31302e";
 
+const MODE_ZH: Record<Mode, string> = {
+  cruise: "巡航",
+  approach: "接近石头·减速",
+  hop: "跃过石头",
+  land: "落地加速",
+  brake: "紧急刹车",
+  stopped: "停车避让",
+  resume: "恢复骑行",
+};
+
 class Renderer {
   svg: SVGSVGElement;
   private sim: Simulation;
@@ -45,6 +55,10 @@ class Renderer {
   private headGroup!: SVGGElement;
   private upperGroup!: SVGGElement;
   private wingFar!: SVGGElement;
+  private spinRear: SVGGElement | null = null;
+  private spinFront: SVGGElement | null = null;
+  private trailNodes = new Map<string, SVGGElement>();
+  private dustNodes = new Map<string, SVGGElement>();
 
   constructor(svg: SVGSVGElement, sim: Simulation) {
     this.svg = svg;
@@ -209,7 +223,9 @@ class Renderer {
 
   private buildWheel(parent: SVGGElement, id: string, c: Pt): SVGGElement {
     const g = svgEl("g", { id, transform: `translate(${c.x},${c.y})` }, parent) as SVGGElement;
-    const spin = svgEl("g", { class: "spin" }, g);
+    const spin = svgEl("g", { class: "spin" }, g) as SVGGElement;
+    if (id === "wheel-rear") this.spinRear = spin;
+    else if (id === "wheel-front") this.spinFront = spin;
     for (let i = 0; i < 8; i++) {
       const a = (i * Math.PI) / 4;
       svgEl("line", { x1: -Math.cos(a) * 34, y1: -Math.sin(a) * 34, x2: Math.cos(a) * 34, y2: Math.sin(a) * 34, stroke: "#8d8d8d", "stroke-width": 1.6 }, spin);
@@ -243,12 +259,14 @@ class Renderer {
     const g = svgEl("g", { id: `ent-${id}` }, this.worldLayer) as SVGGElement;
     svgEl("path", { d: `M ${-r} 2 L ${-r * 0.55} ${-r * 0.8} L ${r * 0.15} ${-r} L ${r} ${-r * 0.2} L ${r * 0.6} ${r * 0.8} L ${-r * 0.3} ${r} Z`, fill: "#7a6a5d", stroke: "#4e4238", "stroke-width": 2 }, g);
     svgEl("path", { d: `M ${-r * 0.4} ${-r * 0.4} L ${r * 0.1} ${-r * 0.1} L ${r * 0.35} ${r * 0.35}`, stroke: "#5d5147", "stroke-width": 1.5, fill: "none" }, g);
-    const trail = svgEl("g", { class: "trail" }, g);
+    const trail = svgEl("g", { class: "trail" }, g) as SVGGElement;
     svgEl("line", { x1: -3, y1: -r - 6, x2: -3, y2: -r - 20, stroke: "#8a7d70", "stroke-width": 2, opacity: 0.7 }, trail);
     svgEl("line", { x1: 4, y1: -r - 10, x2: 4, y2: -r - 26, stroke: "#8a7d70", "stroke-width": 2, opacity: 0.5 }, trail);
-    const dust = svgEl("g", { class: "dust", opacity: 0 }, g);
+    const dust = svgEl("g", { class: "dust", opacity: 0 }, g) as SVGGElement;
     svgEl("circle", { cx: -r - 4, cy: r * 0.6, r: 4, fill: "#c9b993" }, dust);
     svgEl("circle", { cx: r + 5, cy: r * 0.6, r: 5, fill: "#c9b993" }, dust);
+    this.trailNodes.set(id, trail);
+    this.dustNodes.set(id, dust);
     return g;
   }
 
@@ -277,12 +295,10 @@ class Renderer {
     setA(this.shadow, "rx", 110 - sim.lift * 0.6);
     setA(this.shadow, "opacity", 0.16 - sim.lift * 0.0016);
 
-    // 车轮 / 曲柄同步旋转
+    // 车轮 / 曲柄同步旋转（spin 节点在 buildWheel 时已缓存，不再逐帧 querySelector）
     const wheelDeg = (sim.wheelAngle * 180) / Math.PI;
-    const spinR = this.bikeGroup.querySelector("#wheel-rear .spin");
-    const spinF = this.bikeGroup.querySelector("#wheel-front .spin");
-    setA(spinR, "transform", `rotate(${wheelDeg.toFixed(2)})`);
-    setA(spinF, "transform", `rotate(${wheelDeg.toFixed(2)})`);
+    setA(this.spinRear, "transform", `rotate(${wheelDeg.toFixed(2)})`);
+    setA(this.spinFront, "transform", `rotate(${wheelDeg.toFixed(2)})`);
 
     // 踏板 / 曲柄 / 腿（脚与踏板刚性绑定：IK 目标即踏板点）
     const pN = sim.pedalPos(0);
@@ -372,9 +388,8 @@ class Renderer {
       setA(g, "transform", `translate(${sx.toFixed(1)},${sy.toFixed(1)})`);
       const visible = !d.gone && sx > -120 && sx < VIEW_W + 120;
       setA(g, "display", visible ? "" : "none");
-      const trail = g.querySelector(".trail");
-      setA(trail, "opacity", !d.landed ? 1 : 0);
-      const dust = g.querySelector(".dust");
+      setA(this.trailNodes.get(d.id), "opacity", !d.landed ? 1 : 0);
+      const dust = this.dustNodes.get(d.id);
       if (dust) {
         const k = d.landed && !d.gone ? Math.max(0, 1 - (sim.t - d.landTime) / DROP_GONE_DELAY) : 0;
         setA(dust, "opacity", k.toFixed(2));
@@ -391,20 +406,13 @@ class Renderer {
       if (!aliveDrops.has(id)) {
         g.remove();
         this.dropNodes.delete(id);
+        this.trailNodes.delete(id);
+        this.dustNodes.delete(id);
       }
     }
 
     // HUD
-    const modeZh: Record<Mode, string> = {
-      cruise: "巡航",
-      approach: "接近石头·减速",
-      hop: "跃过石头",
-      land: "落地加速",
-      brake: "紧急刹车",
-      stopped: "停车避让",
-      resume: "恢复骑行",
-    };
-    this.hudMode.textContent = `状态 ${modeZh[sim.mode]}  速度 ${sim.v.toFixed(0)} px/s  时间 ${sim.t.toFixed(2)}s`;
+    this.hudMode.textContent = `状态 ${MODE_ZH[sim.mode]}  速度 ${sim.v.toFixed(0)} px/s  时间 ${sim.t.toFixed(2)}s`;
     const info: string[] = [];
     for (const s of sim.threatStones().slice(0, 1)) info.push(`石头 ${s.id} 距前轮 ${(s.x - sim.frontX).toFixed(0)}px`);
     for (const d of sim.threatDrops().slice(0, 1)) info.push(`坠落物 ${d.id} 高度 ${d.alt.toFixed(0)}px${d.landed ? " 已落地" : ""}`);

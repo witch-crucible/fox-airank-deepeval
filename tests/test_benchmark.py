@@ -174,7 +174,19 @@ class ReportCommandTests(unittest.TestCase):
             run_dir.mkdir()
             cli_main(["report", "--run-dir", str(run_dir), "--tool", "codex"])
             self.assertTrue((run_dir / "report.md").is_file())
+            self.assertTrue((run_dir / "report.html").is_file())
             self.assertIn("没有找到任何 DeepEval 评测产物", (run_dir / "report.md").read_text(encoding="utf-8"))
+            self.assertIn("没有找到任何 DeepEval 评测产物", (run_dir / "report.html").read_text(encoding="utf-8"))
+
+    def test_report_command_html_only_format(self):
+        from benchmark.cli import main as cli_main
+
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory) / "sample-run"
+            run_dir.mkdir()
+            cli_main(["report", "--run-dir", str(run_dir), "--tool", "codex", "--format", "html"])
+            self.assertFalse((run_dir / "report.md").is_file())
+            self.assertTrue((run_dir / "report.html").is_file())
 
     def test_report_command_history_mode(self):
         from benchmark import report as report_module

@@ -268,6 +268,14 @@ python3 benchmark.py report --history                                     # 汇�
 
 单 run 报告写入 `runs/<run-id>/report.json` 和 `report.md`：汇总表给出每个工具的 Agent/模型/智能度、通过数、通过率和三项指标均分；明细表按 case 列出各指标分数（✓/✗ 表示是否达到阈值）、执行状态和通过结论。历史报告写入 `runs/history-report.json` 和 `history-report.md`，每行是一个 run 中一个工具的汇总，用于跨模型、跨时间的纵向比较。报告只读取 TestRun JSON，不依赖 deepeval，可随时离线重新生成。
 
+`report` 子命令默认同时生成 Markdown 与**自包含静态页面**（单 run 为 `report.html`，历史为 `history-report.html`），静态页内联 CSS、无外部依赖，可直接用浏览器打开查看对比矩阵；可用 `--format md|html|both` 只输出指定格式：
+
+```bash
+python3 benchmark.py report --run-dir runs/compare-001                    # 同时生成 report.md 与 report.html
+python3 benchmark.py report --run-dir runs/compare-001 --format html      # 只生成静态页面
+python3 benchmark.py report --history --format html                      # 历史对比只生成静态页面
+```
+
 `run_benchmark.py` 批量流程会在 `evaluate` 之后自动执行 `report`，结束后同时打印 DeepEval 原始报告和对比报告路径。
 
 ### DeepEval 评分
@@ -329,13 +337,28 @@ python3 -m model_dashboard.server --reload
 
 浏览器打开 <http://127.0.0.1:8765>。新增或导入的数据默认写入被 Git 忽略的 `var/sqlite/fox-airank-deepeval.db`；首次启动会从已有的 `model_dashboard/data.local.json` 自动导入，原 JSON 文件保留。可通过 `--data` 指定 SQLite 文件路径；静态页面每次请求都会重新读取，改 `static/index.html` 后刷新浏览器即可，无需重启。
 
-顶部导航按用途拆分：「本地实测」展示本地运行评分、作品与人工能力剖面；「Agent 三方榜单」展示 AA Coding Agent Index、成本、耗时及底层模型对照，Coding Agent Index 可直达官方指标区块，模型基线仅展示可比的 Terminal-Bench 4.0 分数并可跳转到对应模型页；「Model 三方榜单」横向合并 Arena、AA Models、LLM Stats 和本地实测；「Agent 使用人数」「订阅费用快照」和「配置」各自独立成页。费用快照按 Agent Plan 与 Coding Plan 展示，规范字段为 `agent_plans` 与 `coding_plans`；旧 `ide_plans`、`code_plans` 和 `plans` 数据继续兼容读取。页面可通过 `/#dashboard`、`/#agent-reference`、`/#reference`、`/#agent-usage`、`/#pricing`、`/#settings` 直接打开，支持刷新和浏览器前进/后退；旧章节链接继续进入迁移后的所属页面。
+「AI 分析」页面（`/#ai-insights`）可输入使用需求，点击生成模型数据总结、场景推荐、推荐依据和限制。它沿用评测中的 [Codex 无头调用方式](https://learn.chatgpt.com/docs/non-interactive-mode)：需要本机 PATH 中存在 `codex` 且已登录，不需要另外配置 AI API 地址或密钥，也不依赖 DeepEval。分析在临时目录中以只读、临时会话运行，通过标准输入提交指标快照，用 JSON Schema 约束最终输出；仅手动点击生成时调用模型，普通刷新只读取最近一次成功结果。
+
+默认使用与现有评测一致的 `gpt-5.6-sol`、`high` 推理强度，超时 600 秒。可在启动看板前通过环境变量调整，重启后生效：
+
+```bash
+MODEL_DASHBOARD_AI_MODEL=gpt-5.6-sol \
+MODEL_DASHBOARD_AI_EFFORT=high \
+MODEL_DASHBOARD_AI_TIMEOUT=600 \
+python3 -m model_dashboard.server
+```
+
+AI 接收当前未归档模型的指标、来源时间、按配置汇总的本地实测及覆盖信息，不发送原始日志、工作区代码或备注。缺失指标不补零，不混用不同推理强度或 Agent 的成绩；每条推荐的配置身份和引用指标由服务端从输入快照回填。文字结论仍是 AI 推断，页面提供原始证据供核对。超过单次输入上限时明确报错，不静默裁剪榜单。
+
+最近一次成功分析单独保存在当前 SQLite 的 `ai_insights` 表中，记录需求、分析模型、生成时间和数据摘要；不会修改 Legion 手工推荐、发布版本或评分。数据变化后页面提示结果过期，生成失败保留上一次结果；同一服务进程同时只接受一次生成。接口为 `GET /api/ai-insights`（状态和结果）与 `POST /api/ai-insights`（JSON 请求体 `{"goal":"优先比较代码审查质量与成本"}`，空需求使用默认场景）。
+
+顶部导航按用途拆分：「本地实测」展示本地运行评分、作品与人工能力剖面；「Agent 三方榜单」按 Agent 聚合 AA 配置，展开后展示各模型与智能度的 Coding Agent Index、成本、耗时及底层模型对照，Coding Agent Index 可直达官方指标区块，模型基线仅展示可比的 Terminal-Bench 4.0 分数并可跳转到对应模型页；「Model 三方榜单」横向合并 Arena、AA Models、LLM Stats 和本地实测；「Agent 使用人数」「订阅费用快照」和「配置」各自独立成页。Agent 榜单默认按组内最佳 Coding Agent Index 排序，也可切换为按组内最佳同配置 Terminal-Bench 4.0 提升效果排序；无有效值的 Agent 排在末尾且空白不按 0 分处理。费用快照按 Agent Plan 与 Coding Plan 展示，规范字段为 `agent_plans` 与 `coding_plans`；旧 `ide_plans`、`code_plans` 和 `plans` 数据继续兼容读取。页面可通过 `/#dashboard`、`/#agent-reference`、`/#reference`、`/#agent-usage`、`/#pricing`、`/#settings` 直接打开，支持刷新和浏览器前进/后退；旧章节链接继续进入迁移后的所属页面。
 
 「Vibe Coding Legion」是默认页面，顶部导航另有独立的「Legion 日志」页面；两页分别使用本地打包的军团出征图和技能冷却图，不依赖外部图片服务。Legion 页面先按主用途分组，再在用途内按建议中的 Agent/工具聚合；工具为空时回退使用 Agent Plan 或 Coding Plan 作为 Agent 名。存在同名费用快照的 Agent 分组会显示「订阅费用」链接，点击后进入费用页并定位、高亮对应工具；没有匹配费用记录时不显示空链接。默认用途类型为 `Ask`、`Plan`、`Build`、`Review` 和 `Ship`，每条建议的主用途与副用途都支持多选，副用途仅作为浅色标签展示，不建立页面分组。每张配置卡片按模型名称和工具匹配本地打包的简化家族标记，覆盖 GPT/OpenAI、Claude/Opus、Grok、DeepSeek、Cursor/Composer、Qwen、Kimi 与 Gemini，未知模型回退到模型首字符。只有主用途分组中的卡片支持在右上角用空心/实心星星执行“设为核心 / 取消核心”；核心卡片同时使用金色边框和浅色背景高亮，编辑弹窗中的复选框仍可维护同一字段。点击「编辑建议」可按模型、工具或推理强度搜索配置，复制已有配置，并用固定底部操作区保存；关闭有未保存修改的编辑器时会二次确认。用途类型支持 1 至 20 个逗号分隔值，并提供即时数量、重复与长度校验；每条建议可以分别多选主用途、副用途及修改说明，选择同一类型时会自动从另一用途角色移除。默认不自动标记任何配置。每条建议仍按工具、模型和推理强度优先匹配本地实测结果，展示该配置任务正确性最佳一次运行的三项能力分；没有本地结果时再匹配模型数据，仍无记录或尚未评分时明确显示为空，不按 0 分处理。模型必填，其他字段可留空；主用途留空时，Agent Plan 优先归入 `Plan`、Coding Plan 优先归入 `Build`，对应类型不存在时归入配置列表第一项。用途说明留空时按 Plan 归属和推理强度显示中性默认说明。保存后写入同一本地数据文件，刷新页面或重启服务后保留；取消不会保存。点击「发布 Vibe Coding Legion」会把已保存草稿固化为不可变版本，发布历史在「Legion 日志」页保留完整快照、SHA-256、发布说明和新增/更新/移除差异；内容未变化时不会重复生成版本。旧数据会把原用途数组的第一项读取为主用途、其余项读取为副用途，并继续提供旧字段兼容视图，但不会因读取而写回。建议独立于评分、费用和榜单同步，不参与排名计算。
 
 星标实际按“用途 + 建议条目”独立保存；同一建议属于多个主用途时，只高亮用户点选的那个用途条目。旧数据中的整条 `is_core=true` 会兼容映射为该建议的全部主用途，并继续输出布尔别名供旧客户端读取。
 
-Agent 与 Model 三方榜单都会高亮匹配的 Legion 配置并显示空心 / 实心星标及具体用途，支持“仅看 Legion”筛选。Model 按模型与智能度匹配；Agent 还要求工具一致，不借用其他 Agent 的成绩。保存建议或切换核心星标后，榜单同步更新。缺失的 Legion 配置会作为补充行展示已有的同配置模型数据，不伪造 Agent 分数或官方排名。点击“补齐 Legion 数据”会仅对有缺失项的来源重新获取完整官方目录并融合，保持归一化使用完整来源快照；单一来源失败时保留该源原有数据并继续其他来源。补拉后仍未发布的配置分数保持为空，且不会使用其他智能度补位。
+Agent 与 Model 三方榜单都会高亮匹配的 Legion 配置并显示空心 / 实心星标及具体用途，支持“仅看 Legion”筛选。Model 按模型与智能度匹配；Agent 还要求工具一致，不借用其他 Agent 的成绩。Agent 聚合行汇总组内收藏状态、主用途和弱化展示的副用途，展开后的配置仍保留各自的精确星标与用途；启用“仅看 Legion”时只展示匹配配置，并仅用这些配置计算组内最佳排序值。保存建议或切换核心星标后，榜单同步更新。缺失的 Legion 配置会作为补充行展示已有的同配置模型数据，不伪造 Agent 分数或官方排名。点击“补齐 Legion 数据”会仅对有缺失项的来源重新获取完整官方目录并融合，保持归一化使用完整来源快照；单一来源失败时保留该源原有数据并继续其他来源。补拉后仍未发布的配置分数保持为空，且不会使用其他智能度补位。
 
 本地鹈鹕测试默认按「模型＋智力程度（推理强度）」合并多次运行，展示组内「任务正确性」得分最高的一次；同分取最新一次，有效的 0 分优先于未评分。同一模型不同智力程度分别展示；同一模型、同一智力程度使用不同工具时仍参与同组比较，评分表中的三项分数、耗时和明细来自选中的同一次运行。作品区只预览带有完整单文件 HTML 的运行；当评分表选中的运行没有可预览作品时，作品区会在当前筛选范围内回退到另一条可预览历史运行，并标明自己的 `run_id`、得分（未评分会明确显示）和耗时。仍可切换到「每个配置最新一次」或「全部运行（含失败）」查看历史；其他任务保持按配置展示最新结果，原始运行记录不变。
 

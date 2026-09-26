@@ -9,8 +9,8 @@ __pycache__/
 .env
 .env.*
 !.env.example
-results/
-runs/
+/results/
+/runs/
 model_dashboard/data.local.json
 var/sqlite/
 .deepeval/

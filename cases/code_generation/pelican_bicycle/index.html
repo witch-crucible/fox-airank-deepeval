@@ -226,6 +226,7 @@ class Simulation {
         this.hopStoneId = "";
         this.stoneSeq = 0;
         this.dropSeq = 0;
+        this.brakeTarget = null;
         for (const ev of this.scheduler.events)
             ev.cycle = 0;
     }
@@ -257,13 +258,16 @@ class Simulation {
     }
     step(dt) {
         // 1) 统一调度器：按时间线生成实体
+        const base = this.entities.length;
         const fired = this.scheduler.update(this.t, this.bikeX, this.entities);
-        for (const id of fired) {
+        // fired[i] 与本步新增的第 i 个实体一一对应（同一 tick 可能触发多个事件，
+        // 不能一律取 entities 末尾，否则多触发时补丁会打到同一个实体上）。
+        const spawnedList = this.entities.slice(base);
+        fired.forEach((id, i) => {
+            const spawned = spawnedList[i];
             this.firedLog.push({ id, t: this.t });
-            const spawned = this.entities[this.entities.length - 1];
-            if (spawned && spawned.kind === "drop")
-                spawned.spawnTime = this.t;
             if (spawned && spawned.kind === "drop") {
+                spawned.spawnTime = this.t;
                 const d = spawned;
                 const disc = d.v0 * d.v0 + 2 * d.g * (d.alt0 - d.r);
                 const tauLand = disc > 0 ? (-d.v0 + Math.sqrt(disc)) / d.g : 0;
@@ -274,7 +278,7 @@ class Simulation {
                 this.stoneSeq += 1;
             if (id.startsWith("drop"))
                 this.dropSeq += 1;
-        }
+        });
         // 2) 掉落物运动学：闭式轨迹 alt(τ) = alt0 - v0·τ - ½·g·τ²
         for (const d of this.drops()) {
             if (d.spawnTime < 0)
@@ -307,9 +311,6 @@ class Simulation {
                 this.lift = HOP_H * smoothstep((HOP_LEN - s) / HOP_RAMP);
             else
                 this.lift = HOP_H;
-        }
-        else if (this.mode !== "land") {
-            this.lift = 0;
         }
         else {
             this.lift = 0;
@@ -524,6 +525,15 @@ const LEG = "#e8a33d";
 const LEG_FAR = "#c08a35";
 const FRAME = "#b0432e";
 const TIRE = "#31302e";
+const MODE_ZH = {
+    cruise: "巡航",
+    approach: "接近石头·减速",
+    hop: "跃过石头",
+    land: "落地加速",
+    brake: "紧急刹车",
+    stopped: "停车避让",
+    resume: "恢复骑行",
+};
 class Renderer {
     constructor(svg, sim) {
         this.refs = {};
@@ -532,6 +542,10 @@ class Renderer {
         this.clouds = [];
         this.hills = [];
         this.stripes = [];
+        this.spinRear = null;
+        this.spinFront = null;
+        this.trailNodes = new Map();
+        this.dustNodes = new Map();
         this.svg = svg;
         this.sim = sim;
         this.build();
@@ -669,6 +683,10 @@ class Renderer {
     buildWheel(parent, id, c) {
         const g = svgEl("g", { id, transform: `translate(${c.x},${c.y})` }, parent);
         const spin = svgEl("g", { class: "spin" }, g);
+        if (id === "wheel-rear")
+            this.spinRear = spin;
+        else if (id === "wheel-front")
+            this.spinFront = spin;
         for (let i = 0; i < 8; i++) {
             const a = (i * Math.PI) / 4;
             svgEl("line", { x1: -Math.cos(a) * 34, y1: -Math.sin(a) * 34, x2: Math.cos(a) * 34, y2: Math.sin(a) * 34, stroke: "#8d8d8d", "stroke-width": 1.6 }, spin);
@@ -702,6 +720,8 @@ class Renderer {
         const dust = svgEl("g", { class: "dust", opacity: 0 }, g);
         svgEl("circle", { cx: -r - 4, cy: r * 0.6, r: 4, fill: "#c9b993" }, dust);
         svgEl("circle", { cx: r + 5, cy: r * 0.6, r: 5, fill: "#c9b993" }, dust);
+        this.trailNodes.set(id, trail);
+        this.dustNodes.set(id, dust);
         return g;
     }
     update(sim) {
@@ -726,12 +746,10 @@ class Renderer {
         setA(this.bikeGroup, "transform", `translate(${BIKE_SCREEN_X},${GROUND_Y - sim.lift})`);
         setA(this.shadow, "rx", 110 - sim.lift * 0.6);
         setA(this.shadow, "opacity", 0.16 - sim.lift * 0.0016);
-        // 车轮 / 曲柄同步旋转
+        // 车轮 / 曲柄同步旋转（spin 节点在 buildWheel 时已缓存，不再逐帧 querySelector）
         const wheelDeg = (sim.wheelAngle * 180) / Math.PI;
-        const spinR = this.bikeGroup.querySelector("#wheel-rear .spin");
-        const spinF = this.bikeGroup.querySelector("#wheel-front .spin");
-        setA(spinR, "transform", `rotate(${wheelDeg.toFixed(2)})`);
-        setA(spinF, "transform", `rotate(${wheelDeg.toFixed(2)})`);
+        setA(this.spinRear, "transform", `rotate(${wheelDeg.toFixed(2)})`);
+        setA(this.spinFront, "transform", `rotate(${wheelDeg.toFixed(2)})`);
         // 踏板 / 曲柄 / 腿（脚与踏板刚性绑定：IK 目标即踏板点）
         const pN = sim.pedalPos(0);
         const pF = sim.pedalPos(Math.PI);
@@ -815,9 +833,8 @@ class Renderer {
             setA(g, "transform", `translate(${sx.toFixed(1)},${sy.toFixed(1)})`);
             const visible = !d.gone && sx > -120 && sx < VIEW_W + 120;
             setA(g, "display", visible ? "" : "none");
-            const trail = g.querySelector(".trail");
-            setA(trail, "opacity", !d.landed ? 1 : 0);
-            const dust = g.querySelector(".dust");
+            setA(this.trailNodes.get(d.id), "opacity", !d.landed ? 1 : 0);
+            const dust = this.dustNodes.get(d.id);
             if (dust) {
                 const k = d.landed && !d.gone ? Math.max(0, 1 - (sim.t - d.landTime) / DROP_GONE_DELAY) : 0;
                 setA(dust, "opacity", k.toFixed(2));
@@ -834,19 +851,12 @@ class Renderer {
             if (!aliveDrops.has(id)) {
                 g.remove();
                 this.dropNodes.delete(id);
+                this.trailNodes.delete(id);
+                this.dustNodes.delete(id);
             }
         }
         // HUD
-        const modeZh = {
-            cruise: "巡航",
-            approach: "接近石头·减速",
-            hop: "跃过石头",
-            land: "落地加速",
-            brake: "紧急刹车",
-            stopped: "停车避让",
-            resume: "恢复骑行",
-        };
-        this.hudMode.textContent = `状态 ${modeZh[sim.mode]}  速度 ${sim.v.toFixed(0)} px/s  时间 ${sim.t.toFixed(2)}s`;
+        this.hudMode.textContent = `状态 ${MODE_ZH[sim.mode]}  速度 ${sim.v.toFixed(0)} px/s  时间 ${sim.t.toFixed(2)}s`;
         const info = [];
         for (const s of sim.threatStones().slice(0, 1))
             info.push(`石头 ${s.id} 距前轮 ${(s.x - sim.frontX).toFixed(0)}px`);

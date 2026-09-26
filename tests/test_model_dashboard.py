@@ -7,6 +7,7 @@ import warnings
 from pathlib import Path
 from unittest.mock import patch
 from urllib.error import HTTPError
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from model_dashboard.server import (
@@ -854,6 +855,23 @@ class ModelDashboardTests(unittest.TestCase):
                 )["model"]
                 self.assertFalse(restored["archived"])
                 self.assertEqual(restored["archived_at"], "")
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=3)
+
+    def test_http_archive_decodes_percent_encoded_model_id(self):
+        """前端用 encodeURIComponent 拼 ID，归档接口必须解码后再落库。"""
+        with tempfile.TemporaryDirectory() as directory:
+            server = create_server("127.0.0.1", 0, data_path=Path(directory) / "dashboard.json")
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base_url = f"http://127.0.0.1:{server.server_port}"
+            try:
+                created = self._post_json(f"{base_url}/api/models", {"tool": "Codex", "model": "Opus 5.5 (max)"})["model"]
+                encoded = quote(created["id"], safe="")
+                archived = self._post_json(f"{base_url}/api/models/{encoded}/archive", {"archived": True})["model"]
+                self.assertTrue(archived["archived"])
             finally:
                 server.shutdown()
                 server.server_close()
