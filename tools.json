@@ -1,6 +1,6 @@
 {
   "codex": {
-    "command": ["codex", "exec", "--skip-git-repo-check", "--ephemeral", "-s", "workspace-write", "--add-dir", "{output_dir}", "{prompt}"]
+    "command": ["codex", "exec", "--skip-git-repo-check", "--ephemeral", "-s", "workspace-write", "--add-dir", "{output_dir}", "--json", "{prompt}"]
   },
   "claude": {
     "command": ["claude", "-p", "--permission-mode", "auto", "--no-session-persistence", "--add-dir", "{output_dir}", "{prompt}"]
@@ -14,6 +14,6 @@
   },
   "opencode": {
     "agent": "build",
-    "command": ["opencode", "run", "--pure", "--auto", "--dir", "{workspace}", "--agent", "build", "{prompt}"]
+    "command": ["opencode", "run", "--pure", "--auto", "--dir", "{workspace}", "--agent", "build", "--format", "json", "{prompt}"]
   }
 }

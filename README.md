@@ -278,6 +278,64 @@ python3 benchmark.py report --history --format html                      # 历�
 
 `run_benchmark.py` 批量流程会在 `evaluate` 之后自动执行 `report`，结束后同时打印 DeepEval 原始报告和对比报告路径。
 
+需要把对比报告当作回归门禁时，用 `--fail-under` 指定通过率下限（0–1）。任一已评测工具的通过率低于该值时，报告照常生成，但命令以退出码 1 结束；整个 run 没有任何评测结果同样视为未达标，避免“没评分”被当成通过。该参数不支持 `--history` 模式。
+
+```bash
+python3 benchmark.py report --run-dir runs/compare-001 --fail-under 0.8
+```
+
+### 跨 run 稳定性分析
+
+单次分数只能说明“跑过一次”，不足以支撑“该配置适合日常使用”。`stability` 按「工具 + Agent + 模型 + 智能度 + case」聚合同一配置的多次运行，输出样本数、三项指标的均值与极差、标准差、通过率和耗时，并按统一口径给出结论：
+
+| 结论 | 含义 |
+| --- | --- |
+| 未评测 | 从未产出有效评分，先检查执行与评分链路 |
+| 样本不足 | 有效样本少于 `--min-samples`（默认 3） |
+| 波动偏大 | 任一指标极差超过 `--max-range`（默认 0.2） |
+| 稳定失败 | 样本充足、分数一致，但每次都未达到阈值 |
+| 部分失败 | 样本充足、分数一致，但存在未通过的运行 |
+| 稳定通过 | 样本充足、分数一致且全部通过 |
+
+判定顺序从“证据不足”到“证据可信”：先排除没有评分或样本不足，再判断波动，最后才解释通过与失败，避免用不稳定的分数下稳定结论。
+
+```bash
+python3 benchmark.py stability                                    # 扫描 runs/ 下全部 run
+python3 benchmark.py stability --tool codex --case draw-pelican-bicycle
+python3 benchmark.py stability --min-samples 5 --max-range 0.15 --format html
+```
+
+报告写入 `runs/stability-report.json`、`stability-report.md` 和 `stability-report.html`（`--format md|html|both`）。JSON 同时保留每一组的逐次运行明细，便于人工核对；明细表下方只展开需要关注的分组。某个 run 的评测产物损坏时只记录告警，不中断整份报告。只有达到「稳定通过」才建议把该配置作为日常推荐；显示「样本不足」时应先补齐重复运行次数，而不是直接下结论。
+
+### 归档历史 run
+
+每个 run 都保留完整的隔离工作区、代理日志和评测产物，`runs/` 会持续增长。`archive` 把整个 run 目录移动到 `runs/_archive/<run-id>`：不删除任何文件，随时可用 `--restore` 移回；`_archive` 自身不含 `deepeval/`，因此历史报告与稳定性分析会自动跳过已归档的 run。
+
+```bash
+python3 benchmark.py archive --keep 5                 # 预演：保留最新 5 个，其余列出
+python3 benchmark.py archive --keep 5 --apply         # 真正移动
+python3 benchmark.py archive --older-than 30 --apply
+python3 benchmark.py archive --run-id old-run-001 --apply
+python3 benchmark.py archive --restore old-run-001 --apply
+```
+
+不加 `--apply` 时只打印将要移动的 run、占用空间和原因，不会改动任何目录。`--older-than`、`--keep` 和 `--run-id` 可同时使用（需同时满足）；`--restore` 不能与它们同时使用。归档目标已存在时会报错，不会覆盖已有数据。
+
+### 新增 case
+
+`new-case` 生成 case 目录骨架并登记评分规格，避免手工复制目录时漏改 `benchmark/specs.json`（漏登记会让评分阶段直接失败）：
+
+```bash
+python3 benchmark.py new-case \
+  --id fix-pagination-window \
+  --category code_correction \
+  --title "修复分页窗口边界"
+```
+
+会创建 `cases/code_correction/fix_pagination_window/`（`case.json` + `TASK.md` 模板），并在 `benchmark/specs.json` 登记 `{"id","category","type","actual_files"}`。`--type`（`html`/`code`/`analysis`）和 `--actual-file` 未指定时按分类推断：代码生成默认 `index.html`，代码修正默认 `solution.js`，Magento 业务题默认 `answer.md` 与 `evidence.json`。业务分析题用 `--project-dir <绝对路径>` 指定只读项目根目录。
+
+全部校验在任何写入之前完成；写入失败会回滚已创建的目录，不留下无法评分的半截 case。加 `--no-spec` 只生成目录、不登记规格，此时需手工补登记，否则评分会失败。生成后请补全 `TASK.md` 的需求、约束和验收点，必要时在 `specs.json` 中补充 `expected_answer`。
+
 ### DeepEval 评分
 
 `benchmark/specs.json` 登记当前 case 的实际输出文件；该清单不会复制到代理工作区。
@@ -337,22 +395,44 @@ python3 -m model_dashboard.server --reload
 
 浏览器打开 <http://127.0.0.1:8765>。新增或导入的数据默认写入被 Git 忽略的 `var/sqlite/fox-airank-deepeval.db`；首次启动会从已有的 `model_dashboard/data.local.json` 自动导入，原 JSON 文件保留。可通过 `--data` 指定 SQLite 文件路径；静态页面每次请求都会重新读取，改 `static/index.html` 后刷新浏览器即可，无需重启。
 
-「AI 分析」页面（`/#ai-insights`）可输入使用需求，点击生成模型数据总结、场景推荐、推荐依据和限制。它沿用评测中的 [Codex 无头调用方式](https://learn.chatgpt.com/docs/non-interactive-mode)：需要本机 PATH 中存在 `codex` 且已登录，不需要另外配置 AI API 地址或密钥，也不依赖 DeepEval。分析在临时目录中以只读、临时会话运行，通过标准输入提交指标快照，用 JSON Schema 约束最终输出；仅手动点击生成时调用模型，普通刷新只读取最近一次成功结果。
+数据缓存：本地实测结果（`/api/local-benchmarks`、模型榜单与 AI 分析读取的同一份数据）缓存在 SQLite 中，页面不再每次请求都重扫 `runs/`；当 `runs/` 或 `cases/*/*/case.json`、`TASK.md` 的文件指纹与缓存不一致时视为过期。三方榜单沿用已有 SQLite 快照，最近一次同步超过 `--cache-max-age-hours`（默认 24，必须大于 0）即视为过期。页面始终展示缓存数据（prompt-only）：有过期来源时顶部显示提示条，点击「立即更新」或「更多 → 缓存状态」中的「更新」手动刷新，不会自动同步；「刷新本地结果」按钮也会先重建本地缓存再重新读取。
 
-默认使用与现有评测一致的 `gpt-5.6-sol`、`high` 推理强度，超时 600 秒。可在启动看板前通过环境变量调整，重启后生效：
+Vibe Coding Legion 首页的「AI 参谋：总结与推荐」面板可输入使用需求，点击生成模型数据总结、场景推荐、推荐依据和限制。它调用 [SenseNova Token Plan](https://www.sensenova.cn/token-plan) 的 OpenAI 兼容接口（`POST https://token.sensenova.cn/v1/chat/completions`），与 DeepEval 评测和本机 Codex 登录状态无关。请求体只带当前指标快照、需求文本与输出 JSON Schema；仅手动点击生成时调用模型，普通刷新只读取最近一次成功结果。旧链接 `/#ai-insights` 仍然有效：会打开 Legion 首页并展开、定位到该面板。
+
+密钥只从环境变量读取，不写入数据文件，也不在页面或接口中返回。启动看板前设置：
 
 ```bash
-MODEL_DASHBOARD_AI_MODEL=gpt-5.6-sol \
-MODEL_DASHBOARD_AI_EFFORT=high \
-MODEL_DASHBOARD_AI_TIMEOUT=600 \
+SENSENOVA_API_KEY=... \
+MODEL_DASHBOARD_AI_BASE_URL=https://token.sensenova.cn/v1 \
+MODEL_DASHBOARD_AI_MODEL=sensenova-6.8-flash-lite \
+MODEL_DASHBOARD_AI_TIMEOUT=180 \
 python3 -m model_dashboard.server
 ```
+
+- `SENSENOVA_API_KEY`：必填，缺失时面板显示「未配置 Key」且生成按钮不可用。
+- `MODEL_DASHBOARD_AI_BASE_URL`：默认 `https://token.sensenova.cn/v1`，必须为 HTTPS（本机调试可用 `localhost` 的 HTTP）。
+- `MODEL_DASHBOARD_AI_MODEL`：默认 `sensenova-6.8-flash-lite`。
+- `MODEL_DASHBOARD_AI_TIMEOUT`：默认 180 秒，取值 10 至 1800。
+
+未配置密钥时页面仍可查看已保存的分析。接口错误只回传分类提示（密钥无效、配额超限、HTTP 状态码、网络超时），不会把响应体或密钥透传到页面。
 
 AI 接收当前未归档模型的指标、来源时间、按配置汇总的本地实测及覆盖信息，不发送原始日志、工作区代码或备注。缺失指标不补零，不混用不同推理强度或 Agent 的成绩；每条推荐的配置身份和引用指标由服务端从输入快照回填。文字结论仍是 AI 推断，页面提供原始证据供核对。超过单次输入上限时明确报错，不静默裁剪榜单。
 
 最近一次成功分析单独保存在当前 SQLite 的 `ai_insights` 表中，记录需求、分析模型、生成时间和数据摘要；不会修改 Legion 手工推荐、发布版本或评分。数据变化后页面提示结果过期，生成失败保留上一次结果；同一服务进程同时只接受一次生成。接口为 `GET /api/ai-insights`（状态和结果）与 `POST /api/ai-insights`（JSON 请求体 `{"goal":"优先比较代码审查质量与成本"}`，空需求使用默认场景）。
 
-顶部导航按用途拆分：「本地实测」展示本地运行评分、作品与人工能力剖面；「Agent 三方榜单」按 Agent 聚合 AA 配置，展开后展示各模型与智能度的 Coding Agent Index、成本、耗时及底层模型对照，Coding Agent Index 可直达官方指标区块，模型基线仅展示可比的 Terminal-Bench 4.0 分数并可跳转到对应模型页；「Model 三方榜单」横向合并 Arena、AA Models、LLM Stats 和本地实测；「Agent 使用人数」「订阅费用快照」和「配置」各自独立成页。Agent 榜单默认按组内最佳 Coding Agent Index 排序，也可切换为按组内最佳同配置 Terminal-Bench 4.0 提升效果排序；无有效值的 Agent 排在末尾且空白不按 0 分处理。费用快照按 Agent Plan 与 Coding Plan 展示，规范字段为 `agent_plans` 与 `coding_plans`；旧 `ide_plans`、`code_plans` 和 `plans` 数据继续兼容读取。页面可通过 `/#dashboard`、`/#agent-reference`、`/#reference`、`/#agent-usage`、`/#pricing`、`/#settings` 直接打开，支持刷新和浏览器前进/后退；旧章节链接继续进入迁移后的所属页面。
+顶部导航按用途拆分：「本地实测」展示本地运行评分、作品与人工能力剖面；「Agent 三方榜单」按 Agent 聚合 AA 配置，展开后展示各模型与智能度的 Coding Agent Index、成本、耗时及底层模型对照，Coding Agent Index 可直达官方指标区块，模型基线仅展示可比的 Terminal-Bench 4.0 分数并可跳转到对应模型页；「Model 三方榜单」横向合并 Arena、AA Models、LLM Stats 和本地实测；「Agent 使用人数」「订阅费用快照」和「配置」各自独立成页。Agent 榜单默认按组内最佳 Coding Agent Index 排序，也可切换为按组内最佳同配置 Terminal-Bench 4.0 提升效果排序；两种排序下分组摘要行都同时给出组内最佳 Coding Agent Index 原始分与组内最佳同配置 Terminal-Bench 4.0 提升（提升前 → 提升后，两个分数与提升幅度同源可核对），两项可能取自不同模型与智能度配置，因此各自标注所属配置；分数均可点击跳转 Artificial Analysis（基线缺失时只省略「提升前 / 提升后」而不改写提升幅度）；无有效值的 Agent 排在末尾且空白不按 0 分处理。费用快照拆成「Agent Plan」「Code Plan」「Token Plan」三个区块：前两者对应 IDE / Agent 与 CLI / Coding 形态的订阅档位，Token Plan 对应按 token / Credits 额度计费的档位；页内顶部提供章节导航，锚点为 `/#pricing-agent`、`/#pricing-code` 与 `/#pricing-token`；每个区块只展示已录入该形态价格的工具，全部为空时提示待补录。规范字段为 `agent_plans`、`coding_plans` 与 `token_plans`；旧 `ide_plans`、`code_plans` 和 `plans` 数据继续兼容读取。档位可带 `detail` 小字（如额度说明），与月费同行展示。
+
+费用快照页最前面新增「统一坐标系 · 性价比」区块（章节 key 为 `value`，锚点 `/#pricing-value`）。它把各档位月费折算到可比口径，用于跨工具横向比较：
+
+- 主坐标 `¥ / 百万 token`。档位需提供 `included_tokens`（月度额度，token）与 `token_basis`（折算依据原文，展示在该行下方）。
+- 副坐标 `¥ / 美元额度`（`¥/USD`）。档位只提供 `included_usd_credit`（月度额度，美元）而没有 `included_tokens` 时使用，按 `price_cny_month / included_usd_credit` 计算。
+- 两个坐标系**不做跨口径换算**：只有美元额度、未公布 token 数的档位记为 `—`，并在区块底部汇总「不做估算」的档位数量与原因，避免把「只公布美元额度」误算成「便宜」。
+- 主表按 `¥/Mtok` 升序并给出「相对最优」倍数，最低值一行高亮；档位标注 `calibration_note`（如 Credits 折算口径与社区实测差异）会显示在工具卡片上，提醒不要只取表中最优值。
+- 汇率沿用快照原值 1 USD = 6.75 CNY（`USD_TO_CNY`），前端 `planCnyPerMtok()` 与后端 `pricing.value_overview()` 口径一致。
+
+每条条目都记录原始地址。条目可带 `sources` 数组（旧的 `official_url` 继续作为第一个来源回退读取），元素形如 `{"label": "GLM Coding Plan 订阅页", "url": "https://z.ai/subscribe", "snapshot_at": "2026-09-27", "status": "ok"}`；缺失 `label` 时用 URL 兜底。工具卡片底部渲染「采集日期 · 各来源链接 + 状态徽章 · ↻ 刷新」，点击刷新会重新抓取这些地址。来源状态：`ok`（正文 ≥ 200 字符）、`partial`（疑似纯 JS 渲染，正文过短）、`blocked`（命中反爬特征串）、`error`（抓取异常，附 `http_error`）。刷新采用内容指纹（归一化空白后取 sha256 前 16 位）比对：指纹变化才推进条目的 `snapshot_at` 与该来源的 `snapshot_at`，正文无变化时不推进，避免把「抓到了页面」误当成「价格已更新」。抓取默认沿用环境变量中的代理，代理 tunnelling 失败（如 `Tunnel connection failed`）时自动回退直连，而 403 / 404 等 4xx 属于对方明确应答，不再回退。相关接口为 `GET /api/pricing/sources`（汇总全部条目的来源记录）与 `POST /api/pricing/refresh`（请求体 `{"tool": "Z AI"}` 可只刷指定工具，返回 `{checked, updated, blocked, error, sources}`）。
+
+页面可通过 `/#dashboard`、`/#agent-reference`、`/#reference`、`/#agent-usage`、`/#pricing`、`/#pricing-value`、`/#pricing-agent`、`/#pricing-code`、`/#pricing-token`、`/#settings` 直接打开，支持刷新和浏览器前进/后退；旧章节链接（含 `/#section-pricing-value`）继续进入迁移后的所属页面。
 
 「Vibe Coding Legion」是默认页面，顶部导航另有独立的「Legion 日志」页面；两页分别使用本地打包的军团出征图和技能冷却图，不依赖外部图片服务。Legion 页面先按主用途分组，再在用途内按建议中的 Agent/工具聚合；工具为空时回退使用 Agent Plan 或 Coding Plan 作为 Agent 名。存在同名费用快照的 Agent 分组会显示「订阅费用」链接，点击后进入费用页并定位、高亮对应工具；没有匹配费用记录时不显示空链接。默认用途类型为 `Ask`、`Plan`、`Build`、`Review` 和 `Ship`，每条建议的主用途与副用途都支持多选，副用途仅作为浅色标签展示，不建立页面分组。每张配置卡片按模型名称和工具匹配本地打包的简化家族标记，覆盖 GPT/OpenAI、Claude/Opus、Grok、DeepSeek、Cursor/Composer、Qwen、Kimi 与 Gemini，未知模型回退到模型首字符。只有主用途分组中的卡片支持在右上角用空心/实心星星执行“设为核心 / 取消核心”；核心卡片同时使用金色边框和浅色背景高亮，编辑弹窗中的复选框仍可维护同一字段。点击「编辑建议」可按模型、工具或推理强度搜索配置，复制已有配置，并用固定底部操作区保存；关闭有未保存修改的编辑器时会二次确认。用途类型支持 1 至 20 个逗号分隔值，并提供即时数量、重复与长度校验；每条建议可以分别多选主用途、副用途及修改说明，选择同一类型时会自动从另一用途角色移除。默认不自动标记任何配置。每条建议仍按工具、模型和推理强度优先匹配本地实测结果，展示该配置任务正确性最佳一次运行的三项能力分；没有本地结果时再匹配模型数据，仍无记录或尚未评分时明确显示为空，不按 0 分处理。模型必填，其他字段可留空；主用途留空时，Agent Plan 优先归入 `Plan`、Coding Plan 优先归入 `Build`，对应类型不存在时归入配置列表第一项。用途说明留空时按 Plan 归属和推理强度显示中性默认说明。保存后写入同一本地数据文件，刷新页面或重启服务后保留；取消不会保存。点击「发布 Vibe Coding Legion」会把已保存草稿固化为不可变版本，发布历史在「Legion 日志」页保留完整快照、SHA-256、发布说明和新增/更新/移除差异；内容未变化时不会重复生成版本。旧数据会把原用途数组的第一项读取为主用途、其余项读取为副用途，并继续提供旧字段兼容视图，但不会因读取而写回。建议独立于评分、费用和榜单同步，不参与排名计算。
 

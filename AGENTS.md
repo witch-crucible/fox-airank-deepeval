@@ -10,6 +10,10 @@
 - `python3 benchmark.py prepare --run-id smoke --tool codex --case fix-cart-total` creates an isolated smoke-test workspace.
 - `python3 benchmark.py execute --run-dir runs/smoke --tool codex --case fix-cart-total` invokes the configured agent from `tools.json`.
 - `python3 benchmark.py evaluate --run-dir runs/smoke --tool codex --case fix-cart-total` runs the three DeepEval GEval metrics and writes tool-scoped local JSON/HTML.
+- `python3 benchmark.py stability` aggregates repeated runs per tool/model/intelligence/case into `runs/stability-report.{json,md,html}`.
+- `python3 benchmark.py archive --keep 5` previews archiving old runs into `runs/_archive/`; add `--apply` to move, `--restore <run-id>` to move back.
+- `python3 benchmark.py new-case --id fix-cart-total --category code_correction --title "..."` scaffolds a case and registers it in `benchmark/specs.json`.
+- `python3 benchmark.py report --run-dir <run> --fail-under 0.8` exits 1 when any evaluated tool's pass rate is below the threshold.
 - `python3 -m unittest discover -s tests -v` runs the repository regression suite.
 - `python3 -m compileall -q benchmark tests` checks Python syntax and imports.
 

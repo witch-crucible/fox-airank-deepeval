@@ -15,7 +15,8 @@ from typing import Any, Callable, Sequence
 from urllib.parse import parse_qs, unquote, urlparse
 from urllib.request import urlopen  # 兼容既有测试与外部 monkeypatch
 
-from .ai_insights import InsightConfig, normalize_goal, run_codex_insight, snapshot_hash, validate_analysis
+from .ai_insights import InsightConfig, normalize_goal, run_sensenova_insight, snapshot_hash, validate_analysis
+from .data_cache import cache_status, cached_local_results
 from .insight_data import build_insight_snapshot
 from .efficiency import build_efficiency_overview, normalize_balance_weights
 from .domain import (
@@ -34,8 +35,9 @@ from .domain import (
     utc_now,
 )
 from .benchmark import normalize_benchmark_models
+from .pricing import check_source
 from .leaderboards import build_agent_overview, build_model_overview
-from .local_results import CASES_ROOT, RUNS_ROOT, collect_local_results, resolve_pelican_preview
+from .local_results import CASES_ROOT, RUNS_ROOT, resolve_pelican_preview
 from .sources import (
     ARENA_DATASET_URL,
     ARENA_PAGE_SIZE,
@@ -175,11 +177,42 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self._send_json(HTTPStatus.OK, self.dashboard_store.read())
 
     def _get_local_benchmarks(self) -> None:
-        self._send_json(HTTPStatus.OK, collect_local_results(self.server.runs_root))
+        self._send_json(HTTPStatus.OK, self._local_results())
+
+    def _local_results(self) -> dict[str, Any]:
+        return cached_local_results(self.dashboard_store, self.server.runs_root)
+
+    def _cache_status(self) -> dict[str, Any]:
+        return cache_status(
+            self.dashboard_store, self.server.runs_root, self.server.cache_max_age_hours,
+        )
+
+    def _get_cache_status(self) -> None:
+        self._send_json(HTTPStatus.OK, self._cache_status())
+
+    def _post_local_benchmarks_refresh(self, payload: Any) -> None:
+        payload = cached_local_results(
+            self.dashboard_store, self.server.runs_root, refresh=True,
+        )
+        self._send_json(HTTPStatus.OK, {
+            "records": len(payload.get("records", [])),
+            "warnings": payload.get("warnings", []),
+            "status": self._cache_status(),
+        })
+
+    def _get_pricing_sources(self) -> None:
+        self._send_json(HTTPStatus.OK, {"sources": self.dashboard_store.pricing_sources()})
+
+    def _post_pricing_refresh(self, payload: Any) -> None:
+        tool = optional_text(payload.get("tool"), "tool", 120) if isinstance(payload, dict) else ""
+        fetcher = lambda url: check_source(url, text_fetcher=self.text_fetcher)  # noqa: E731
+        report = self.dashboard_store.refresh_pricing_sources(fetcher, tool or None)
+        report["sources"] = self.dashboard_store.pricing_sources()
+        self._send_json(HTTPStatus.OK, report)
 
     def _insight_snapshot(self) -> dict[str, Any]:
         return build_insight_snapshot(
-            self.dashboard_store.read(), collect_local_results(self.server.runs_root),
+            self.dashboard_store.read(), self._local_results(),
             expected_case_ids(self.server.cases_root),
         )
 
@@ -234,7 +267,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def _get_model_leaderboard(self) -> None:
         try:
             data = self.dashboard_store.read()
-            local = collect_local_results(self.server.runs_root)
+            local = self._local_results()
             overview = build_model_overview(
                 data["models"],
                 local.get("records", []),
@@ -586,6 +619,7 @@ GET_ROUTES = compile_routes(
         "/api/health": DashboardHandler._get_health,
         "/api/models": DashboardHandler._get_models,
         "/api/local-benchmarks": DashboardHandler._get_local_benchmarks,
+        "/api/cache/status": DashboardHandler._get_cache_status,
         "/api/ai-insights": DashboardHandler._get_ai_insights,
         "/api/efficiency": DashboardHandler._get_efficiency,
         "/api/leaderboards/models": DashboardHandler._get_model_leaderboard,
@@ -595,11 +629,13 @@ GET_ROUTES = compile_routes(
         "/api/leaderboards/{source_type}/snapshots": DashboardHandler._get_leaderboard_snapshots,
         "/api/recommendations/releases": DashboardHandler._get_recommendation_releases,
         "/api/local-benchmarks/preview/{run}/{tool}": DashboardHandler._get_pelican_preview,
+        "/api/pricing/sources": DashboardHandler._get_pricing_sources,
     }
 )
 
 POST_ROUTES = compile_routes(
     {
+        "/api/cache/local-benchmarks/refresh": DashboardHandler._post_local_benchmarks_refresh,
         "/api/leaderboards/legion/refresh": DashboardHandler._refresh_legion_leaderboards,
         "/api/models": DashboardHandler._post_model,
         "/api/models/{model_id}/archive": DashboardHandler._post_model_archive,
@@ -616,6 +652,7 @@ POST_ROUTES = compile_routes(
         "/api/import/artificial-analysis-models": DashboardHandler._import_artificial_analysis_models,
         "/api/import/llm-stats": DashboardHandler._import_llm_stats,
         "/api/import/benchmark": DashboardHandler._import_benchmark,
+        "/api/pricing/refresh": DashboardHandler._post_pricing_refresh,
     }
 )
 
@@ -629,8 +666,9 @@ def create_server(
     binary_fetcher: Callable[[str], bytes] = fetch_bytes,
     runs_root: Path = RUNS_ROOT,
     cases_root: Path = CASES_ROOT,
-    insight_runner: Callable[[str, dict[str, Any], InsightConfig], Any] = run_codex_insight,
+    insight_runner: Callable[[str, dict[str, Any], InsightConfig], Any] = run_sensenova_insight,
     insight_config: InsightConfig | None = None,
+    cache_max_age_hours: float = 24,
 ) -> ThreadingHTTPServer:
     config = insight_config if insight_config is not None else InsightConfig.from_env()
     server = ThreadingHTTPServer((host, port), DashboardHandler)
@@ -644,6 +682,7 @@ def create_server(
     server.insight_config = config  # type: ignore[attr-defined]
     server.insight_runner = insight_runner  # type: ignore[attr-defined]
     server.insight_lock = threading.Lock()  # type: ignore[attr-defined]
+    server.cache_max_age_hours = cache_max_age_hours  # type: ignore[attr-defined]
     return server
 
 
@@ -749,7 +788,15 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="开发模式：监听代码变更并自动重启服务",
     )
+    parser.add_argument(
+        "--cache-max-age-hours",
+        type=float,
+        default=24,
+        help="三方榜单快照视为过期的最大时长（小时，需大于 0）",
+    )
     args = parser.parse_args(argv)
+    if args.cache_max_age_hours <= 0:
+        parser.error("缓存最大时效（--cache-max-age-hours）必须大于 0")
     if args.reload:
         run_with_reload(
             [
@@ -759,11 +806,13 @@ def main(argv: list[str] | None = None) -> None:
                 str(args.port),
                 "--data",
                 str(args.data),
+                "--cache-max-age-hours",
+                str(args.cache_max_age_hours),
             ]
         )
         return
 
-    server = create_server(args.host, args.port, args.data)
+    server = create_server(args.host, args.port, args.data, cache_max_age_hours=args.cache_max_age_hours)
     dashboard_url = f"http://{args.host}:{server.server_port}"
     print(f"模型能力台：{dashboard_url}（按住 ⌘ 并双击打开）")
     print(f"本地数据：{args.data}")

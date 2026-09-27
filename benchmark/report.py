@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
+from benchmark.paths import load_identities, workspace_path
+
 METRIC_SUFFIX = " [GEval]"
 TEST_RUN_PATTERN = re.compile(r"^test_run_(\d{8}_\d{6})\.json$")
 METRIC_ORDER = ("Task Correctness", "Robustness, Safety and Regression", "Delivery Evidence")
@@ -64,6 +66,7 @@ class CaseRow:
     execution_status: str = "missing"
     elapsed_seconds: float | None = None
     timeout_seconds: float | None = None
+    tokens: dict[str, Any] | None = None
 
     def metric_score(self, name: str) -> float | None:
         entry = self.metrics.get(name)
@@ -226,6 +229,29 @@ def load_test_run(path: Path) -> dict[str, Any]:
         raise ValueError(f"评测产物损坏，无法解析: {path}（{error}）") from error
 
 
+def _read_case_tokens(
+    run_dir: Path,
+    tool: str,
+    case_id: str,
+    manifest: dict[str, Any],
+) -> dict[str, Any] | None:
+    """从 runs/<run-id>/<tool>/<case>/execution.json 读取 token 用量（若有）。"""
+    identities = manifest.get("identities") or {}
+    try:
+        workspace = workspace_path(run_dir, tool, case_id, identities)
+    except Exception:
+        return None
+    execution_path = workspace / "execution.json"
+    if not execution_path.is_file():
+        return None
+    try:
+        execution = json.loads(execution_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    tokens = execution.get("tokens")
+    return tokens if isinstance(tokens, dict) else None
+
+
 def _identity_from_manifest(manifest: dict[str, Any], tool: str) -> dict[str, str]:
     identity = manifest.get("identities", {}).get(tool, {})
     if isinstance(identity, dict):
@@ -288,6 +314,7 @@ def collect_tool_summary(
                 identity = {"agent": fallback_identity, "model": "unknown", "intelligence": "unknown"}
             evaluated = bool(metrics)
             info = registry.get(case_id, {})
+            tokens = _read_case_tokens(run_dir, tool, case_id, manifest)
             rows.append(
                 CaseRow(
                     case_id=case_id,
@@ -299,6 +326,7 @@ def collect_tool_summary(
                     execution_status=str(metadata.get("execution_status", "missing")),
                     elapsed_seconds=metadata.get("elapsed_seconds"),
                     timeout_seconds=metadata.get("timeout_seconds"),
+                    tokens=tokens,
                 )
             )
     return ToolSummary(
@@ -378,6 +406,7 @@ def _summary_to_dict(summary: ToolSummary) -> dict[str, Any]:
                 "elapsed_seconds": row.elapsed_seconds,
                 "timeout_seconds": row.timeout_seconds,
                 "time_score": row.time_score,
+                "tokens": row.tokens,
                 "metrics": row.metrics,
             }
             for row in summary.rows
@@ -406,7 +435,7 @@ def _row_metric_names(rows: Sequence[CaseRow]) -> list[str]:
     return _ordered_metrics(names)
 
 
-def _iter_run_dirs(runs_root: Path) -> list[Path]:
+def iter_run_dirs(runs_root: Path) -> list[Path]:
     if not runs_root.is_dir():
         return []
     return sorted(
@@ -421,7 +450,7 @@ def collect_history(runs_root: Path, cases: Sequence[Any] | None = None) -> list
     只保留至少有一个工具存在评测结果的 run；完全空的 run 不进入历史。
     """
     reports = []
-    for run_dir in _iter_run_dirs(runs_root):
+    for run_dir in iter_run_dirs(runs_root):
         report = collect_run_report(run_dir, (), cases)
         if any(tool["cases"] for tool in report["tools"]):
             reports.append(report)
@@ -454,6 +483,67 @@ def _format_cell(row: CaseRow, name: str) -> str:
     return f"{entry['score']:.2f} {mark}"
 
 
+def _k_tokens(value: Any) -> str:
+    if not isinstance(value, (int, float)):
+        return "—"
+    number = float(value)
+    if abs(number) >= 1000:
+        return f"{number / 1000:.1f}k"
+    return f"{number:.0f}"
+
+
+def _fmt_tokens_short(tokens: Any) -> str | None:
+    """单行紧凑呈现 token 用量（用于 case 单元格）。无数据返回 None。"""
+    if not isinstance(tokens, dict):
+        return None
+    total = tokens.get("total_tokens")
+    if not isinstance(total, (int, float)) or total == 0:
+        return None
+    parts = [f"token {_k_tokens(total)}"]
+    cost = tokens.get("cost_usd")
+    if isinstance(cost, (int, float)) and cost:
+        parts.append(f"${cost:.2f}")
+    src = tokens.get("source")
+    if src == "log":
+        parts.append("(日志)")
+    elif src == "stdout":
+        parts.append("(输出)")
+    return " · ".join(parts)
+
+
+def _aggregate_tokens(cases: Iterable[dict[str, Any]]) -> dict[str, Any] | None:
+    """跨 case 汇总某工具的 token 用量与费用（参考 CodexBar 四类拆分）。"""
+    agg = {"input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0, "cache_creation_tokens": 0, "total_tokens": 0}
+    cost = 0.0
+    seen = False
+    for case in cases:
+        tokens = case.get("tokens") if isinstance(case, dict) else None
+        if not isinstance(tokens, dict):
+            continue
+        seen = True
+        for key in ("input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens", "total_tokens"):
+            value = tokens.get(key)
+            if isinstance(value, (int, float)):
+                agg[key] += int(value)
+        value = tokens.get("cost_usd")
+        if isinstance(value, (int, float)):
+            cost += float(value)
+    if not seen:
+        return None
+    agg["cost_usd"] = round(cost, 4) if cost else 0.0
+    return agg
+
+
+def _fmt_tokens_aggregate(tokens: dict[str, Any]) -> str:
+    cost = tokens.get("cost_usd")
+    cost_text = f" · 估费 ${cost:.2f}" if isinstance(cost, (int, float)) and cost else ""
+    return (
+        f"输入 {_k_tokens(tokens.get('input_tokens'))} · 输出 {_k_tokens(tokens.get('output_tokens'))}"
+        f" · 缓存读 {_k_tokens(tokens.get('cache_read_tokens'))} · 缓存写 {_k_tokens(tokens.get('cache_creation_tokens'))}"
+        f" · 合计 {_k_tokens(tokens.get('total_tokens'))}{cost_text}"
+    )
+
+
 def _case_row_from_dict(case: dict[str, Any]) -> CaseRow:
     return CaseRow(
         case_id=str(case.get("case_id", "")),
@@ -465,6 +555,7 @@ def _case_row_from_dict(case: dict[str, Any]) -> CaseRow:
         execution_status=str(case.get("execution_status", "missing")),
         elapsed_seconds=case.get("elapsed_seconds"),
         timeout_seconds=case.get("timeout_seconds"),
+        tokens=case.get("tokens") if isinstance(case.get("tokens"), dict) else None,
     )
 
 
@@ -552,6 +643,9 @@ def render_markdown(report: dict[str, Any]) -> str:
                     cat_parts.append(f"{CATEGORY_LABELS.get(cat, cat)} {stat['passed']}/{stat['evaluated']} ({rate * 100:.0f}%)" if rate is not None else f"{CATEGORY_LABELS.get(cat, cat)} {stat['passed']}/{stat['evaluated']}")
             if cat_parts:
                 lines.append(f"- 分类通过：{', '.join(cat_parts)}")
+        tokens_agg = _aggregate_tokens(tool.get("cases", []))
+        if tokens_agg is not None:
+            lines.append(f"- Token 用量（参考 CodexBar 口径）：{_fmt_tokens_aggregate(tokens_agg)}")
         lines += ["", "| Case | 分类 | " + " | ".join(metric_names) + " | 执行耗时 / 上限 | 耗时分 | 执行状态 | 结论 |",
                   "|---" * (6 + len(metric_names)) + "|"] if metric_names else ["", "| Case | 分类 | 执行耗时 / 上限 | 耗时分 | 执行状态 | 结论 |",
                   "|---|---|---|---|---|---|"]
@@ -563,6 +657,9 @@ def render_markdown(report: dict[str, Any]) -> str:
             category = CATEGORY_LABELS.get(row.category, row.category or "—")
             cells = [label, category] + ([_format_cell(row, name) for name in metric_names] if metric_names else [])
             conclusion = "—" if not row.evaluated else ("✅ 通过" if row.passed else "❌ 未通过")
+            tok = _fmt_tokens_short(row.tokens)
+            if tok:
+                conclusion = f"{conclusion} · {tok}"
             duration = f"{_format_duration(row.elapsed_seconds)} / {_format_duration(row.timeout_seconds)}"
             cells += [duration, _format_score(row.time_score), row.execution_status, conclusion]
             lines.append("| " + " | ".join(cells) + " |")
@@ -649,19 +746,20 @@ code { background: #f2f3f5; padding: .1rem .35rem; border-radius: 4px;
 .scroller { overflow-x: auto; }
 """
 
-def _esc(value: Any) -> str:
+def escape_html(value: Any) -> str:
+    """转义 HTML 文本；同包其他渲染模块（如稳定性报告）复用此实现。"""
     return _html.escape("" if value is None else str(value))
 
 
 def _html_metric_cell(row: CaseRow, name: str) -> str:
     entry = row.metrics.get(name)
     if entry is None:
-        return f'<span class="status-empty">{_esc("未评测" if row.evaluated else "—")}</span>'
+        return f'<span class="status-empty">{escape_html("未评测" if row.evaluated else "—")}</span>'
     if not isinstance(entry.get("score"), (int, float)):
         return '<span class="badge fail">错误</span>'
     mark = "✓" if entry.get("success") else "✗"
     cls = "pass" if entry.get("success") else "fail"
-    return f'<span class="badge {cls}">{_esc(f"{entry['score']:.2f}")} {mark}</span>'
+    return f'<span class="badge {cls}">{escape_html(f"{entry['score']:.2f}")} {mark}</span>'
 
 
 def _html_conclusion(row: CaseRow) -> str:
@@ -672,8 +770,8 @@ def _html_conclusion(row: CaseRow) -> str:
     return '<span class="badge fail">未通过</span>'
 
 
-def _html_table(headers: list[str], rows: list[list[str]], scroller: bool = True) -> str:
-    head = "".join(f"<th>{_esc(header)}</th>" for header in headers)
+def html_table(headers: list[str], rows: list[list[str]], scroller: bool = True) -> str:
+    head = "".join(f"<th>{escape_html(header)}</th>" for header in headers)
     body = "".join(
         "<tr>" + "".join(f"<td>{cell}</td>" for cell in row) + "</tr>" for row in rows
     )
@@ -692,21 +790,21 @@ def _html_summary_rows(report: dict[str, Any], metric_names: list[str]) -> list[
         mt = tool.get("model_test", {})
         timing = tool.get("execution_timing", {})
         cells = [
-            f'<code>{_esc(tool["tool"])}</code>',
-            _esc(tool.get("agent", "unknown")),
-            _esc(tool.get("model", "unknown")),
-            _esc(tool.get("intelligence", "unknown")),
+            f'<code>{escape_html(tool["tool"])}</code>',
+            escape_html(tool.get("agent", "unknown")),
+            escape_html(tool.get("model", "unknown")),
+            escape_html(tool.get("intelligence", "unknown")),
             f"{passed} / {evaluated}",
-            _esc(f"{rate * 100:.0f}%" if rate is not None else "—"),
+            escape_html(f"{rate * 100:.0f}%" if rate is not None else "—"),
         ]
-        cells += [_esc(_format_score(averages.get(name))) for name in metric_names]
+        cells += [escape_html(_format_score(averages.get(name))) for name in metric_names]
         cells += [
-            _esc(_format_duration(timing.get("average_elapsed_seconds"))),
-            _esc(_format_score(timing.get("average_time_score"))),
-            _esc(_format_score(mt.get("correction"))),
-            _esc(_format_score(mt.get("generation"))),
-            _esc(_format_score(mt.get("logic"))),
-            _esc(_format_score(mt.get("total"))),
+            escape_html(_format_duration(timing.get("average_elapsed_seconds"))),
+            escape_html(_format_score(timing.get("average_time_score"))),
+            escape_html(_format_score(mt.get("correction"))),
+            escape_html(_format_score(mt.get("generation"))),
+            escape_html(_format_score(mt.get("logic"))),
+            escape_html(_format_score(mt.get("total"))),
         ]
         rows.append(cells)
     return rows
@@ -716,29 +814,30 @@ def _html_case_rows(tool: dict[str, Any], metric_names: list[str]) -> list[list[
     rows: list[list[str]] = []
     for case in tool.get("cases", []):
         row = _case_row_from_dict(case)
-        label = f'<code>{_esc(row.case_id)}</code>'
+        label = f'<code>{escape_html(row.case_id)}</code>'
         if row.title:
-            label += f" {_esc(row.title)}"
+            label += f" {escape_html(row.title)}"
         category = CATEGORY_LABELS.get(row.category, row.category or "—")
-        cells = [label, _esc(category)]
+        cells = [label, escape_html(category)]
         if metric_names:
             cells += [_html_metric_cell(row, name) for name in metric_names]
         duration = f"{_format_duration(row.elapsed_seconds)} / {_format_duration(row.timeout_seconds)}"
         cells += [
-            _esc(duration),
-            _esc(_format_score(row.time_score)),
-            _esc(row.execution_status),
+            escape_html(duration),
+            escape_html(_format_score(row.time_score)),
+            escape_html(row.execution_status),
             _html_conclusion(row),
+            escape_html(_fmt_tokens_short(row.tokens) or "—"),
         ]
         rows.append(cells)
     return rows
 
 
 def _html_tool_section(tool: dict[str, Any], metric_names: list[str]) -> str:
-    parts: list[str] = [f'<h2>{_esc(tool["tool"])}</h2>']
+    parts: list[str] = [f'<h2>{escape_html(tool["tool"])}</h2>']
     identity = f"{tool.get('agent', 'unknown')} / {tool.get('model', 'unknown')}"
     if tool.get("intelligence") not in (None, "", "unknown"):
-        identity += f"（{_esc(tool['intelligence'])}）"
+        identity += f"（{escape_html(tool['intelligence'])}）"
     bullets = [f"<li>Agent / 模型：{identity}</li>"]
     if tool.get("run_duration_seconds") is not None:
         bullets.append(f"<li>裁判评测耗时：{tool['run_duration_seconds']:.1f}s</li>")
@@ -746,22 +845,22 @@ def _html_tool_section(tool: dict[str, Any], metric_names: list[str]) -> str:
     if timing.get("total_elapsed_seconds") is not None:
         bullets.append(
             "<li>代理执行耗时：总计 "
-            f"{_esc(_format_duration(timing.get('total_elapsed_seconds')))}，"
-            f"平均 {_esc(_format_duration(timing.get('average_elapsed_seconds')))}，"
-            f"平均耗时分 {_esc(_format_score(timing.get('average_time_score')))}</li>"
+            f"{escape_html(_format_duration(timing.get('total_elapsed_seconds')))}，"
+            f"平均 {escape_html(_format_duration(timing.get('average_elapsed_seconds')))}，"
+            f"平均耗时分 {escape_html(_format_score(timing.get('average_time_score')))}</li>"
         )
     if tool.get("judge_model"):
-        bullets.append(f"<li>裁判模型：{_esc(tool['judge_model'])}</li>")
+        bullets.append(f"<li>裁判模型：{escape_html(tool['judge_model'])}</li>")
     if tool.get("metric_version"):
-        bullets.append(f"<li>指标版本：{_esc(tool['metric_version'])}</li>")
+        bullets.append(f"<li>指标版本：{escape_html(tool['metric_version'])}</li>")
     mt = tool.get("model_test", {})
     if mt:
         bullets.append(
             "<li>ModelTest：修正 "
-            f"{_esc(_format_score(mt.get('correction')))}，生成 "
-            f"{_esc(_format_score(mt.get('generation')))}，逻辑 "
-            f"{_esc(_format_score(mt.get('logic')))}，总分 "
-            f"{_esc(_format_score(mt.get('total')))}</li>"
+            f"{escape_html(_format_score(mt.get('correction')))}，生成 "
+            f"{escape_html(_format_score(mt.get('generation')))}，逻辑 "
+            f"{escape_html(_format_score(mt.get('logic')))}，总分 "
+            f"{escape_html(_format_score(mt.get('total')))}</li>"
         )
     cat_stats = tool.get("category_stats", {})
     if cat_stats:
@@ -778,20 +877,26 @@ def _html_tool_section(tool: dict[str, Any], metric_names: list[str]) -> str:
                 )
                 cat_parts.append(text)
         if cat_parts:
-            bullets.append(f"<li>分类通过：{_esc('，'.join(cat_parts))}</li>")
+            bullets.append(f"<li>分类通过：{escape_html('，'.join(cat_parts))}</li>")
+    tokens_agg = _aggregate_tokens(tool.get("cases", []))
+    if tokens_agg is not None:
+        bullets.append(
+            "<li>Token 用量（参考 CodexBar 口径）："
+            f"{escape_html(_fmt_tokens_aggregate(tokens_agg))}</li>"
+        )
     parts.append('<ul class="summary-list">' + "".join(bullets) + "</ul>")
 
-    headers = ["Case", "分类"] + metric_names + ["执行耗时 / 上限", "耗时分", "执行状态", "结论"]
-    parts.append(_html_table(headers, _html_case_rows(tool, metric_names)))
+    headers = ["Case", "分类"] + metric_names + ["执行耗时 / 上限", "耗时分", "执行状态", "结论", "Token 用量"]
+    parts.append(html_table(headers, _html_case_rows(tool, metric_names)))
     return "\n".join(parts)
 
 
-def _html_doc(title: str, body: str) -> str:
+def html_doc(title: str, body: str) -> str:
     return (
         "<!doctype html>\n<html lang=\"zh-CN\">\n<head>\n"
         '<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-        f"<title>{_esc(title)}</title>\n<style>{HTML_STYLE}</style>\n</head>\n"
+        f"<title>{escape_html(title)}</title>\n<style>{HTML_STYLE}</style>\n</head>\n"
         f'<body><div class="wrap">\n{body}\n</div></body>\n</html>\n'
     )
 
@@ -799,14 +904,14 @@ def _html_doc(title: str, body: str) -> str:
 def render_html(report: dict[str, Any]) -> str:
     """渲染单 run 对比报告的静态页面（自包含 HTML，内联 CSS，无外部依赖）。"""
     metric_names = _report_metric_names(report)
-    body = [f'<h1>评测对比报告：{_esc(report["run_id"])}</h1>']
+    body = [f'<h1>评测对比报告：{escape_html(report["run_id"])}</h1>']
     generated = report.get("generated_at")
     if generated:
-        body.append(f'<p class="meta">生成时间：{_esc(generated)}</p>')
+        body.append(f'<p class="meta">生成时间：{escape_html(generated)}</p>')
     if not any(tool["cases"] for tool in report["tools"]):
         body.append('<p class="note">该 run 目录下没有找到任何 DeepEval 评测产物'
                     '（deepeval/&lt;tool&gt;/test_run_*.json）。</p>')
-        return _html_doc(f"评测对比报告：{report['run_id']}", "\n".join(body))
+        return html_doc(f"评测对比报告：{report['run_id']}", "\n".join(body))
     body.append('<p class="note">耗时分按 '
                 'max(0, 100 × (1 - 执行耗时 / 超时上限)) 计算；仅正常完成的执行计分，'
                 '失败或超时为 0。耗时分独立展示，不改变现有 GEval 通过判定和 ModelTest 总分。</p>')
@@ -814,10 +919,10 @@ def render_html(report: dict[str, Any]) -> str:
         [f"{name} 均分" for name in metric_names] + \
         ["平均执行耗时", "耗时分", "ModelTest 修正", "ModelTest 生成",
          "ModelTest 逻辑", "ModelTest 总分"]
-    body.append(_html_table(headers, _html_summary_rows(report, metric_names)))
+    body.append(html_table(headers, _html_summary_rows(report, metric_names)))
     for tool in report["tools"]:
         body.append(_html_tool_section(tool, metric_names))
-    return _html_doc(f"评测对比报告：{report['run_id']}", "\n".join(body))
+    return html_doc(f"评测对比报告：{report['run_id']}", "\n".join(body))
 
 
 def render_history_html(history: list[dict[str, Any]]) -> str:
@@ -825,7 +930,7 @@ def render_history_html(history: list[dict[str, Any]]) -> str:
     body = ["<h1>跨 run 历史对比</h1>"]
     if not history:
         body.append('<p class="note">runs/ 目录下没有找到任何评测产物。</p>')
-        return _html_doc("跨 run 历史对比", "\n".join(body))
+        return html_doc("跨 run 历史对比", "\n".join(body))
     metric_names: list[str] = []
     for report in history:
         for tool in report["tools"]:
@@ -846,23 +951,23 @@ def render_history_html(history: list[dict[str, Any]]) -> str:
             mt_total = tool.get("model_test", {}).get("total")
             timing = tool.get("execution_timing", {})
             cells = [
-                f'<code>{_esc(report["run_id"])}</code>',
-                f'<code>{_esc(tool["tool"])}</code>',
-                _esc(tool.get("agent", "unknown")),
-                _esc(tool.get("model", "unknown")),
-                _esc(tool.get("intelligence", "unknown")),
+                f'<code>{escape_html(report["run_id"])}</code>',
+                f'<code>{escape_html(tool["tool"])}</code>',
+                escape_html(tool.get("agent", "unknown")),
+                escape_html(tool.get("model", "unknown")),
+                escape_html(tool.get("intelligence", "unknown")),
                 f"{passed} / {evaluated}",
-                _esc(f"{rate * 100:.0f}%" if rate is not None else "—"),
+                escape_html(f"{rate * 100:.0f}%" if rate is not None else "—"),
             ]
-            cells += [_esc(_format_score(averages.get(name))) for name in metric_names]
+            cells += [escape_html(_format_score(averages.get(name))) for name in metric_names]
             cells += [
-                _esc(_format_duration(timing.get("average_elapsed_seconds"))),
-                _esc(_format_score(timing.get("average_time_score"))),
-                _esc(_format_score(mt_total)),
+                escape_html(_format_duration(timing.get("average_elapsed_seconds"))),
+                escape_html(_format_score(timing.get("average_time_score"))),
+                escape_html(_format_score(mt_total)),
             ]
             rows.append(cells)
-    body.append(_html_table(headers, rows))
-    return _html_doc("跨 run 历史对比", "\n".join(body))
+    body.append(html_table(headers, rows))
+    return html_doc("跨 run 历史对比", "\n".join(body))
 
 
 def write_run_report(

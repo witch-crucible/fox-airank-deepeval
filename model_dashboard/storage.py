@@ -11,6 +11,7 @@ from typing import Any
 from .domain import DashboardError, calculate_scores, normalize_agent_usage_entry, normalize_model, utc_now
 from .leaderboards import compare_snapshot_rows, normalize_third_party_weights
 from .recommendations import normalize_recommendations, normalize_stored_recommendations
+from .pricing import pricing_sources, refresh_pricing_sources
 
 ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = ROOT.parent
@@ -59,6 +60,12 @@ class DashboardStore:
                 CREATE TABLE IF NOT EXISTS ai_insights(
                     id INTEGER PRIMARY KEY CHECK(id = 1),
                     analysis_json TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS local_results_cache(
+                    id INTEGER PRIMARY KEY CHECK(id = 1),
+                    fingerprint TEXT NOT NULL,
+                    built_at TEXT NOT NULL,
+                    payload_json TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS leaderboard_snapshots(
                     snapshot_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -188,6 +195,41 @@ class DashboardStore:
                     )
             except (sqlite3.Error, OSError) as error:
                 raise DashboardError('无法保存 AI 分析结果') from error
+
+    def local_results_cache(self) -> dict[str, Any] | None:
+        try:
+            with self._connect() as connection:
+                row = connection.execute(
+                    'SELECT fingerprint,built_at,payload_json FROM local_results_cache WHERE id=1'
+                ).fetchone()
+            if row is None:
+                return None
+            return {
+                'fingerprint': row['fingerprint'],
+                'built_at': row['built_at'],
+                'payload': self._load(row['payload_json']),
+            }
+        except (sqlite3.Error, json.JSONDecodeError, OSError) as error:
+            raise DashboardError('无法读取本地结果缓存') from error
+
+    def save_local_results_cache(self, fingerprint: str, payload: dict[str, Any]) -> str:
+        built_at = utc_now()
+        with self._lock:
+            try:
+                with self._connect() as connection:
+                    connection.execute(
+                        'INSERT INTO local_results_cache(id,fingerprint,built_at,payload_json) VALUES (1,?,?,?) '
+                        'ON CONFLICT(id) DO UPDATE SET fingerprint=excluded.fingerprint,'
+                        'built_at=excluded.built_at,payload_json=excluded.payload_json',
+                        (str(fingerprint), built_at, self._dump(payload)),
+                    )
+            except (sqlite3.Error, OSError) as error:
+                raise DashboardError('无法保存本地结果缓存') from error
+        return built_at
+
+    def latest_leaderboard_fetch(self, source_type: str) -> str | None:
+        snapshots = self.leaderboard_snapshots(source_type, 1)
+        return snapshots[0]['fetched_at'] if snapshots else None
 
     def write(self, data, tables=None):
         with self._lock:
@@ -548,6 +590,14 @@ class DashboardStore:
         if data is None:
             data=self.read()
         return normalize_third_party_weights(data.get('meta',{}).get('leaderboard_weights'))
+    def pricing_sources(self):
+        """读取全部定价条目的原始地址记录。"""
+        return pricing_sources(self.read().get('pricing'))
+    def refresh_pricing_sources(self, fetcher, tool=None):
+        """重新抓取原始地址，只重建 pricing 表。"""
+        def fn(d):
+            return refresh_pricing_sources(d.get('pricing'), fetcher, tool)
+        return self._mutate(fn, tables=('pricing',))
     def save_leaderboard_weights(self, raw):
         weights=normalize_third_party_weights(raw)
         self._mutate(lambda data:data.setdefault('meta',{}).__setitem__('leaderboard_weights',weights), tables=('meta',))

@@ -20,10 +20,22 @@ from pathlib import Path
 from typing import Any, BinaryIO, Sequence, TextIO
 
 from benchmark.paths import PELICAN_CASE, load_identities, workspace_path
+from benchmark.token_usage import collect_token_usage
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PROMPT = "阅读 TASK.md，独立完成任务并执行必要验证。最后必须按 TASK.md 要求生成 result.json。"
 DEFAULT_EXECUTION_TIMEOUT_SECONDS = 30 * 60
+
+
+def pass_rate_value(value: str) -> float:
+    """解析 0–1 的通过率下限，供 report --fail-under 作为门禁阈值。"""
+    try:
+        number = float(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("必须是 0 到 1 之间的数字") from error
+    if not 0.0 <= number <= 1.0:
+        raise argparse.ArgumentTypeError("必须是 0 到 1 之间的数字")
+    return number
 
 
 @dataclass(frozen=True)
@@ -453,6 +465,13 @@ def execute(run_dir: Path, tools: list[str], cases: list[Case], config_path: Pat
                 live_log.write(f"\nstatus={status}\nreturncode={returncode}\n")
             elapsed = round(time.monotonic() - started, 3)
             finished_at = datetime.now(timezone.utc)
+            token_usage = collect_token_usage(
+                tool,
+                stdout=stdout,
+                started_at=started_at,
+                finished_at=finished_at,
+                cwd=str(cwd),
+            )
             (workspace / "agent.log").write_text(
                 f"command={json.dumps(command, ensure_ascii=False)}\n"
                 f"status={status}\nreturncode={returncode}\n"
@@ -470,9 +489,14 @@ def execute(run_dir: Path, tools: list[str], cases: list[Case], config_path: Pat
                         "finished_at": finished_at.isoformat(),
                         "elapsed_seconds": elapsed,
                         "timeout_seconds": timeout,
+                        "tokens": token_usage.to_dict(),
                     },
                     indent=2,
                 ),
+                encoding="utf-8",
+            )
+            (workspace / "tokens.json").write_text(
+                json.dumps(token_usage.to_dict(), ensure_ascii=False, indent=2),
                 encoding="utf-8",
             )
             print(f"\n[DONE] {tool} / {case.id}: {status} ({elapsed}s)", flush=True)
@@ -507,7 +531,74 @@ def parser() -> argparse.ArgumentParser:
         "--format", choices=("md", "html", "both"), default="both",
         help="输出格式：md=Markdown，html=自包含静态页面，both=两者（默认）",
     )
+    report.add_argument(
+        "--fail-under", type=pass_rate_value, default=None,
+        help="通过率门禁：任一已评测工具的通过率低于该值（0–1）时以退出码 1 结束",
+    )
+
+    from benchmark.stability import DEFAULT_MAX_RANGE, DEFAULT_MIN_SAMPLES
+
+    stability = sub.add_parser("stability", help="跨 run 稳定性分析")
+    stability.add_argument("--runs-dir", type=Path, default=ROOT / "runs")
+    stability.add_argument("--tool", action="append", dest="tools", default=[])
+    stability.add_argument("--case", action="append", dest="case_ids", default=[])
+    stability.add_argument("--category", action="append", default=[])
+    stability.add_argument(
+        "--min-samples", type=int, default=DEFAULT_MIN_SAMPLES,
+        help=f"判定稳定性所需的最少有效样本数（默认 {DEFAULT_MIN_SAMPLES}）",
+    )
+    stability.add_argument(
+        "--max-range", type=float, default=DEFAULT_MAX_RANGE,
+        help=f"允许的单项指标最大极差（默认 {DEFAULT_MAX_RANGE}）",
+    )
+    stability.add_argument(
+        "--format", choices=("md", "html", "both"), default="both",
+        help="输出格式：md=Markdown，html=自包含静态页面，both=两者（默认）",
+    )
+
+    archive = sub.add_parser("archive", help="归档历史 run（默认仅预演）")
+    archive.add_argument("--runs-dir", type=Path, default=ROOT / "runs")
+    archive.add_argument("--run-id", action="append", dest="run_ids", default=[],
+                         help="指定要归档的 run，可重复")
+    archive.add_argument("--older-than", type=int, default=None,
+                         help="只归档创建时间早于该天数的 run")
+    archive.add_argument("--keep", type=int, default=None, help="保留最新的 N 个 run，其余归档")
+    archive.add_argument("--restore", default=None, help="把已归档的 run 移回 runs/ 根目录")
+    archive.add_argument("--apply", action="store_true", help="实际执行移动；不加则只预演")
+
+    new_case = sub.add_parser("new-case", help="新增 case 脚手架")
+    new_case.add_argument("--id", dest="case_id", required=True, help="case id（kebab-case）")
+    new_case.add_argument("--category", required=True, help="分类目录名（snake_case）")
+    new_case.add_argument("--title", required=True, help="case 标题")
+    new_case.add_argument("--project-dir", type=Path, default=None,
+                          help="只读业务项目根目录（绝对路径，仅业务分析题需要）")
+    new_case.add_argument("--type", dest="case_type", default=None,
+                          help="产物类型：html / code / analysis（默认按分类推断）")
+    new_case.add_argument("--actual-file", action="append", dest="actual_files", default=[],
+                          help="实际输出文件名，可重复（默认按类型推断）")
+    new_case.add_argument("--no-spec", action="store_false", dest="register_spec",
+                          help="不在 benchmark/specs.json 中登记该 case")
+    new_case.add_argument("--cases-dir", type=Path, default=ROOT / "cases")
+    new_case.add_argument("--specs", type=Path, default=ROOT / "benchmark" / "specs.json")
     return root
+
+
+def _check_pass_rate_gate(report: dict[str, Any], threshold: float) -> None:
+    """按 --fail-under 判定本次对比是否达标；未达标时以退出码 1 结束。
+
+    没有任何已评测结果的 run 同样视为未达标——门禁不能因为“没评分”而静默通过。
+    """
+    evaluated = [item for item in report.get("tools", []) if item.get("summary", {}).get("evaluated")]
+    if not evaluated:
+        raise SystemExit("错误: 本次对比没有任何已评测结果，无法通过 --fail-under 判定")
+    failures = [
+        f"{item['tool']}（{item['summary']['pass_rate'] * 100:.0f}%）"
+        for item in evaluated
+        if item["summary"]["pass_rate"] < threshold
+    ]
+    if failures:
+        raise SystemExit(f"错误: 以下工具通过率低于 {threshold * 100:.0f}%：{', '.join(failures)}")
+    print(f"通过率门禁：全部已评测工具均不低于 {threshold * 100:.0f}%")
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -522,6 +613,8 @@ def main(argv: Sequence[str] | None = None) -> None:
             from benchmark.report import write_history_report, write_run_report
 
             formats = ("md", "html") if args.format == "both" else (args.format,)
+            if args.fail_under is not None and args.history:
+                raise ValueError("--fail-under 不支持 --history 模式")
             if args.history:
                 if args.run_dir is not None:
                     raise ValueError("--history 与 --run-dir 不能同时使用")
@@ -543,6 +636,87 @@ def main(argv: Sequence[str] | None = None) -> None:
                     print(f"报告(Markdown): {args.run_dir / 'report.md'}{warning}")
                 if "html" in formats:
                     print(f"报告(静态页): {args.run_dir / 'report.html'}{warning}")
+                if args.fail_under is not None:
+                    _check_pass_rate_gate(report, args.fail_under)
+            return
+        if args.command == "stability":
+            from benchmark.stability import write_stability_report
+
+            formats = ("md", "html") if args.format == "both" else (args.format,)
+            report = write_stability_report(
+                args.runs_dir,
+                cases,
+                tools=args.tools,
+                case_ids=args.case_ids,
+                categories=args.category,
+                min_samples=args.min_samples,
+                max_range=args.max_range,
+                formats=formats,
+            )
+            if "md" in formats:
+                print(f"稳定性报告(Markdown): {args.runs_dir / 'stability-report.md'}")
+            if "html" in formats:
+                print(f"稳定性报告(静态页): {args.runs_dir / 'stability-report.html'}")
+            distribution = "，".join(
+                f"{key} {value}" for key, value in report["summary"].items() if key != "groups"
+            )
+            print(f"稳定性分组 {report['summary'].get('groups', 0)} 个：{distribution}")
+            for warning in report["warnings"]:
+                print(f"告警: {warning}")
+            return
+        if args.command == "archive":
+            from benchmark.archive import (
+                ARCHIVE_DIR_NAME,
+                apply_archive,
+                describe_plan,
+                plan_archive,
+                restore_run,
+            )
+
+            if args.restore is not None:
+                if args.run_ids or args.older_than is not None or args.keep is not None:
+                    raise ValueError("--restore 不能与 --run-id/--older-than/--keep 同时使用")
+                destination = args.runs_dir / args.restore
+                if not args.apply:
+                    print(f"预演：将把 {args.runs_dir / ARCHIVE_DIR_NAME / args.restore} "
+                          f"移回 {destination}（加 --apply 执行）")
+                    return
+                print(f"已恢复: {restore_run(args.runs_dir, args.restore)}")
+                return
+            items = plan_archive(args.runs_dir, args.run_ids, args.older_than, args.keep)
+            if not args.apply or not items:
+                print(describe_plan(items))
+                if items:
+                    print("以上仅为预演；加 --apply 才会移动目录。")
+                return
+            moved = apply_archive(items)
+            print(f"已归档 {len(moved)} 个 run 到 {args.runs_dir / ARCHIVE_DIR_NAME}")
+            for path in moved:
+                print(f"  - {path}")
+            return
+        if args.command == "new-case":
+            from benchmark.scaffold import scaffold_case
+
+            result = scaffold_case(
+                args.cases_dir,
+                args.specs,
+                case_id=args.case_id,
+                category=args.category,
+                title=args.title,
+                project_dir=args.project_dir,
+                case_type=args.case_type,
+                actual_files=args.actual_files,
+                register_spec=args.register_spec,
+            )
+            print(f"已创建 case: {result['directory']}")
+            for path in result["files"]:
+                print(f"  - {path}")
+            if result["spec_registered"]:
+                print("下一步：补全 TASK.md 的需求与验收点；需要隐藏标准答案时，"
+                      f"在 {args.specs} 中为 {result['case_id']} 补充 expected_answer。")
+            else:
+                print("下一步：补全 TASK.md，并手动在 "
+                      f"{args.specs} 中登记该 case，否则评分阶段会失败。")
             return
         cases = select_cases(cases, args.case_ids, args.category)
         if args.command == "prepare":

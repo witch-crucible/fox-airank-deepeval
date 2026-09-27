@@ -26,6 +26,7 @@ class LeaderboardDisplayTests(unittest.TestCase):
           }
           const app = new Element('main');
           const el = (tag, css, text) => new Element(tag, css, text);
+          const links = [];
           const context = vm.createContext({
             app, el, state: { modelLeaderboard: { models: payload.models }, agentLeaderboard: { agents: payload.agents, agent_groups: payload.agent_groups },
               leaderboardSearch: '', leaderboardPage: 1, leaderboardPageSize: 50, leaderboardLegionOnly: payload.legion_only,
@@ -36,8 +37,19 @@ class LeaderboardDisplayTests(unittest.TestCase):
             weightPercent: value => value * 100 + '%', panelHeader: title => el('header', '', title),
             localButton: text => el('button', '', text), runLegionLeaderboardSync() {}, render() {},
             renderModelAliasPanel: () => el('section'), renderHistoryPanel: () => el('section'),
-            leaderboardModelHref: () => '', sourceDetailHref: () => '',
-            leaderboardMetricLink: text => el('a', '', text)
+            leaderboardModelHref: () => '',
+            sourceDetailHref: model => {
+              const type = (model && model.source && model.source.type) || '';
+              if (type === 'artificial_analysis_agent') return 'https://artificialanalysis.ai/agents/' + encodeURIComponent(model.tool || 'agent') + '#artificial-analysis-coding-agent-index';
+              if (type === 'artificial_analysis_model') return 'https://artificialanalysis.ai/models/' + encodeURIComponent(model.model || 'model');
+              return '';
+            },
+            leaderboardMetricLink: (value, href, title) => {
+              const node = el('a', href ? 'leaderboard-metric-link' : '', value);
+              node.href = href || ''; node.title = title || '';
+              links.push({ text: value, href: node.href, title: node.title });
+              return node;
+            }
           });
           const start = source.indexOf('    function leaderboardSourceCell(');
           const end = source.indexOf('    function renderSettingsPage(', start);
@@ -53,7 +65,7 @@ class LeaderboardDisplayTests(unittest.TestCase):
             node.children.forEach(walk);
           }
           walk(app);
-          process.stdout.write(JSON.stringify({text: app.textContent, rows}));
+          process.stdout.write(JSON.stringify({text: app.textContent, rows, links}));
         '''
         result = subprocess.run(['node', '-e', script, str(INDEX_PATH)],
                                 input=json.dumps({'models': models or [], 'agents': agents, 'agent_groups': agent_groups,
@@ -138,17 +150,22 @@ class LeaderboardDisplayTests(unittest.TestCase):
         self.assertNotIn('leaderboard-legion-core', row['classes'])
 
     def test_agent_groups_sort_by_score_or_uplift_and_keep_configuration_details(self):
-        def configuration(tool, model, score, uplift, rank):
+        def configuration(tool, model, score, uplift, rank, baseline_score=None):
             return {
-                'agent': {'tool': tool, 'model': model, 'scores': {'artificial_analysis_index': score},
-                          'source': {'rank': rank}},
+                'agent': {'tool': tool, 'model': model,
+                          'scores': {'artificial_analysis_index': score,
+                                     'aa_terminal_bench_v4': None if baseline_score is None else baseline_score + uplift},
+                          'source': {'type': 'artificial_analysis_agent', 'rank': rank}},
                 'reasoning_effort': 'high', 'terminal_bench_uplift': uplift,
                 'legion': {'matched': False, 'is_core': False, 'entries': []},
-                'supplemental': False, 'baseline': None,
+                'supplemental': False,
+                'baseline': None if baseline_score is None else {
+                    'model': model, 'scores': {'aa_model_terminal_bench_v4': baseline_score},
+                    'source': {'type': 'artificial_analysis_model'}},
             }
 
-        alpha = configuration('Alpha Agent', 'Alpha Model', 91, 2, 2)
-        beta = configuration('Beta Agent', 'Beta Model', 82, 18, 1)
+        alpha = configuration('Alpha Agent', 'Alpha Model', 91, 2, 2, 30)
+        beta = configuration('Beta Agent', 'Beta Model', 82, 18, 1, 42)
         groups = [
             {'agent': 'Beta Agent', 'configurations': [beta], 'legion': {'matched': False}},
             {'agent': 'Alpha Agent', 'configurations': [alpha], 'legion': {'matched': False}},
@@ -156,12 +173,74 @@ class LeaderboardDisplayTests(unittest.TestCase):
         score = self.render(agents=[], agent_groups=groups)
         score_groups = [row for row in score['rows'] if 'agent-leaderboard-group' in row['classes']]
         self.assertIn('Alpha Agent', score_groups[0]['text'])
-        self.assertIn('Agent 分值 91', score_groups[0]['text'])
+        self.assertIn('Coding Agent Index 91', score_groups[0]['text'])
+        self.assertIn('提升 +2 个百分点', score_groups[0]['text'])
+        self.assertIn('提升前 TB4 30', score_groups[0]['text'])
+        self.assertIn('提升后 TB4 32', score_groups[0]['text'])
         self.assertIn('Alpha Model', score_groups[0]['text'])
         uplift = self.render(agents=[], agent_groups=groups, agent_sort='uplift')
         uplift_groups = [row for row in uplift['rows'] if 'agent-leaderboard-group' in row['classes']]
         self.assertIn('Beta Agent', uplift_groups[0]['text'])
         self.assertIn('提升 +18 个百分点', uplift_groups[0]['text'])
+        self.assertIn('提升前 TB4 42', uplift_groups[0]['text'])
+        self.assertIn('提升后 TB4 60', uplift_groups[0]['text'])
+        self.assertIn('Coding Agent Index 82', uplift_groups[0]['text'])
+        index_links = [link for link in uplift['links'] if 'Coding Agent Index' in link['title']]
+        self.assertTrue(index_links, '摘要行缺少 Coding Agent Index 跳转链接')
+        self.assertEqual('82', index_links[0]['text'])
+        self.assertIn('#artificial-analysis-coding-agent-index', index_links[0]['href'])
+        baseline_links = [link for link in uplift['links'] if '提升前' in link['title']]
+        self.assertTrue(baseline_links, '摘要行缺少提升前原始分的跳转链接')
+        self.assertEqual('TB4 42', baseline_links[0]['text'])
+        self.assertIn('/models/', baseline_links[0]['href'])
+
+    def test_agent_group_summary_tags_each_metric_with_its_own_configuration(self):
+        # The best index and the best uplift can live on different model/effort
+        # rows, so the summary must attribute each number instead of implying
+        # that the uplift turns the shown baseline into the shown index.
+        def entry(model, index, uplift, baseline_score, rank):
+            return {
+                'agent': {'tool': 'Mixed Agent', 'model': model,
+                          'scores': {'artificial_analysis_index': index,
+                                     'aa_terminal_bench_v4': None if baseline_score is None else baseline_score + uplift},
+                          'source': {'type': 'artificial_analysis_agent', 'rank': rank}},
+                'reasoning_effort': 'high', 'terminal_bench_uplift': uplift,
+                'legion': {'matched': False, 'is_core': False, 'entries': []},
+                'supplemental': False,
+                'baseline': None if baseline_score is None else {
+                    'model': model, 'scores': {'aa_model_terminal_bench_v4': baseline_score},
+                    'source': {'type': 'artificial_analysis_model'}},
+            }
+
+        index_only = entry('Index Model', 91, None, None, 1)
+        uplift_only = entry('Uplift Model', 60, 18, 42, 2)
+        groups = [{'agent': 'Mixed Agent', 'configurations': [uplift_only, index_only], 'legion': {'matched': False}}]
+        result = self.render(agents=[], agent_groups=groups)
+        row = next(row for row in result['rows'] if 'agent-leaderboard-group' in row['classes'])
+        self.assertIn('Coding Agent Index 91', row['text'])
+        self.assertIn('Index Model', row['text'])
+        self.assertIn('提升前 TB4 42', row['text'])
+        self.assertIn('提升后 TB4 60', row['text'])
+        self.assertIn('提升 +18 个百分点', row['text'])
+        self.assertIn('Uplift Model', row['text'])
+        baseline_links = [link for link in result['links'] if '提升前' in link['title']]
+        self.assertEqual('TB4 42', baseline_links[0]['text'])
+        self.assertIn('/models/Uplift%20Model', baseline_links[0]['href'])
+
+    def test_agent_group_summary_keeps_uplift_without_pre_uplift_score(self):
+        entry = {
+            'agent': {'tool': 'Solo Agent', 'model': 'Solo Model', 'scores': {'artificial_analysis_index': 55},
+                      'source': {'type': 'artificial_analysis_agent', 'rank': 3}},
+            'reasoning_effort': 'high', 'terminal_bench_uplift': 7, 'supplemental': False, 'baseline': None,
+            'legion': {'matched': False, 'is_core': False, 'entries': []},
+        }
+        groups = [{'agent': 'Solo Agent', 'configurations': [entry], 'legion': {'matched': False}}]
+        result = self.render(agents=[], agent_groups=groups, agent_sort='uplift')
+        row = next(row for row in result['rows'] if 'agent-leaderboard-group' in row['classes'])
+        self.assertIn('Coding Agent Index 55', row['text'])
+        self.assertIn('提升 +7 个百分点', row['text'])
+        self.assertNotIn('提升前', row['text'])
+        self.assertEqual([], [link for link in result['links'] if '提升前' in link['title']])
 
     def test_agent_legion_filter_keeps_only_matched_configurations_and_group_tags(self):
         matched = {
@@ -185,7 +264,7 @@ class LeaderboardDisplayTests(unittest.TestCase):
         self.assertIn('★ Vibe Coding Legion', result['text'])
         self.assertIn('★ Build', result['text'])
         self.assertIn('Review', result['text'])
-        self.assertIn('Agent 分值 70', result['text'])
+        self.assertIn('Coding Agent Index 70', result['text'])
         self.assertNotIn('Other Model', result['text'])
 
 

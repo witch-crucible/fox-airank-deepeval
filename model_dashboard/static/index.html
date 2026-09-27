@@ -231,7 +231,16 @@
     .panel-header .segmented { max-width: 560px; flex-shrink: 0; }
     .panel-kicker { display: block; margin-bottom: 12px; color: var(--accent); font: 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
     .ai-insights-layout { display: grid; gap: 34px; }
+    .ai-insights-panel > summary { padding: 0; border-top: 0; cursor: pointer; list-style: none; }
+    .ai-insights-panel > summary::-webkit-details-marker { display: none; }
+    .ai-insights-panel .ai-insights-preview { max-width: 70ch; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ai-insights-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex-shrink: 0; }
+    .ai-insights-chip { padding: 3px 9px; border: 1px solid var(--line-strong); border-radius: 999px; color: var(--muted); font: 10px var(--mono); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
     .ai-insights-controls { border-top: 1px solid var(--line-strong); padding-top: 24px; }
+    @media (min-width: 1100px) {
+      .ai-insights-layout { grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); align-items: start; }
+      .ai-insights-controls { border-top: 0; padding-top: 0; }
+    }
     .ai-insights-controls textarea { width: 100%; min-height: 112px; resize: vertical; border: 1px solid var(--line-strong); border-radius: 4px; padding: 12px 14px; color: var(--ink); background: #fff; font: inherit; line-height: 1.6; }
     .ai-insights-controls textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
     .ai-insights-meta, .ai-insights-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
@@ -240,6 +249,21 @@
     .ai-insights-notice { margin: 0; padding: 12px 15px; border-left: 2px solid var(--accent); background: #f1f5fc; color: var(--ink); font-size: 12px; line-height: 1.7; }
     .ai-insights-notice.warning { border-color: #b48643; background: #fff8e8; color: #73501c; }
     .ai-insights-notice.error { border-color: #a84436; background: #fff2ef; color: #8b3025; }
+    .cache-banner { margin: 0 0 14px; padding: 12px 15px; border-left: 2px solid #b48643; background: #fff8e8; color: #73501c; font-size: 12px; line-height: 1.7; }
+    .cache-banner-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 600; }
+    .cache-banner ul { margin: 6px 0 0; padding: 0; list-style: none; }
+    .cache-banner li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .cache-banner li + li { margin-top: 4px; }
+    .cache-banner .btn { min-height: 26px; padding: 3px 10px; flex-shrink: 0; }
+    .cache-status-section { margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
+    .cache-status-title { padding: 0 12px; color: var(--muted); font-size: 11px; font-weight: 600; }
+    .cache-status-list { display: grid; gap: 2px; margin-top: 4px; }
+    .cache-status-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 2px 12px; font-size: 12px; }
+    .cache-status-row .cache-status-label { flex-shrink: 0; min-width: 64px; font-weight: 500; }
+    .cache-status-row .cache-status-time { flex: 1; min-width: 0; color: var(--muted); }
+    .cache-status-badge { padding: 1px 7px; border-radius: 999px; background: #e7f3ea; color: #2c6e3f; font-size: 11px; white-space: nowrap; }
+    .cache-status-badge.stale { background: #fff1dd; color: #8a5a19; }
+    .cache-status-row .btn { min-height: 24px; padding: 2px 8px; font-size: 11px; flex-shrink: 0; }
     .ai-insights-result { display: grid; gap: 24px; }
     .ai-insights-summary { margin: 0; max-width: 78ch; color: var(--ink); font: 400 22px/1.65 var(--serif); white-space: pre-wrap; overflow-wrap: anywhere; }
     .ai-insights-section { min-width: 0; border-top: 1px solid var(--line); padding-top: 18px; }
@@ -256,7 +280,9 @@
     .ai-insights-footnote { margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.65; }
     .chart { padding: 0 0 14px; }
     .scatter { margin: 4px 0 10px; }
-    .scatter svg { display: block; width: 100%; height: auto; }
+    .scatter svg { display: block; width: 100%; height: auto; overflow: visible; }
+    .scatter svg text { font-family: var(--sans); }
+    .scatter .scatter-label { paint-order: stroke; stroke: #ffffff; stroke-width: 3px; stroke-linejoin: round; }
     .scatter-legend { display: flex; flex-wrap: wrap; gap: 18px; padding: 6px 0 0; color: var(--muted); font-size: 11px; }
     .scatter-legend span { display: inline-flex; align-items: center; gap: 6px; }
     .scatter-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
@@ -264,13 +290,15 @@
     .scatter-dot.muted { background: #a9bedd; }
     .scatter-dot.quadrant { background: #eaf1ff; border: 1px dashed #9dbdf0; border-radius: 2px; }
     .scatter-line { width: 16px; height: 0; border-top: 2px solid #aa8040; display: inline-block; }
-    .efficiency-table tr.is-attractive { background: #f5f9ff; }
+    .table-wrap.efficiency-table, .table-wrap.balance-table { max-height: none; }
+    .efficiency-table tr.is-attractive, .efficiency-table tr.is-attractive td:first-child { background: #f5f9ff; }
+    .table-more { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0 0; color: var(--muted); font-size: 12px; }
     .efficiency-table td.quadrant-cell { color: var(--accent-dark); font-size: 11px; white-space: nowrap; }
     .efficiency-table table { min-width: 640px; }
     .balance-group { padding: 6px 0 18px; }
     .balance-group h3 { margin: 0 0 10px; font: 600 19px var(--serif); }
     .balance-table table { min-width: 880px; }
-    .balance-table tr.is-best { background: var(--gold-soft); }
+    .balance-table tr.is-best, .balance-table tr.is-best td:first-child { background: var(--gold-soft); }
     .balance-table td.balance-score { font-weight: 600; color: var(--ink); }
     .balance-table td.balance-parts { color: var(--muted); font: 11px var(--mono); }
     .efficiency-note { margin: 0 0 14px; color: var(--muted); font-size: 12px; }
@@ -341,12 +369,31 @@
     .price-card h3 a:hover { text-decoration: underline; }
     .price-card.is-targeted { outline: 2px solid var(--accent); outline-offset: 8px; border-top-color: var(--accent); background: var(--accent-soft); }
     .price-card.is-targeted:focus { outline-color: var(--accent-dark); }
-    .plan-group { margin-top: 18px; }
-    .plan-group-title { margin-bottom: 7px; color: var(--muted); font: 10px var(--mono); }
     .plan { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 12px; }
     .plan strong { font-weight: 500; font-variant-numeric: tabular-nums; }
-    .plan-empty { padding: 8px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+    .plan-label { display: flex; flex-direction: column; gap: 2px; }
+    .plan-detail { color: var(--muted); font-size: 11px; }
     .price-card p { margin: 12px 0 0; color: var(--muted); font-size: 11px; }
+    .pricing-panel + .pricing-panel { margin-top: 16px; }
+    .value-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .value-table th, .value-table td { padding: 9px 14px 9px 0; text-align: left; border-bottom: 1px solid var(--line); vertical-align: baseline; }
+    .value-table th { color: var(--muted); font: 400 9px var(--mono); letter-spacing: .06em; white-space: nowrap; }
+    .value-table td.is-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .value-table tbody tr.is-best td { background: var(--accent-soft); }
+    .value-metric { font: 500 13px var(--mono); }
+    .value-basis { display: block; color: var(--muted); font-size: 10px; font-family: var(--sans); letter-spacing: 0; }
+    .value-badge { display: inline-block; margin-left: 6px; padding: 1px 6px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font: 9px var(--mono); }
+    .value-badge[data-status="ok"] { color: #2f7d4f; border-color: #b9d9c6; background: #f2fbf6; }
+    .value-badge[data-status="blocked"] { color: #a4552f; border-color: #e6c3ae; background: #fff6f0; }
+    .value-badge[data-status="partial"] { color: #8a6a1f; border-color: #e4d49f; background: #fdf8e9; }
+    .value-note { margin: 14px 0 0; color: var(--muted); font-size: 11px; line-height: 1.75; }
+    .source-row { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 14px; margin-top: 14px; padding-top: 11px; border-top: 1px solid var(--line); font-size: 10px; color: var(--muted); }
+    .source-label { color: var(--ink-soft); text-decoration: none; border-bottom: 1px solid var(--line); }
+    .source-label:hover { color: var(--accent); border-bottom-color: var(--accent); }
+    .source-sep { color: var(--line-strong); }
+    .source-refresh { border: 1px solid var(--line); background: var(--paper-solid); color: var(--ink-soft); border-radius: 999px; padding: 2px 10px; font: 10px var(--sans); cursor: pointer; }
+    .source-refresh:hover { border-color: var(--accent-mid); color: var(--accent); }
+    .source-refresh:disabled { opacity: .55; cursor: progress; }
     .leaderboard-table table { min-width: 1450px; }
     .leaderboard-table td { vertical-align: top; }
     .leaderboard-score { font: 600 16px var(--mono); color: var(--accent-dark); }
@@ -409,7 +456,14 @@
     .agent-leaderboard-group details[open] summary::after { content: "收起配置"; }
     .agent-group-identity { min-width: 0; }
     .agent-group-identity > strong { display: block; font-size: 15px; }
-    .agent-group-best { color: var(--muted); font-size: 12px; }
+    .agent-group-best { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; color: var(--muted); font-size: 12px; }
+    .agent-group-metric { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; }
+    .agent-group-metric-label { color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .agent-group-metric-context { color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .agent-group-metric-empty { color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .agent-group-uplift-pair { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; }
+    .agent-group-uplift { font-weight: 600; white-space: nowrap; }
+    .agent-group-context { white-space: nowrap; }
     .agent-configuration-table { margin: 0; border-top: 1px solid var(--line); }
     .agent-configuration-table th:first-child, .agent-configuration-table td:first-child { padding-left: 28px; }
     .leaderboard-effort { white-space: nowrap; font-weight: 600; }
@@ -753,7 +807,6 @@
           <button type="button" data-view="agent-reference" aria-pressed="false">Agent 三方榜单</button>
           <button type="button" data-view="reference" aria-pressed="false">Model 三方榜单</button>
           <button type="button" data-view="efficiency" aria-pressed="false">效率对比</button>
-          <button type="button" data-view="ai-insights" aria-pressed="false">AI 总结与推荐</button>
           <button type="button" data-view="agent-usage" aria-pressed="false">Agent 使用人数</button>
           <button type="button" data-view="pricing" aria-pressed="false">订阅费用快照</button>
           <button type="button" data-view="settings" aria-pressed="false">配置</button>
@@ -776,6 +829,10 @@
               <button class="btn btn-quiet" id="sync-llm-stats" type="button" role="menuitem">同步 LLM Stats 全榜</button>
             </div>
           </details>
+          <div class="cache-status-section">
+            <div class="cache-status-title">缓存状态</div>
+            <div id="cache-status-list" class="cache-status-list"><div class="cache-status-row"><span class="cache-status-time">暂无缓存信息</span></div></div>
+          </div>
             <button class="btn btn-quiet" id="open-import" type="button" role="menuitem">接入数据</button>
             <button class="btn btn-quiet" id="open-agent-usage" type="button" role="menuitem">录入使用人数</button>
             <button class="btn btn-quiet" id="open-agent-usage-import" type="button" role="menuitem">导入使用人数 CSV</button>
@@ -785,6 +842,8 @@
         </details>
       </div>
     </header>
+
+    <div id="cache-banner" class="cache-banner" hidden></div>
 
     <main id="app">
       <div class="loading">正在读取模型数据…</div>
@@ -967,6 +1026,8 @@ OpenCode,450,社区公开数据</pre>
       recommendationPublicationError: "",
       local: { records: [], warnings: [] },
       localError: "",
+      cacheStatus: null,
+      cacheStatusError: "",
       localCase: "draw-pelican-bicycle",
       localSearch: "",
       localHistory: "best",
@@ -986,6 +1047,7 @@ OpenCode,450,社区公开数据</pre>
       efficiency: { scope: "focus", charts: [], focus: {}, updated_at: "" },
       efficiencyError: "",
       balancePreset: "balanced",
+      efficiencyExpanded: {},
       aiInsights: null,
       aiInsightsError: "",
       aiInsightsLoaded: false,
@@ -994,6 +1056,7 @@ OpenCode,450,社区公开数据</pre>
       aiInsightsGoal: "",
       aiInsightsPromise: null,
       aiInsightsReadVersion: 0,
+      aiInsightsOpen: false,
       previewId: "",
       metric: "model_test_total",
       search: "",
@@ -1194,7 +1257,7 @@ OpenCode,450,社区公开数据</pre>
     async function loadData() {
       app.setAttribute("aria-busy", "true");
       try {
-        const [models, local, publication, modelLeaderboard, agentLeaderboard, history, efficiency] = await Promise.allSettled([
+        const [models, local, publication, modelLeaderboard, agentLeaderboard, history, efficiency, cache] = await Promise.allSettled([
           api("/api/models"),
           api("/api/local-benchmarks"),
           api("/api/recommendations/releases"),
@@ -1202,6 +1265,7 @@ OpenCode,450,社区公开数据</pre>
           api("/api/leaderboards/agents"),
           api("/api/leaderboards/arena_webdev"),
           api(`/api/efficiency?scope=${encodeURIComponent(state.efficiency.scope || "focus")}&weights=${encodeURIComponent(balanceWeightsQuery(state.balancePreset))}`),
+          api("/api/cache/status"),
           refreshAiInsights({ render: false })
         ]);
         if (models.status === "fulfilled") state.data = models.value;
@@ -1223,8 +1287,11 @@ OpenCode,450,社区公开数据</pre>
         state.efficiency = efficiency.status === "fulfilled"
           ? efficiency.value
           : { scope: state.efficiency.scope || "focus", charts: [], focus: {}, updated_at: "" };
+        state.cacheStatusError = cache.status === "rejected" ? cache.reason.message : "";
+        state.cacheStatus = cache.status === "fulfilled" ? cache.value : null;
         render();
         scrollToViewAnchor();
+        renderCacheBanner();
       } catch (error) {
         app.replaceChildren(el("div", "empty", `读取失败：${error.message}`));
       } finally {
@@ -1235,6 +1302,141 @@ OpenCode,450,社区公开数据</pre>
     function tested(model) {
       const scores = model.scores || {};
       return [scores.manual_total, scores.model_test_total, scores.arena_webdev, scores.aa_model_intelligence, scores.artificial_analysis_index, scores.llm_stats_score].some(value => value !== null && value !== undefined);
+    }
+
+    function staleCacheSources() {
+      return (state.cacheStatus?.sources || []).filter(source => source.stale);
+    }
+
+    function renderCacheBanner() {
+      const banner = document.getElementById("cache-banner");
+      const stale = staleCacheSources();
+      if (!banner) return;
+      if (!stale.length) {
+        banner.hidden = true;
+        banner.replaceChildren();
+        renderCacheStatusList();
+        return;
+      }
+      const head = el("div", "cache-banner-head");
+      head.append(el("span", "", `当前展示的是缓存数据：${stale.map(source => source.label).join("、")} 需要更新`));
+      const updateAll = el("button", "btn", "立即更新");
+      updateAll.type = "button";
+      updateAll.addEventListener("click", () => runStaleCacheUpdates(updateAll));
+      head.append(updateAll);
+      const list = el("ul");
+      stale.forEach(source => {
+        const item = el("li");
+        item.append(el("span", "", `缓存于 ${dateTime(source.cached_at)} · ${source.reason}`));
+        const update = el("button", "btn", "更新");
+        update.type = "button";
+        update.addEventListener("click", () => updateCacheSource(source.key, update));
+        item.append(update);
+        list.append(item);
+      });
+      banner.replaceChildren(head, list);
+      banner.hidden = false;
+      renderCacheStatusList();
+    }
+
+    function renderCacheStatusList() {
+      const container = document.getElementById("cache-status-list");
+      if (!container) return;
+      const sources = state.cacheStatus?.sources || [];
+      if (!sources.length) {
+        const empty = el("div", "cache-status-row");
+        empty.append(el("span", "cache-status-time",
+          state.cacheStatusError ? `缓存状态读取失败：${state.cacheStatusError}` : "暂无缓存信息"));
+        container.replaceChildren(empty);
+        return;
+      }
+      container.replaceChildren(...sources.map(source => {
+        const row = el("div", "cache-status-row");
+        row.append(el("span", "cache-status-label", source.label));
+        row.append(el("span", "cache-status-time", source.cached_at ? `缓存于 ${dateTime(source.cached_at)}` : "尚未缓存"));
+        row.append(el("span", `cache-status-badge${source.stale ? " stale" : ""}`, source.stale ? "待更新" : "最新"));
+        if (source.stale) {
+          const update = el("button", "btn", "更新");
+          update.type = "button";
+          update.addEventListener("click", () => updateCacheSource(source.key, update));
+          row.append(update);
+        }
+        return row;
+      }));
+    }
+
+    async function refreshLocalCache() {
+      return api("/api/cache/local-benchmarks/refresh", { method: "POST", body: "{}" });
+    }
+
+    function cacheLeaderboardSyncItem(key) {
+      const mapping = {
+        arena_webdev: "sync-arena",
+        artificial_analysis_model: "sync-artificial-analysis-models",
+        artificial_analysis_agent: "sync-artificial-analysis",
+        llm_stats: "sync-llm-stats"
+      };
+      return LEADERBOARD_SYNCS.find(item => item.id === mapping[key]);
+    }
+
+    async function updateCacheSource(key, button) {
+      if (key === "local_benchmarks") {
+        if (button) button.disabled = true;
+        closeTopMenus();
+        try {
+          await refreshLocalCache();
+          await loadData();
+          showToast("本地实测缓存已更新");
+        } catch (error) {
+          showToast(error.message, true);
+        } finally {
+          if (button) button.disabled = false;
+        }
+        return;
+      }
+      const item = cacheLeaderboardSyncItem(key);
+      if (item) await runSingleLeaderboardSync(item);
+    }
+
+    async function runStaleCacheUpdates(button) {
+      if (leaderboardSyncPromise) return;
+      const stale = staleCacheSources();
+      if (!stale.length) return;
+      if (button) button.disabled = true;
+      leaderboardSyncPromise = (async () => {
+        setSyncControlsBusy(true, "正在更新缓存…");
+        const successes = [];
+        const failures = [];
+        try {
+          for (const source of stale) {
+            setSyncControlsBusy(true, `正在更新 ${source.label}…`);
+            try {
+              if (source.key === "local_benchmarks") {
+                await refreshLocalCache();
+                successes.push(source.label);
+              } else {
+                const item = cacheLeaderboardSyncItem(source.key);
+                if (!item) throw new Error("未知数据源");
+                const { result } = await syncOneLeaderboard(item);
+                successes.push(`${source.label}（${formatSyncCounts(result)}）`);
+              }
+            } catch (error) {
+              failures.push(`${source.label}：${error.message}`);
+            }
+          }
+          await loadData();
+          if (!failures.length) {
+            showToast(`缓存已更新：${successes.join("；")}`);
+          } else if (successes.length) {
+            showToast(`部分更新成功：${successes.join("；")}。失败：${failures.join("；")}`, true);
+          } else {
+            showToast(`更新失败：${failures.join("；")}`, true);
+          }
+        } finally {
+          setSyncControlsBusy(false);
+        }
+      })();
+      try { await leaderboardSyncPromise; } finally { leaderboardSyncPromise = null; if (button) button.disabled = false; }
     }
 
     function filteredModels() {
@@ -1298,11 +1500,6 @@ OpenCode,450,社区公开数据</pre>
 
       if (state.view === "efficiency") {
         renderEfficiencyPage();
-        return;
-      }
-
-      if (state.view === "ai-insights") {
-        renderAiInsightsPage();
         return;
       }
 
@@ -1739,7 +1936,14 @@ OpenCode,450,社区公开数据</pre>
     document.getElementById("refresh-local").addEventListener("click", async event => {
       const button = event.currentTarget;
       button.disabled = true; button.textContent = "正在读取…";
-      try { await loadData(); } finally { button.disabled = false; button.textContent = "刷新本地结果"; }
+      try {
+        try {
+          await refreshLocalCache();
+        } catch (error) {
+          showToast(`本地缓存刷新失败：${error.message}`, true);
+        }
+        await loadData();
+      } finally { button.disabled = false; button.textContent = "刷新本地结果"; }
     });
 
     function openAgentUsageDialog(entry) {
@@ -2189,22 +2393,49 @@ OpenCode,450,社区公开数据</pre>
         return { project: () => 0.5, ticks: [min], format: value => number(value, 2) };
       }
       if (min > 0 && max / min > 20) {
-        const low = Math.log10(min);
-        const span = Math.log10(max) - low || 1;
+        // 对数轴两端各留 4% 余量，刻度取 1 / 2 / 5 × 10ⁿ 这类整值。
+        const rawLow = Math.log10(min);
+        const rawSpan = Math.log10(max) - rawLow || 1;
+        const low = rawLow - rawSpan * 0.04;
+        const span = rawSpan * 1.08;
+        const logTicks = steps => {
+          const values = [];
+          for (let power = Math.floor(low) - 1; power <= Math.ceil(low + span); power += 1) {
+            steps.forEach(step => {
+              const value = Number((step * Math.pow(10, power)).toPrecision(6));
+              const position = Math.log10(value);
+              if (position >= low && position <= low + span) values.push(value);
+            });
+          }
+          return values;
+        };
+        let ticks = [[1, 2, 5], [1, 3], [1]].map(logTicks).find(values => values.length <= 8) || logTicks([1]);
+        if (ticks.length < 3) ticks = [0, 0.25, 0.5, 0.75, 1].map(ratio => Math.pow(10, low + ratio * span));
         return {
           project: value => (Math.log10(Math.max(Number(value), Number.MIN_VALUE)) - low) / span,
-          ticks: [0, 0.25, 0.5, 0.75, 1].map(ratio => Math.pow(10, low + ratio * span)),
-          format: value => number(value, value < 10 ? 2 : 0)
+          ticks,
+          format: value => number(value, value < 1 ? 2 : value < 10 ? 1 : 0)
         };
       }
       const padding = (max - min) * 0.08;
       const low = min - padding;
-      const span = max + padding - low || 1;
+      const high = max + padding;
+      const span = high - low || 1;
+      const rough = span / 5;
+      const magnitude = Math.pow(10, Math.floor(Math.log10(rough)));
+      const step = [1, 2, 2.5, 5, 10].map(value => value * magnitude).find(value => value >= rough) || rough;
+      const ticks = [];
+      for (let value = Math.ceil(low / step) * step; value <= high + step * 1e-9; value += step) ticks.push(Number(value.toFixed(10)));
+      const digits = step < 1 ? 2 : step < 10 && !Number.isInteger(step) ? 1 : 0;
       return {
         project: value => (Number(value) - low) / span,
-        ticks: [0, 0.25, 0.5, 0.75, 1].map(ratio => low + ratio * span),
-        format: value => number(value, span < 5 ? 2 : 0)
+        ticks,
+        format: value => number(value, digits)
       };
+    }
+
+    function efficiencyTextWidth(text, fontSize) {
+      return [...text].reduce((total, char) => total + (/[⺀-￿]/.test(char) ? fontSize : fontSize * 0.58), 0);
     }
 
     function efficiencyScatter(chart) {
@@ -2214,9 +2445,10 @@ OpenCode,450,社区公开数据</pre>
       if (!points.length) {
         return el("div", "empty", "暂无可绘制的数据：请先同步 AA Agent / Model 全榜，或切换到「全部」范围。");
       }
-      const width = 720;
-      const height = 380;
-      const pad = { top: 18, right: 26, bottom: 50, left: 68 };
+      // 按容器实际宽度出图，保证 SVG 1:1 渲染，字号与页面其余部分一致。
+      const width = Math.round(Math.min(Math.max(app.clientWidth || 720, 420), 1320));
+      const height = Math.round(Math.min(Math.max(width * 0.42, 320), 480));
+      const pad = { top: 22, right: 24, bottom: 52, left: 64 };
       const plotWidth = width - pad.left - pad.right;
       const plotHeight = height - pad.top - pad.bottom;
       const xScale = efficiencyScale(points.map(point => Number(point.x)));
@@ -2237,8 +2469,8 @@ OpenCode,450,社区公开数据</pre>
         svg.append(
           svgNode("line", { x1: quadrantX, x2: quadrantX, y1: pad.top, y2: pad.top + plotHeight, stroke: "#9dbdf0", "stroke-width": 1, "stroke-dasharray": "4 4" }),
           svgNode("line", { x1: pad.left, x2: pad.left + plotWidth, y1: quadrantY, y2: quadrantY, stroke: "#9dbdf0", "stroke-width": 1, "stroke-dasharray": "4 4" }),
-          svgNode("text", { x: pad.left + 10, y: pad.top + 16, "font-size": 10, fill: "#2f62bd" },
-            `${quadrant.label} · ${quadrant.count} 个 · ${quadrant.hint}`)
+          svgNode("text", { x: pad.left + 10, y: pad.top + 16, "font-size": 11, fill: "#2f62bd" },
+            `${quadrant.label} · ${quadrant.count} 个`)
         );
       }
 
@@ -2249,7 +2481,7 @@ OpenCode,450,社区公开数据</pre>
         }));
         svg.append(svgNode("text", {
           x: projectX(tick), y: pad.top + plotHeight + 18, "text-anchor": "middle",
-          "font-size": 10, fill: "#6c727e"
+          "font-size": 11, fill: "#6c727e"
         }, xScale.format(tick)));
       });
       yScale.ticks.forEach(tick => {
@@ -2258,18 +2490,18 @@ OpenCode,450,社区公开数据</pre>
           stroke: "#eef0f4", "stroke-width": 1
         }));
         svg.append(svgNode("text", {
-          x: pad.left - 10, y: projectY(tick) + 3, "text-anchor": "end",
-          "font-size": 10, fill: "#6c727e"
+          x: pad.left - 10, y: projectY(tick) + 4, "text-anchor": "end",
+          "font-size": 11, fill: "#6c727e"
         }, yScale.format(tick)));
       });
       svg.append(
         svgNode("line", { x1: pad.left, x2: pad.left, y1: pad.top, y2: pad.top + plotHeight, stroke: "#cdd2dc", "stroke-width": 1 }),
         svgNode("line", { x1: pad.left, x2: pad.left + plotWidth, y1: pad.top + plotHeight, y2: pad.top + plotHeight, stroke: "#cdd2dc", "stroke-width": 1 }),
         svgNode("text", {
-          x: pad.left + plotWidth / 2, y: height - 10, "text-anchor": "middle", "font-size": 11, fill: "#454a55"
+          x: pad.left + plotWidth / 2, y: height - 12, "text-anchor": "middle", "font-size": 12, fill: "#454a55"
         }, `${chart.x_label}${chart.x_unit ? ` (${chart.x_unit})` : ""}${chart.x_lower_is_better ? " · 越低越好" : ""}`),
         svgNode("text", {
-          x: 18, y: pad.top + plotHeight / 2, "text-anchor": "middle", "font-size": 11, fill: "#454a55",
+          x: 18, y: pad.top + plotHeight / 2, "text-anchor": "middle", "font-size": 12, fill: "#454a55",
           transform: `rotate(-90 18 ${pad.top + plotHeight / 2})`
         }, `${chart.y_label}${chart.y_unit ? ` (${chart.y_unit})` : ""}`)
       );
@@ -2278,32 +2510,41 @@ OpenCode,450,社区公开数据</pre>
       const frontier = points
         .filter(point => paretoKeys.has(point.key))
         .sort((left, right) => Number(left.x) - Number(right.x));
+      const frontierSegments = [];
       if (frontier.length > 1) {
         const firstY = projectY(Number(frontier[0].y));
         const firstX = projectX(Number(frontier[0].x));
         let path = firstX > pad.left
           ? `M ${pad.left} ${firstY} L ${firstX} ${firstY}`
           : `M ${firstX} ${firstY}`;
+        if (firstX > pad.left) frontierSegments.push({ x1: pad.left, x2: firstX, y1: firstY - 1, y2: firstY + 1 });
         frontier.slice(1).forEach((point, index) => {
+          const previousX = projectX(Number(frontier[index].x));
           const previousY = projectY(Number(frontier[index].y));
           const x = projectX(Number(point.x));
-          path += ` L ${x} ${previousY} L ${x} ${projectY(Number(point.y))}`;
+          const y = projectY(Number(point.y));
+          path += ` L ${x} ${previousY} L ${x} ${y}`;
+          frontierSegments.push({ x1: previousX, x2: x, y1: previousY - 1, y2: previousY + 1 });
+          frontierSegments.push({ x1: x - 1, x2: x + 1, y1: Math.min(previousY, y), y2: Math.max(previousY, y) });
         });
-        path += ` L ${pad.left + plotWidth} ${projectY(Number(frontier[frontier.length - 1].y))}`;
+        const lastX = projectX(Number(frontier[frontier.length - 1].x));
+        const lastY = projectY(Number(frontier[frontier.length - 1].y));
+        path += ` L ${pad.left + plotWidth} ${lastY}`;
+        frontierSegments.push({ x1: lastX, x2: pad.left + plotWidth, y1: lastY - 1, y2: lastY + 1 });
         svg.append(svgNode("path", {
           d: path, fill: "none", stroke: "#aa8040", "stroke-width": 2,
           "stroke-linejoin": "round", "stroke-linecap": "round"
         }));
       }
 
-      const labelled = [];
-      points.forEach(point => {
+      const placed = points.map(point => {
         const cx = projectX(Number(point.x));
         const cy = projectY(Number(point.y));
         const focused = point.focused !== false;
         const onFrontier = paretoKeys.has(point.key);
+        const r = onFrontier ? (focused ? 6.5 : 5.5) : (focused ? 5.5 : 4.5);
         const dot = svgNode("circle", {
-          cx, cy, r: onFrontier ? (focused ? 6.5 : 5.5) : (focused ? 6 : 4.5),
+          cx, cy, r,
           fill: focused ? "#3567c9" : "#a9bedd",
           "fill-opacity": focused ? 0.92 : 0.62,
           stroke: onFrontier ? "#aa8040" : "#ffffff",
@@ -2311,11 +2552,55 @@ OpenCode,450,社区公开数据</pre>
         });
         dot.append(svgNode("title", {}, `${point.label} · ${chart.y_label} ${number(point.y, 2)} · ${chart.x_label} ${number(point.x, 2)}${chart.x_unit ? ` ${chart.x_unit}` : ""}`));
         svg.append(dot);
-        if (!focused || !labelled.every(value => Math.abs(value - cy) > 12)) return;
-        labelled.push(cy);
-        svg.append(svgNode("text", { x: cx + 9, y: cy + 3.5, "font-size": 10, fill: "#20232a" },
-          point.label.length > 28 ? `${point.label.slice(0, 27)}…` : point.label));
+        return { point, cx, cy, r, focused, onFrontier };
       });
+
+      // 标签避让：Pareto 前沿与高性价比点优先，右侧放不下改放左侧，仍冲突则不标注（悬停可看 title）。
+      const labelSize = 11;
+      const labelHeight = 14;
+      const boxes = placed.map(item => ({ x1: item.cx - item.r, x2: item.cx + item.r, y1: item.cy - item.r, y2: item.cy + item.r, owner: item }));
+      if (quadrant) {
+        const caption = `${quadrant.label} · ${quadrant.count} 个`;
+        boxes.push({ x1: pad.left + 8, x2: pad.left + 12 + efficiencyTextWidth(caption, 11), y1: pad.top + 4, y2: pad.top + 20, owner: null });
+      }
+      frontierSegments.forEach(segment => boxes.push({ ...segment, owner: null }));
+      const overlaps = (box, owner) => boxes.some(other => other.owner !== owner
+        && box.x1 < other.x2 && box.x2 > other.x1 && box.y1 < other.y2 && box.y2 > other.y1);
+      const inQuadrant = item => Boolean(quadrant)
+        && Number(item.point.x) <= Number(quadrant.x_max) && Number(item.point.y) >= Number(quadrant.y_min);
+      const priority = item => (item.onFrontier ? 0 : inQuadrant(item) ? 1 : 2);
+      placed
+        .filter(item => item.focused)
+        .sort((left, right) => priority(left) - priority(right) || left.cy - right.cy)
+        .forEach(item => {
+          const text = item.point.label.length > 34 ? `${item.point.label.slice(0, 33)}…` : item.point.label;
+          const textWidth = efficiencyTextWidth(text, labelSize);
+          const right = { anchor: "start", x: item.cx + item.r + 4, y: item.cy };
+          const left = { anchor: "end", x: item.cx - item.r - 4, y: item.cy };
+          const above = { anchor: "start", x: item.cx + item.r + 2, y: item.cy - labelHeight + 2 };
+          const below = { anchor: "start", x: item.cx + item.r + 2, y: item.cy + labelHeight - 2 };
+          const belowLeft = { anchor: "end", x: item.cx - item.r - 2, y: item.cy + labelHeight - 2 };
+          // 前沿线从前沿点向右水平延伸，前沿点标签优先放左侧或右下，避免压在线上。
+          const candidates = item.onFrontier
+            ? [left, below, belowLeft, right, above]
+            : [right, left, above, below, belowLeft];
+          const spot = candidates
+            .map(candidate => {
+              const x1 = candidate.anchor === "start" ? candidate.x : candidate.x - textWidth;
+              return { ...candidate, box: { x1, x2: x1 + textWidth, y1: candidate.y - labelHeight / 2, y2: candidate.y + labelHeight / 2, owner: item } };
+            })
+            .find(candidate => candidate.box.x1 >= pad.left + 2
+              && candidate.box.x2 <= width - 4
+              && candidate.box.y1 >= pad.top - 4
+              && candidate.box.y2 <= pad.top + plotHeight + 4
+              && !overlaps(candidate.box, item));
+          if (!spot) return;
+          boxes.push(spot.box);
+          svg.append(svgNode("text", {
+            class: "scatter-label", x: spot.x, y: spot.y + 4, "text-anchor": spot.anchor,
+            "font-size": labelSize, fill: item.onFrontier ? "#6b4d1f" : "#20232a"
+          }, text));
+        });
 
       const wrap = el("div", "scatter");
       wrap.append(svg);
@@ -2331,7 +2616,7 @@ OpenCode,450,社区公开数据</pre>
       }
       if (quadrant) {
         const mark = el("span");
-        mark.append(el("i", "scatter-dot quadrant"), `${quadrant.label} ${quadrant.count} 个（左上区域）`);
+        mark.append(el("i", "scatter-dot quadrant"), `${quadrant.label} ${quadrant.count} 个 · ${quadrant.hint || "左上区域"}`);
         legend.append(mark);
       }
       if (frontier.length > 1) {
@@ -2352,10 +2637,32 @@ OpenCode,450,社区公开数据</pre>
       return wrap;
     }
 
+    const EFFICIENCY_TABLE_LIMIT = 10;
+
+    function efficiencyVisibleRows(key, rows) {
+      return state.efficiencyExpanded[key] ? rows : rows.slice(0, EFFICIENCY_TABLE_LIMIT);
+    }
+
+    function efficiencyTableToggle(key, total) {
+      if (total <= EFFICIENCY_TABLE_LIMIT) return null;
+      const expanded = Boolean(state.efficiencyExpanded[key]);
+      const bar = el("div", "table-more");
+      bar.append(
+        el("span", "", expanded ? `共 ${total} 条，已全部展开。` : `共 ${total} 条，展示前 ${EFFICIENCY_TABLE_LIMIT} 条。`),
+        localButton(expanded ? "收起" : `展开全部 ${total} 条`, () => {
+          state.efficiencyExpanded[key] = !expanded;
+          render();
+        }, "btn btn-quiet")
+      );
+      return bar;
+    }
+
     function efficiencyTable(chart) {
-      const rows = (chart.points || []).filter(
+      const allRows = (chart.points || []).filter(
         point => Number.isFinite(Number(point.x)) && Number.isFinite(Number(point.y))
       );
+      const tableKey = `chart:${chart.key}`;
+      const rows = efficiencyVisibleRows(tableKey, allRows);
       const wrap = el("div", "table-wrap efficiency-table");
       const table = el("table");
       const head = el("thead");
@@ -2395,7 +2702,11 @@ OpenCode,450,社区公开数据</pre>
       }
       table.append(body);
       wrap.append(table);
-      return wrap;
+      const toggle = efficiencyTableToggle(tableKey, allRows.length);
+      if (!toggle) return wrap;
+      const block = el("div");
+      block.append(wrap, toggle);
+      return block;
     }
 
     const FALLBACK_BALANCE_PRESETS = [
@@ -2495,7 +2806,8 @@ OpenCode,450,社区公开数据</pre>
         head.append(headRow);
         table.append(head);
         const body = el("tbody");
-        rows.slice(0, 15).forEach(row => {
+        const tableKey = `balance:${group.key || group.label}`;
+        efficiencyVisibleRows(tableKey, rows).forEach(row => {
           const tr = el("tr", row.key === best.key ? "is-best" : "");
           const identity = el("td", "leaderboard-identity");
           identity.append(el("strong", "", row.label));
@@ -2516,7 +2828,8 @@ OpenCode,450,社区公开数据</pre>
         table.append(body);
         wrap.append(table);
         block.append(wrap);
-        if (rows.length > 15) block.append(el("p", "efficiency-note", `共 ${rows.length} 条，展示前 15 名。`));
+        const toggle = efficiencyTableToggle(tableKey, rows.length);
+        if (toggle) block.append(toggle);
         const incomplete = (group.incomplete || []).filter(item => (item.missing || []).length);
         if (incomplete.length) {
           block.append(el("p", "efficiency-note",
@@ -2671,11 +2984,32 @@ OpenCode,450,社区公开数据</pre>
       return list;
     }
 
-    function renderAiInsightsPage() {
+    function renderAiInsightsPanel() {
       const response = state.aiInsights;
       const config = response?.config || null;
       const analysis = response?.analysis && typeof response.analysis === "object" ? response.analysis : null;
       const busy = Boolean(state.aiInsightsGenerating || response?.busy);
+      const panel = el("details", "panel panel-wide ai-insights-panel");
+      panel.id = "ai-insights";
+      panel.open = Boolean(state.aiInsightsOpen);
+      // 展开状态存到 state，重绘（生成、刷新、切页）后不会自动收起。
+      panel.addEventListener("toggle", () => { state.aiInsightsOpen = panel.open; });
+      const summary = el("summary");
+      const summaryHeader = el("div", "panel-header");
+      const summaryCopy = el("div");
+      summaryCopy.append(el("div", "panel-kicker", "AI / SenseNova Token Plan"));
+      summaryCopy.append(el("h2", "", "AI 参谋：总结与推荐"));
+      const summaryText = analysis ? String(analysis.summary || "").trim().slice(0, 120) : "";
+      summaryCopy.append(el("p", "ai-insights-preview", summaryText ? `${summaryText}…` : "尚未生成"));
+      summaryHeader.append(summaryCopy);
+      const statusChips = el("div", "ai-insights-chips");
+      if (analysis && response?.stale) statusChips.append(el("span", "ai-insights-chip", "已过期"));
+      if (busy) statusChips.append(el("span", "ai-insights-chip", "生成中"));
+      if (config && config.available !== true) statusChips.append(el("span", "ai-insights-chip", "未配置 Key"));
+      if (analysis) statusChips.append(el("span", "ai-insights-chip", dateTime(analysis.generated_at)));
+      summaryHeader.append(statusChips);
+      summary.append(summaryHeader);
+      panel.append(summary);
       const goal = el("textarea");
       goal.id = "ai-insights-goal";
       goal.name = "goal";
@@ -2685,15 +3019,6 @@ OpenCode,450,社区公开数据</pre>
       goal.setAttribute("aria-describedby", "ai-insights-goal-count ai-insights-goal-help");
       goal.value = state.aiInsightsGoal;
       goal.disabled = busy;
-
-      const hero = el("section", "hero");
-      const heroText = el("div");
-      heroText.append(
-        el("div", "eyebrow", "AI assisted model analysis"),
-        el("h1", "", "模型数据，AI 总结与推荐"),
-        el("p", "hero-copy", "根据模型榜单与本地实测快照，按你的使用目标归纳发现、推荐候选，并逐项展示可核对的数据证据。分析沿用本机 Codex 无头调用；页面只在你点击生成后提交目标。")
-      );
-      hero.append(heroText);
 
       const layout = el("div", "ai-insights-layout");
       const controls = el("section", "ai-insights-controls");
@@ -2732,14 +3057,14 @@ OpenCode,450,社区公开数据</pre>
       controls.append(actionRow);
 
       const modelConfig = config
-        ? `调用方式：本机 Codex 无头调用 · 模型：${aiInsightText(config.model)} · 推理强度：${aiInsightText(config.reasoning_effort)} · 超时：${aiInsightText(config.timeout_seconds)} 秒`
-        : "正在读取本机 Codex 调用状态…";
+        ? `调用方式：SenseNova Token Plan · 模型：${aiInsightText(config.model)} · 超时：${aiInsightText(config.timeout_seconds)} 秒`
+        : "正在读取 SenseNova 调用状态…";
       controls.append(el("p", "ai-insights-config", modelConfig));
       if (config && config.available !== true) {
-        controls.append(el("p", "ai-insights-notice warning", "本机 Codex CLI 当前不可用，无法生成新分析。请检查启动服务的终端是否能运行 Codex CLI；已保存的分析仍可查看。"));
+        controls.append(el("p", "ai-insights-notice warning", "服务器未配置 SENSENOVA_API_KEY，无法生成新分析。请在启动看板的终端中设置该环境变量后重启服务；已保存的分析仍可查看。"));
       }
       if (state.aiInsightsLoading) controls.append(el("p", "ai-insights-notice", "正在读取服务器保存的分析结果与当前数据覆盖情况。"));
-      if (busy) controls.append(el("p", "ai-insights-notice", "正在通过本机 Codex 无头模式生成分析。请求可能持续数分钟；离开此页不会取消任务，完成后结果会保存在服务器。"));
+      if (busy) controls.append(el("p", "ai-insights-notice", "正在通过 SenseNova 生成分析。请求可能持续数分钟；离开此页不会取消任务，完成后结果会保存在服务器。"));
       if (state.aiInsightsError) {
         const error = el("div", "ai-insights-notice error", `AI 分析状态：${state.aiInsightsError}。已有结果会继续保留。`);
         controls.append(error);
@@ -2752,7 +3077,9 @@ OpenCode,450,社区公开数据</pre>
       const result = el("section", "ai-insights-result");
       if (analysis) {
         const generatedAt = aiInsightText(analysis.generated_at, "时间未知");
-        const modelMeta = `${aiInsightText(analysis.model)} · ${aiInsightText(analysis.reasoning_effort)} · ${generatedAt}`;
+        const modelMeta = analysis.reasoning_effort
+          ? `${aiInsightText(analysis.model)} · ${aiInsightText(analysis.reasoning_effort)} · ${generatedAt}`
+          : `${aiInsightText(analysis.model)} · ${generatedAt}`;
         result.append(el("p", "ai-insights-meta", `分析目标：${aiInsightText(analysis.goal, "未记录")} · ${modelMeta}`));
         result.append(el("p", "ai-insights-summary", aiInsightText(analysis.summary, "分析结果没有提供总结正文。")));
         const coverage = response?.coverage || analysis.coverage || {};
@@ -2822,7 +3149,8 @@ OpenCode,450,社区公开数据</pre>
       const evidenceNote = el("p", "ai-insights-footnote", "证据区按服务器返回的记录展示数据编号、来源、时间、模型、工具和推理强度，方便回查原始模型数据。生成的文字建议仅供比较，具体结论以对应证据为准。");
       result.append(evidenceNote);
       layout.append(controls, result);
-      app.replaceChildren(hero, layout);
+      panel.append(layout);
+      return panel;
     }
 
     async function refreshAiInsights(options = {}) {
@@ -2832,7 +3160,7 @@ OpenCode,450,社区公开数据</pre>
       const shouldRender = options.render !== false;
       state.aiInsightsLoading = true;
       state.aiInsightsError = "";
-      if (shouldRender && state.view === "ai-insights") render();
+      if (shouldRender && state.view === "recommendations") render();
       const request = (async () => {
         try {
           const response = await api("/api/ai-insights");
@@ -2848,7 +3176,7 @@ OpenCode,450,社区公开数据</pre>
           if (requestVersion === state.aiInsightsReadVersion) {
             state.aiInsightsLoading = false;
             state.aiInsightsPromise = null;
-            if (shouldRender && state.view === "ai-insights") render();
+            if (shouldRender && state.view === "recommendations") render();
           }
         }
       })();
@@ -2862,12 +3190,12 @@ OpenCode,450,社区公开数据</pre>
       state.aiInsightsGoal = submittedGoal;
       if (!submittedGoal.trim()) {
         state.aiInsightsError = "请先填写分析目标";
-        if (state.view === "ai-insights") render();
+        if (state.view === "recommendations") render();
         return;
       }
       if (state.aiInsights?.config?.available !== true) {
-        state.aiInsightsError = "本机 Codex CLI 不可用，请先重新读取状态";
-        if (state.view === "ai-insights") render();
+        state.aiInsightsError = "未配置 SenseNova API Key，请先重新读取状态";
+        if (state.view === "recommendations") render();
         return;
       }
       state.aiInsightsReadVersion += 1;
@@ -2875,7 +3203,7 @@ OpenCode,450,社区公开数据</pre>
       state.aiInsightsPromise = null;
       state.aiInsightsGenerating = true;
       state.aiInsightsError = "";
-      if (state.view === "ai-insights") render();
+      if (state.view === "recommendations") render();
       try {
         const response = await api("/api/ai-insights", {
           method: "POST",
@@ -2887,7 +3215,7 @@ OpenCode,450,社区公开数据</pre>
         state.aiInsightsError = error?.message || String(error);
       } finally {
         state.aiInsightsGenerating = false;
-        if (state.view === "ai-insights") render();
+        if (state.view === "recommendations") render();
       }
     }
 
@@ -3030,18 +3358,76 @@ OpenCode,450,社区公开数据</pre>
       table.append(body); wrap.append(table); return wrap;
     }
 
+    function agentConfigurationContext(configuration) {
+      const agent = configuration?.agent || {};
+      return `${agent.model || "—"} · ${leaderboardEffort(configuration?.reasoning_effort || agent.reasoning_effort)}`;
+    }
+
+    function agentGroupMetricBlock(label, valueNode, context) {
+      const block = el("span", "agent-group-metric");
+      block.append(el("span", "agent-group-metric-label", label), valueNode, el("span", "agent-group-metric-context", context));
+      return block;
+    }
+
+    function agentGroupSummaryMetrics(group, agentName) {
+      // A group takes each metric from its own best configuration, so the index
+      // and the uplift can come from two different model/effort rows. Every
+      // value is therefore tagged with the configuration it belongs to, and the
+      // uplift is shown as a before -> after pair that adds up to the delta.
+      const cell = el("span", "agent-group-best");
+      const scoreConfiguration = group.score_configuration;
+      const indexValue = scoreConfiguration ? agentConfigurationScore(scoreConfiguration) : null;
+      if (indexValue == null) cell.append(el("span", "agent-group-metric-empty", "暂无 Agent 分值"));
+      else cell.append(agentGroupMetricBlock(
+        "Coding Agent Index",
+        leaderboardMetricLink(
+          number(indexValue),
+          sourceDetailHref(scoreConfiguration.agent || {}),
+          `在 Artificial Analysis 查看 ${scoreConfiguration.agent?.tool || agentName} 的 Coding Agent Index`
+        ),
+        agentConfigurationContext(scoreConfiguration)
+      ));
+      const upliftValue = group.uplift_sort_value;
+      if (upliftValue == null) {
+        if (state.agentLeaderboardSort === "uplift") cell.append(el("span", "agent-group-metric-empty", "暂无可比提升效果"));
+      } else {
+        const upliftConfiguration = group.uplift_configuration || {};
+        const baseline = upliftConfiguration.baseline;
+        const pair = el("span", "agent-group-uplift-pair");
+        const beforeScore = baseline?.scores?.aa_model_terminal_bench_v4;
+        const afterScore = upliftConfiguration.agent?.scores?.aa_terminal_bench_v4;
+        if (beforeScore != null) {
+          pair.append(el("span", "agent-group-metric-label", "提升前"));
+          pair.append(leaderboardMetricLink(
+            `TB4 ${number(beforeScore)}`,
+            sourceDetailHref(baseline),
+            `在 Artificial Analysis 查看 ${baseline.model || "该模型"} 提升前的 Terminal-Bench 4.0 原始分`
+          ));
+        }
+        if (afterScore != null) {
+          pair.append(el("span", "agent-group-metric-label", "→ 提升后"));
+          pair.append(leaderboardMetricLink(
+            `TB4 ${number(afterScore)}`,
+            sourceDetailHref(upliftConfiguration.agent || {}),
+            `在 Artificial Analysis 查看 ${upliftConfiguration.agent?.tool || agentName} 提升后的 Terminal-Bench 4.0 原始分`
+          ));
+        }
+        pair.append(el("span", `agent-group-uplift ${upliftValue > 0 ? "delta-up" : upliftValue < 0 ? "delta-down" : "delta-neutral"}`, `提升 ${upliftValue > 0 ? "+" : ""}${number(upliftValue)} 个百分点`));
+        cell.append(agentGroupMetricBlock("Terminal-Bench 4.0", pair, agentConfigurationContext(upliftConfiguration)));
+      }
+      return cell;
+    }
+
     function renderAgentLeaderboardPage() {
       const data = state.agentLeaderboard || { agents: [], agent_groups: [] };
       const groups = visibleAgentGroups(data);
       app.append(leaderboardHero("Agent", groups.length, "按 Agent 聚合模型与智能度配置；可按 Coding Agent Index 或同配置 Terminal-Bench 4.0 提升效果排序，空值始终排在末尾。"));
       if (state.agentLeaderboardError) app.append(el("div", "empty", `Agent 榜单读取失败：${state.agentLeaderboardError}`));
       const panel = el("section", "panel panel-wide");
-      panel.append(panelHeader("Coding Agent Index", "默认按 Agent 分值排序；组级指标取当前可见配置的最佳有效值，Agent 总分不与 Model Intelligence 直接相减。", "Agent / Artificial Analysis"));
+      panel.append(panelHeader("Coding Agent Index", "默认按 Agent 分值排序；组级指标取当前可见配置的最佳有效值，Agent 总分不与 Model Intelligence 直接相减。摘要行分别给出组内最佳 Coding Agent Index 与组内最佳同配置 Terminal-Bench 4.0 提升（提升前 → 提升后），两项可能来自不同模型与智能度并各自标注，点击分数跳转 Artificial Analysis。", "Agent / Artificial Analysis"));
       leaderboardLegionToolbar(panel, null, false, true);
       const wrap = el("div", "table-wrap leaderboard-table"); const table = el("table"); const body = el("tbody");
       groups.forEach((group, index) => {
-        const best = state.agentLeaderboardSort === "uplift" ? group.uplift_configuration : group.score_configuration;
-        const value = state.agentLeaderboardSort === "uplift" ? group.uplift_sort_value : group.score_sort_value;
         const agentName = group.agent || group.display_name || group.tool || group.configurations[0]?.agent?.tool || "—";
         const tr = el("tr", `agent-leaderboard-group ${leaderboardPodiumClass(index + 1)}`.trim());
         const td = el("td"); td.colSpan = 9;
@@ -3050,10 +3436,7 @@ OpenCode,450,社区公开数据</pre>
         const identity = el("span", "agent-group-identity");
         identity.append(el("strong", "", agentName), el("small", "", `${group.visible_configuration_count} 个配置`));
         markLeaderboardLegion(tr, identity, group);
-        const bestText = value == null
-          ? (state.agentLeaderboardSort === "uplift" ? "暂无可比提升效果" : "暂无 Agent 分值")
-          : `${state.agentLeaderboardSort === "uplift" ? `提升 ${value > 0 ? "+" : ""}${number(value)} 个百分点` : `Agent 分值 ${number(value)}`} · ${best?.agent?.model || "—"} · ${leaderboardEffort(best?.reasoning_effort || best?.agent?.reasoning_effort)}`;
-        summary.append(identity, el("span", "agent-group-best", bestText));
+        summary.append(identity, agentGroupSummaryMetrics(group, agentName));
         details.append(summary, agentConfigurationTable(group.configurations)); td.append(details); tr.append(td); body.append(tr);
       });
       if (!groups.length) { const tr = el("tr"); const td = el("td", "empty", "同步 AA Agent 与 AA Model 后显示对照"); td.colSpan = 9; tr.append(td); body.append(tr); }
@@ -3917,7 +4300,7 @@ OpenCode,450,社区公开数据</pre>
         "展开军团海报"
       );
       hero.append(heroText, artwork);
-      app.append(hero, renderRecommendations());
+      app.append(hero, renderAiInsightsPanel(), renderRecommendations());
     }
 
     function renderRecommendationLogPage() {
@@ -4405,34 +4788,311 @@ OpenCode,450,社区公开数据</pre>
       }
     });
 
-    function pricingPlanGroups(item) {
-      const agentPlans = Array.isArray(item.agent_plans)
-        ? item.agent_plans
-        : (Array.isArray(item.ide_plans) ? item.ide_plans : []);
-      const codingPlans = Array.isArray(item.coding_plans)
-        ? item.coding_plans
-        : (Array.isArray(item.code_plans)
-          ? item.code_plans
-          : (Array.isArray(item.plans) ? item.plans : []));
-      return [
-        { key: "agent", label: "Agent Plan", plans: agentPlans },
-        { key: "coding", label: "Coding Plan", plans: codingPlans }
-      ];
+    // 定价页按订阅形态拆成三块：Agent Plan（IDE / Agent 档位）、Code Plan（CLI / Coding 档位）与 Token Plan（按 token / Credits 额度计费）。
+    const PRICING_SECTIONS = [
+      {
+        key: "value",
+        id: "section-pricing-value",
+        hash: "pricing-value",
+        index: "00",
+        label: "统一坐标系",
+        title: "统一坐标系 · 性价比",
+        subtitle: "把各档位折算到「每百万 token 成本」，跨工具横向比较",
+        empty: "暂无可折算的档位"
+      },
+      {
+        key: "agent",
+        id: "section-pricing-agent",
+        hash: "pricing-agent",
+        index: "01",
+        label: "Agent Plan",
+        title: "Agent Plan 订阅费用",
+        subtitle: "人民币 / 月；IDE / Agent 形态的订阅档位，仅展示已录入工具",
+        empty: "暂无 Agent Plan 价格快照，待补录"
+      },
+      {
+        key: "coding",
+        id: "section-pricing-code",
+        hash: "pricing-code",
+        index: "02",
+        label: "Code Plan",
+        title: "Code Plan 订阅费用",
+        subtitle: "人民币 / 月；CLI / Coding 形态的订阅档位，仅展示已录入工具",
+        empty: "暂无 Code Plan 价格快照，待补录"
+      },
+      {
+        key: "token",
+        id: "section-pricing-token",
+        hash: "pricing-token",
+        index: "03",
+        label: "Token Plan",
+        title: "Token Plan 订阅费用",
+        subtitle: "人民币 / 月；按 token / Credits 额度计费的档位，仅展示已录入工具",
+        empty: "暂无 Token Plan 价格快照，待补录"
+      }
+    ];
+
+    function pricingPlansOf(item, kind) {
+      if (kind === "token") return Array.isArray(item.token_plans) ? item.token_plans : [];
+      if (kind === "agent") {
+        if (Array.isArray(item.agent_plans)) return item.agent_plans;
+        return Array.isArray(item.ide_plans) ? item.ide_plans : [];
+      }
+      if (Array.isArray(item.coding_plans)) return item.coding_plans;
+      if (Array.isArray(item.code_plans)) return item.code_plans;
+      return Array.isArray(item.plans) ? item.plans : [];
     }
 
-    function appendPlanGroup(card, group) {
-      const section = el("div", "plan-group");
-      section.append(el("div", "plan-group-title", group.label));
-      if (!group.plans.length) {
-        section.append(el("div", "plan-empty", "暂无"));
-      } else {
-        group.plans.forEach(plan => {
-          const row = el("div", "plan");
-          row.append(el("span", "", plan.name || "—"), el("strong", "", `¥${number(plan.price_cny_month)}`));
-          section.append(row);
+    // 统一坐标系：主坐标 ¥ / 百万 token（需档位标注 included_tokens），
+    // 副坐标 ¥ / 美元额度（用于只公布美元额度的档位）。二者不做跨口径换算。
+    const USD_TO_CNY = 6.75;
+    const MTOK = 1e6;
+
+    function planCnyPerMtok(plan) {
+      const price = Number(plan.price_cny_month);
+      const tokens = Number(plan.included_tokens);
+      if (!Number.isFinite(price) || !Number.isFinite(tokens) || tokens <= 0) return null;
+      return price * MTOK / tokens;
+    }
+
+    function planCnyPerUsdCredit(plan) {
+      const price = Number(plan.price_cny_month);
+      const credit = Number(plan.included_usd_credit);
+      if (!Number.isFinite(price) || !Number.isFinite(credit) || credit <= 0) return null;
+      return price / credit;
+    }
+
+    function formatMtok(value) {
+      if (!Number.isFinite(value)) return "—";
+      return value >= 1 ? `¥${value.toFixed(2)}` : `¥${value.toFixed(4)}`;
+    }
+
+    function valueOverview(pricing) {
+      const tokenRows = [], creditRows = [], otherRows = [];
+      (Array.isArray(pricing) ? pricing : []).forEach(item => {
+        if (!item || typeof item !== "object") return;
+        const tool = String(item.tool || "—").trim();
+        ["agent", "coding", "token"].forEach(kind => {
+          pricingPlansOf(item, kind).forEach(plan => {
+            const price = Number(plan.price_cny_month);
+            if (!Number.isFinite(price) || price <= 0) return;
+            const perMtok = planCnyPerMtok(plan);
+            const row = {
+              tool,
+              kind,
+              plan: plan.name || "—",
+              price_cny_month: price,
+              included_tokens: Number(plan.included_tokens) || null,
+              included_usd_credit: Number(plan.included_usd_credit) || null,
+              token_basis: plan.token_basis || "",
+              cny_per_mtok: perMtok,
+              cny_per_usd_credit: perMtok ? null : planCnyPerUsdCredit(plan)
+            };
+            if (row.cny_per_mtok) tokenRows.push(row);
+            else if (row.cny_per_usd_credit) creditRows.push(row);
+            else otherRows.push(row);
+          });
         });
+      });
+      tokenRows.sort((a, b) => a.cny_per_mtok - b.cny_per_mtok);
+      creditRows.sort((a, b) => a.cny_per_usd_credit - b.cny_per_usd_credit);
+      const cheapest = tokenRows.length ? tokenRows[0].cny_per_mtok : null;
+      tokenRows.forEach(row => { row.relative = cheapest ? row.cny_per_mtok / cheapest : null; });
+      return { usd_to_cny: USD_TO_CNY, tokenRows, creditRows, otherRows };
+    }
+
+    function valueTable(caption, columns, rows) {
+      const table = el("table", "value-table");
+      const head = el("thead");
+      const headRow = el("tr");
+      columns.forEach(column => {
+        const th = el("th", column.numeric ? "is-num" : "", column.label);
+        headRow.append(th);
+      });
+      head.append(headRow);
+      table.append(head);
+      const body = el("tbody");
+      rows.forEach((row, index) => {
+        const tr = el("tr", index === 0 ? "is-best" : "");
+        columns.forEach(column => tr.append(column.render(row, index)));
+        body.append(tr);
+      });
+      table.append(body);
+      return { caption, table };
+    }
+
+    function renderValuePanel(section, pricing) {
+      const panel = el("section", "panel panel-wide pricing-panel");
+      panel.id = section.id;
+      panel.append(panelHeader(section.title, section.subtitle, `${section.index} / ${section.label}`));
+      const overview = valueOverview(pricing);
+      const cell = (text, numeric) => {
+        const td = el("td", numeric ? "is-num" : "");
+        td.append(document.createTextNode(text));
+        return td;
+      };
+      const metricCell = row => {
+        const td = el("td", "is-num");
+        td.append(el("span", "value-metric", row.cny_per_mtok ? formatMtok(row.cny_per_mtok) : "—"));
+        const credit = row.cny_per_usd_credit ? `　¥${row.cny_per_usd_credit.toFixed(2)} / 美元额度` : "";
+        td.append(document.createTextNode(credit));
+        if (row.token_basis) td.append(el("span", "value-basis", row.token_basis));
+        return td;
+      };
+      if (overview.tokenRows.length) {
+        const { caption, table } = valueTable("每百万 token 成本", [
+          { label: "工具 / 档位", render: row => cell(`${row.tool} · ${row.plan}`) },
+          { label: "月费 ¥", numeric: true, render: row => cell(`¥${number(row.price_cny_month)}`) },
+          { label: "月度额度", numeric: true, render: row => cell(row.included_tokens ? `${number(row.included_tokens / 1e8)} 亿 token` : "—") },
+          { label: "¥ / Mtok", numeric: true, render: metricCell },
+          { label: "相对最优", numeric: true, render: row => cell(row.relative ? `${row.relative.toFixed(2)}×` : "—") }
+        ], overview.tokenRows);
+        panel.append(el("p", "value-note", caption));
+        panel.append(table);
+      } else {
+        panel.append(el("div", "empty", "暂无可折算的 token 口径档位"));
       }
-      card.append(section);
+      if (overview.creditRows.length) {
+        const { table } = valueTable("每美元额度成本", [
+          { label: "工具 / 档位", render: row => cell(`${row.tool} · ${row.plan}`) },
+          { label: "月费 ¥", numeric: true, render: row => cell(`¥${number(row.price_cny_month)}`) },
+          { label: "¥ / 美元额度", numeric: true, render: row => cell(`¥${row.cny_per_usd_credit.toFixed(2)}`) }
+        ], overview.creditRows);
+        panel.append(el("p", "value-note", "以下档位只公布美元额度、未公布 token 数，无法折算到 ¥/Mtok，改用副坐标比较："));
+        panel.append(table);
+      }
+      if (overview.otherRows.length) {
+        const names = overview.otherRows.slice(0, 6).map(row => `${row.tool} ${row.plan}`).join("、");
+        const rest = overview.otherRows.length > 6 ? ` 等 ${overview.otherRows.length} 档` : "";
+        panel.append(el("p", "value-note",
+          `未公布可折算额度的档位：${names}${rest}。这些档位按「次数 / 倍率 / 积分」售卖，官网未给出 token 口径，不做估算。`));
+      }
+      panel.append(el("p", "value-note",
+        `口径说明：统一汇率 1 USD = ${overview.usd_to_cny} CNY（沿用快照原值）。`
+        + "¥/Mtok 只在厂商公布额度时计算，不做跨厂商假设折算；同一厂商不同档位的口径可能不同，已写在每行下方。"));
+      return panel;
+    }
+
+    function sourceRecords(item) {
+      const records = Array.isArray(item.sources) ? item.sources.filter(source => source && typeof source === "object") : [];
+      const official = typeof item.official_url === "string" && item.official_url.trim() ? item.official_url.trim() : "";
+      if (official && !records.some(record => record.url === official)) {
+        records.unshift({ label: "官方定价页", url: official });
+      }
+      return records;
+    }
+
+    function renderSourceRow(item) {
+      const row = el("div", "source-row");
+      const records = sourceRecords(item);
+      if (!records.length) return row;
+      const stamp = item.snapshot_at || records[0].snapshot_at || "—";
+      row.append(el("span", "", `采集 ${stamp}`));
+      row.append(el("span", "source-sep", "·"));
+      records.forEach((record, index) => {
+        const status = typeof record.status === "string" && record.status ? record.status : "unknown";
+        if (index) row.append(el("span", "source-sep", "·"));
+        const link = el("a", "source-label", record.label || record.url || "来源");
+        if (record.url) { link.href = record.url; link.target = "_blank"; link.rel = "noreferrer"; }
+        const badge = el("span", "value-badge", status);
+        badge.dataset.status = status;
+        const wrap = el("span");
+        wrap.append(link, badge);
+        row.append(wrap);
+      });
+      const refresh = el("button", "source-refresh");
+      refresh.type = "button";
+      refresh.append(el("span", "", "↻ 刷新"));
+      refresh.title = `重新抓取 ${records.length} 个原始地址并比对内容变化`;
+      refresh.addEventListener("click", () => refreshPricing(refresh, item.tool));
+      row.append(el("span", "source-sep", "·"), refresh);
+      return row;
+    }
+
+    async function refreshPricing(button, tool) {
+      button.disabled = true;
+      const label = button.firstChild;
+      const previous = label.textContent;
+      label.textContent = "刷新中";
+      try {
+        const result = await api("/api/pricing/refresh", {
+          method: "POST",
+          body: JSON.stringify({ tool })
+        });
+        label.textContent = previous;
+        button.disabled = false;
+        const changed = [];
+        (result.sources || []).forEach(entry => {
+          (entry.sources || []).forEach(source => {
+            if (source.status === "ok" && source.snapshot_at) changed.push(`${entry.tool} → ${source.snapshot_at}`);
+          });
+        });
+        showToast(changed.length
+          ? `已刷新 ${tool || "全部"} 的原始地址，${changed.length} 条记录已更新`
+          : `${tool || "全部"} 的原始地址内容无变化，采集日期保持原值`);
+        await loadData();
+      } catch (failure) {
+        label.textContent = previous;
+        button.disabled = false;
+        showToast(`刷新失败：${failure.message}`, true);
+      }
+    }
+
+    function pricingCard(item, kind, targetTool) {
+      const card = el("article", "price-card");
+      const itemTool = recommendationIdentity(item.tool);
+      card.dataset.pricingTool = itemTool;
+      card.dataset.pricingKind = kind;
+      if (targetTool && itemTool === targetTool) {
+        card.classList.add("is-targeted");
+        card.tabIndex = -1;
+      }
+      const title = item.official_url ? el("a", "", item.tool) : el("span", "", item.tool);
+      if (item.official_url) { title.href = item.official_url; title.target = "_blank"; title.rel = "noreferrer"; }
+      const heading = el("h3"); heading.append(title); card.append(heading);
+      pricingPlansOf(item, kind).forEach(plan => {
+        const row = el("div", "plan");
+        const label = el("div", "plan-label");
+        label.append(el("span", "", plan.name || "—"));
+        if (plan.detail) label.append(el("span", "plan-detail", plan.detail));
+        row.append(label, el("strong", "", `¥${number(plan.price_cny_month)}`));
+        const perMtok = planCnyPerMtok(plan);
+        if (perMtok) label.append(el("span", "plan-detail", `× ${formatMtok(perMtok)} / Mtok`));
+        card.append(row);
+      });
+      if (item.calibration_note) card.append(el("p", "", item.calibration_note));
+      if (item.notes) card.append(el("p", "", item.notes));
+      card.append(renderSourceRow(item));
+      return card;
+    }
+
+    function renderPricingPanel(section, pricing) {
+      const panel = el("section", "panel panel-wide pricing-panel");
+      panel.id = section.id;
+      panel.append(panelHeader(section.title, section.subtitle, `${section.index} / ${section.label}`));
+      if (section.key === "value") return renderValuePanel(section, pricing);
+      const items = pricing.filter(item => pricingPlansOf(item, section.key).length > 0);
+      if (!items.length) {
+        panel.append(el("div", "empty", section.empty));
+        return panel;
+      }
+      const grid = el("div", "pricing-grid");
+      const targetTool = recommendationIdentity(state.pricingTargetTool);
+      items.forEach(item => grid.append(pricingCard(item, section.key, targetTool)));
+      panel.append(grid);
+      return panel;
+    }
+
+    function renderPricingNav() {
+      const nav = el("nav", "section-nav");
+      nav.setAttribute("aria-label", "订阅费用章节");
+      PRICING_SECTIONS.forEach(section => {
+        const link = el("a");
+        link.href = `#${section.hash}`;
+        link.append(el("span", "", section.index), document.createTextNode(section.label));
+        nav.append(link);
+      });
+      return nav;
     }
 
     function renderPricingPage() {
@@ -4441,50 +5101,34 @@ OpenCode,450,社区公开数据</pre>
       intro.append(
         el("div", "eyebrow", "Subscription pricing"),
         el("h1", "", "订阅费用快照"),
-        el("p", "hero-copy", "集中对比各工具的 Agent Plan 与 Coding Plan。金额沿用已录入的人民币月费快照，最新价格可通过工具名称打开官方页面核对。")
+        el("p", "hero-copy", "Agent Plan、Code Plan 与 Token Plan 分开对比：前两者对应 IDE / Agent 与 CLI / Coding 形态的订阅档位，Token Plan 对应按 token / Credits 额度计费的档位。每张卡片底部记录原始地址与采集日期，可用「刷新」重新抓取并比对内容变化；「统一坐标系」把已公布额度的档位折算成 ¥/百万 token，跨工具横向比较性价比。")
       );
       hero.append(intro);
-      app.append(hero, renderPricing(state.data?.pricing || []));
+      const pricing = state.data?.pricing || [];
+      app.append(hero, renderPricingNav(), renderPricing(pricing));
       if (state.pricingTargetTool) {
         const targetTool = state.pricingTargetTool;
         state.pricingTargetTool = "";
         window.requestAnimationFrame(() => {
-          const target = app.querySelector(".price-card.is-targeted");
+          const targets = app.querySelectorAll(".price-card.is-targeted");
+          const target = targets[0];
           if (!target) {
             showToast(`未找到 ${targetTool} 的订阅费用`, true);
             return;
           }
           target.focus({ preventScroll: true });
-          target.scrollIntoView({ behavior: "smooth", block: "center" });
-          showToast(`已定位 ${targetTool} 的订阅费用`);
+          scrollToElement(target, "center");
+          showToast(targets.length > 1
+            ? `已定位 ${targetTool} 的 Agent / Code Plan 订阅费用`
+            : `已定位 ${targetTool} 的订阅费用`);
         });
       }
     }
 
     function renderPricing(pricing) {
-      const panel = el("section", "panel panel-wide");
-      panel.id = "section-pricing";
-      panel.append(panelHeader("订阅费用快照", "人民币 / 月；按工具区分 Agent Plan 与 Coding Plan，价格可能随时间变化", "01 / Pricing"));
-      const grid = el("div", "pricing-grid");
-      const targetTool = recommendationIdentity(state.pricingTargetTool);
-      pricing.forEach(item => {
-        const card = el("article", "price-card");
-        const itemTool = recommendationIdentity(item.tool);
-        card.dataset.pricingTool = itemTool;
-        if (targetTool && itemTool === targetTool) {
-          card.classList.add("is-targeted");
-          card.tabIndex = -1;
-        }
-        const title = item.official_url ? el("a", "", item.tool) : el("span", "", item.tool);
-        if (item.official_url) { title.href = item.official_url; title.target = "_blank"; title.rel = "noreferrer"; }
-        const heading = el("h3"); heading.append(title); card.append(heading);
-        pricingPlanGroups(item).forEach(group => appendPlanGroup(card, group));
-        if (item.notes) card.append(el("p", "", item.notes));
-        grid.append(card);
-      });
-      if (!pricing.length) grid.append(el("div", "empty", "暂无订阅费用快照"));
-      panel.append(grid);
-      return panel;
+      const wrap = document.createDocumentFragment();
+      PRICING_SECTIONS.forEach(section => wrap.append(renderPricingPanel(section, pricing)));
+      return wrap;
     }
 
     function closeTopMenus() {
@@ -4637,25 +5281,49 @@ OpenCode,450,社区公开数据</pre>
         "local-scores": "dashboard", "local-details": "dashboard",
         "pelican-showcase": "dashboard", "local-method": "dashboard",
         "section-capability": "dashboard", "section-usage": "agent-usage",
+        // AI 分析已从独立页面改为 Legion 首页的可折叠面板。
+        "ai-insights": "recommendations",
         "section-pricing": "pricing", "section-rankings": "reference",
-        "section-coverage": "reference", "section-table": "reference"
+        "section-coverage": "reference", "section-table": "reference",
+        "pricing-agent": "pricing", "pricing-code": "pricing", "pricing-token": "pricing",
+        "pricing-value": "pricing",
+        "section-pricing-agent": "pricing", "section-pricing-code": "pricing", "section-pricing-token": "pricing",
+        "section-pricing-value": "pricing"
       }[target];
     }
 
+    function viewAnchorTarget() {
+      const id = window.location.hash.slice(1);
+      return document.getElementById(id) || document.getElementById(`section-${id}`);
+    }
+
+    function scrollToElement(target, block) {
+      // 部分环境（含测试用的 jsdom）没有 scrollIntoView，缺方法时静默跳过，避免整页渲染被滚动失败拖垮。
+      if (!target || typeof target.scrollIntoView !== "function") return;
+      target.scrollIntoView({ behavior: "instant", block: block || "start" });
+    }
+
     function scrollToViewAnchor() {
-      const target = document.getElementById(window.location.hash.slice(1));
-      if (target) target.scrollIntoView({ behavior: "instant", block: "start" });
+      scrollToElement(viewAnchorTarget(), "start");
+    }
+
+    function openInsightsFromHash() {
+      // 旧链接 /#ai-insights 指向 Legion 首页的 AI 参谋面板，进入时直接展开。
+      return window.location.hash.slice(1) === "ai-insights";
     }
 
     function restoreView() {
       const view = viewFromHash();
       if (!view) return;
-      if (view !== state.view) {
+      const openInsights = openInsightsFromHash();
+      const wasInsightsOpen = state.aiInsightsOpen;
+      if (openInsights) state.aiInsightsOpen = true;
+      if (view !== state.view || (openInsights && !wasInsightsOpen)) {
         state.view = view;
         render();
-        if (view === "ai-insights") refreshAiInsights();
+        if (view === "recommendations") refreshAiInsights();
       }
-      if (document.getElementById(window.location.hash.slice(1))) scrollToViewAnchor();
+      if (viewAnchorTarget()) scrollToViewAnchor();
       else window.scrollTo({ top: 0, behavior: "instant" });
     }
 
@@ -4666,6 +5334,20 @@ OpenCode,450,社区公开数据</pre>
     }
 
     window.addEventListener("hashchange", restoreView);
+    let efficiencyResizeTimer = 0;
+    let efficiencyRenderedWidth = 0;
+    window.addEventListener("resize", () => {
+      if (state.view !== "efficiency") return;
+      clearTimeout(efficiencyResizeTimer);
+      efficiencyResizeTimer = setTimeout(() => {
+        // 散点图按容器宽度出图，宽度变化后重绘一次。
+        if (app.clientWidth === efficiencyRenderedWidth) return;
+        efficiencyRenderedWidth = app.clientWidth;
+        const scrollY = window.scrollY;
+        render();
+        window.scrollTo(0, scrollY);
+      }, 200);
+    });
     document.querySelectorAll("[data-view]").forEach(button => button.addEventListener("click", () => navigateView(button.dataset.view)));
     document.querySelectorAll("[data-close]").forEach(button => button.addEventListener("click", () => {
       if (button.dataset.close === "recommendations-dialog") requestCloseRecommendationsDialog();
@@ -4810,6 +5492,7 @@ OpenCode,450,社区公开数据</pre>
     });
 
     state.view = viewFromHash() || state.view;
+    if (openInsightsFromHash()) state.aiInsightsOpen = true;
     loadData();
   </script>
 </body>

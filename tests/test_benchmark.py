@@ -188,6 +188,75 @@ class ReportCommandTests(unittest.TestCase):
             self.assertFalse((run_dir / "report.md").is_file())
             self.assertTrue((run_dir / "report.html").is_file())
 
+    def test_report_command_fail_under_passes(self):
+        from benchmark.cli import main as cli_main
+
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory) / "sample-run"
+            test_run = {
+                "testCases": [
+                    {
+                        "name": "codex/sample-case",
+                        "metricsData": [
+                            {"name": "Task Correctness [GEval]", "score": 0.9, "threshold": 0.8,
+                             "success": True, "reason": "ok"}
+                        ],
+                        "metadata": {"tool": "codex", "case_id": "sample-case",
+                                     "category": "code_generation", "execution_status": "completed"},
+                    }
+                ],
+                "hyperparameters": {},
+            }
+            tool_dir = run_dir / "deepeval" / "codex"
+            tool_dir.mkdir(parents=True)
+            (tool_dir / "test_run_20260829_090000.json").write_text(json.dumps(test_run), encoding="utf-8")
+            cli_main(["report", "--run-dir", str(run_dir), "--tool", "codex", "--fail-under", "0.5"])
+            self.assertTrue((run_dir / "report.json").is_file())
+
+    def test_report_command_fail_under_fails_below_threshold(self):
+        from benchmark.cli import main as cli_main
+
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory) / "sample-run"
+            test_run = {
+                "testCases": [
+                    {
+                        "name": "codex/sample-case",
+                        "metricsData": [
+                            {"name": "Task Correctness [GEval]", "score": 0.4, "threshold": 0.8,
+                             "success": False, "reason": "low"}
+                        ],
+                        "metadata": {"tool": "codex", "case_id": "sample-case",
+                                     "category": "code_generation", "execution_status": "completed"},
+                    }
+                ],
+                "hyperparameters": {},
+            }
+            tool_dir = run_dir / "deepeval" / "codex"
+            tool_dir.mkdir(parents=True)
+            (tool_dir / "test_run_20260829_090000.json").write_text(json.dumps(test_run), encoding="utf-8")
+            with self.assertRaises(SystemExit) as context:
+                cli_main(["report", "--run-dir", str(run_dir), "--tool", "codex", "--fail-under", "0.5"])
+            self.assertIn("通过率低于", str(context.exception))
+
+    def test_report_command_fail_under_without_evaluations(self):
+        from benchmark.cli import main as cli_main
+
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory) / "sample-run"
+            run_dir.mkdir()
+            with self.assertRaises(SystemExit) as context:
+                cli_main(["report", "--run-dir", str(run_dir), "--tool", "codex", "--fail-under", "0.5"])
+            self.assertIn("没有任何已评测结果", str(context.exception))
+
+    def test_report_command_fail_under_rejects_history(self):
+        from benchmark.cli import main as cli_main
+
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(SystemExit) as context:
+                cli_main(["report", "--history", "--fail-under", "0.5"])
+            self.assertIn("--fail-under 不支持", str(context.exception))
+
     def test_report_command_history_mode(self):
         from benchmark import report as report_module
         from benchmark.cli import main as cli_main

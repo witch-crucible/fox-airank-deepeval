@@ -1,3 +1,4 @@
+import io
 import json
 import os
 import tempfile
@@ -9,6 +10,7 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
+from urllib.error import URLError
 
 from model_dashboard.server import (
     ARENA_DATASET_URL,
@@ -617,6 +619,7 @@ class ModelDashboardTests(unittest.TestCase):
                     self.assertIn('recommendation-pricing-link', html)
                     self.assertIn('price-card.is-targeted', html)
                     self.assertIn('已定位 ${targetTool} 的订阅费用', html)
+                    self.assertIn('已定位 ${targetTool} 的 Agent / Code Plan 订阅费用', html)
                     self.assertIn('purposeRole: "primary"', html)
                     self.assertIn('purposeRole: "secondary"', html)
                     self.assertIn('is-secondary-purpose', html)
@@ -669,9 +672,28 @@ class ModelDashboardTests(unittest.TestCase):
                     self.assertIn("function sourceHref(model)", html)
                     self.assertIn("function sourceBadge(model)", html)
                     self.assertIn("打开来源：", html)
-                    self.assertIn("function pricingPlanGroups(item)", html)
+                    self.assertIn("function pricingPlansOf(item, kind)", html)
+                    self.assertIn("function renderPricingPanel(section, pricing)", html)
+                    self.assertIn("function renderPricingNav()", html)
                     self.assertIn("Agent Plan", html)
-                    self.assertIn("Coding Plan", html)
+                    self.assertIn("Code Plan", html)
+                    self.assertIn("Token Plan", html)
+                    self.assertIn("section-pricing-agent", html)
+                    self.assertIn("section-pricing-code", html)
+                    self.assertIn("section-pricing-token", html)
+                    self.assertIn('"pricing-agent": "pricing"', html)
+                    self.assertIn('"pricing-code": "pricing"', html)
+                    self.assertIn('"pricing-token": "pricing"', html)
+                    self.assertIn("plan-detail", html)
+                    self.assertIn("section-pricing-value", html)
+                    self.assertIn('"pricing-value": "pricing"', html)
+                    self.assertIn("function renderValuePanel(section, pricing)", html)
+                    self.assertIn("function refreshPricing(button, tool)", html)
+                    self.assertIn('el("div", "source-row")', html)
+                    self.assertIn("function sourceRecords(item)", html)
+                    self.assertIn("function planCnyPerMtok(plan)", html)
+                    self.assertIn("function valueOverview(pricing)", html)
+                    self.assertIn("function scrollToElement(target, block)", html)
                     self.assertIn("agent_plans", html)
                     self.assertIn("coding_plans", html)
                     self.assertIn("ide_plans", html)
@@ -1375,8 +1397,143 @@ class ModelDashboardTests(unittest.TestCase):
         with patch("model_dashboard.server.run_with_reload") as mocked_reload:
             main(["--reload", "--host", "0.0.0.0", "--port", "9000", "--data", "/tmp/dashboard.json"])
         mocked_reload.assert_called_once_with(
-            ["--host", "0.0.0.0", "--port", "9000", "--data", "/tmp/dashboard.json"]
+            ["--host", "0.0.0.0", "--port", "9000", "--data", "/tmp/dashboard.json",
+             "--cache-max-age-hours", "24"]
         )
+
+    def test_main_rejects_non_positive_cache_max_age(self):
+        with patch("model_dashboard.server.sys.stderr", new=io.StringIO()):
+            with self.assertRaises(SystemExit):
+                main(["--cache-max-age-hours", "0"])
+
+    def test_value_overview_normalizes_plans_to_cny_per_mtok(self):
+        from model_dashboard.pricing import value_overview
+
+        pricing = [
+            {"tool": "A", "agent_plans": [{"name": "1x", "price_cny_month": 100, "included_tokens": 50_000_000}],
+             "coding_plans": [], "token_plans": []},
+            {"tool": "B", "agent_plans": [], "coding_plans": [],
+             "token_plans": [{"name": "U", "price_cny_month": 90, "included_usd_credit": 30}]},
+            {"tool": "C", "agent_plans": [{"name": "N", "price_cny_month": 50}], "coding_plans": [], "token_plans": []},
+        ]
+        overview = value_overview(pricing)
+        self.assertEqual([row["tool"] for row in overview["token_rows"]], ["A"])
+        self.assertAlmostEqual(overview["token_rows"][0]["cny_per_mtok"], 2.0)
+        self.assertEqual(overview["token_rows"][0]["relative"], 1.0)
+        self.assertEqual([row["tool"] for row in overview["credit_rows"]], ["B"])
+        self.assertAlmostEqual(overview["credit_rows"][0]["cny_per_usd_credit"], 3.0)
+        self.assertEqual(len(overview["other_rows"]), 1)
+        self.assertEqual(overview["total"], 3)
+        self.assertEqual(value_overview("not-a-list"), {
+            "usd_to_cny": 6.75, "token_rows": [], "credit_rows": [], "other_rows": [], "planned": 0, "total": 0,
+        })
+
+    def test_refresh_pricing_sources_keeps_snapshot_when_body_unchanged(self):
+        from model_dashboard.pricing import refresh_pricing_sources
+
+        payloads = {"https://example.com/a": "v1", "https://example.com/b": "v1"}
+
+        def fetcher(url):
+            from model_dashboard.pricing import check_source
+            return check_source(url, text_fetcher=lambda _url: payloads.get(_url, "v1") + " " + "x" * 300)
+
+        pricing = [
+            {"tool": "A", "official_url": "https://example.com/a", "agent_plans": [], "coding_plans": [],
+             "token_plans": []},
+            {"tool": "B", "sources": [{"label": "L", "url": "https://example.com/b", "snapshot_at": "2020-01-01"}],
+             "agent_plans": [], "coding_plans": [], "token_plans": []},
+        ]
+        first = refresh_pricing_sources(pricing, fetcher)
+        self.assertEqual(first["checked"], 2)
+        self.assertEqual(first["updated"], 2)
+        self.assertEqual(pricing[0]["snapshot_at"], first["checked_at"][:10])
+
+        second = refresh_pricing_sources(pricing, fetcher)
+        self.assertEqual(second["updated"], 0)
+        self.assertEqual(pricing[0]["snapshot_at"], first["checked_at"][:10])
+
+        payloads["https://example.com/a"] = "v2"
+        third = refresh_pricing_sources(pricing, fetcher)
+        self.assertEqual(third["updated"], 1)
+        self.assertEqual(pricing[0]["snapshot_at"], third["checked_at"][:10])
+        self.assertEqual(pricing[0]["sources"][0]["status"], "ok")
+        # 两条来源是间隔抓取的，时间戳必然不同，只需校验「已刷新到本次」。
+        record = pricing[1]["sources"][0]
+        self.assertTrue(record["last_checked_at"])
+        self.assertEqual(record["last_checked_at"][:10], third["checked_at"][:10])
+
+    def test_check_source_falls_back_to_direct_opener(self):
+        from model_dashboard import pricing
+
+        class _FakeResponse:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_exc):
+                return False
+
+            def read(self, _size=-1):
+                return b"<!doctype html>" + b"x" * 300
+
+        class _FailingOpener:
+            def open(self, *_args, **_kwargs):
+                raise URLError("Tunnel connection failed: 502 Bad Gateway")
+
+        class _DirectOpener:
+            def open(self, *_args, **_kwargs):
+                return _FakeResponse()
+
+        with patch.object(pricing, "_DEFAULT_OPENER", _FailingOpener()), \
+                patch.object(pricing, "_DIRECT_OPENER", _DirectOpener()):
+            record = pricing.check_source("https://example.com/a")
+        self.assertEqual(record["status"], "ok")
+        self.assertEqual(record["http_status"], 200)
+        self.assertEqual(record["bytes"], 315)
+        self.assertFalse(record["http_error"])
+
+    def test_check_source_does_not_retry_client_errors(self):
+        from model_dashboard import pricing
+
+        class _ForbiddenOpener:
+            def open(self, _request, **_kwargs):
+                raise HTTPError("https://example.com/a", 403, "Forbidden", {}, None)
+
+        class _MustNotCallOpener:
+            def open(self, *_args, **_kwargs):  # pragma: no cover - 403 不应回退
+                raise AssertionError("4xx 不应回退直连")
+
+        with patch.object(pricing, "_DEFAULT_OPENER", _ForbiddenOpener()), \
+                patch.object(pricing, "_DIRECT_OPENER", _MustNotCallOpener()):
+            record = pricing.check_source("https://example.com/a")
+        self.assertEqual(record["status"], "blocked")
+        self.assertEqual(record["http_status"], 403)
+
+    def test_refresh_pricing_sources_marks_blocked_sources(self):
+        from model_dashboard.pricing import check_source, refresh_pricing_sources
+
+        def fetcher(url):
+            return check_source(url, text_fetcher=lambda _url: "Just a moment...")
+
+        pricing = [{"tool": "A", "official_url": "https://example.com/a", "agent_plans": [], "coding_plans": [],
+                    "token_plans": []}]
+        report = refresh_pricing_sources(pricing, fetcher)
+        self.assertEqual(report["blocked"], 1)
+        self.assertEqual(pricing[0]["sources"][0]["status"], "blocked")
+        self.assertIn("反爬", pricing[0]["sources"][0]["http_error"])
+
+    def test_pricing_sources_reads_official_url_fallback(self):
+        from model_dashboard.pricing import pricing_sources
+
+        grouped = pricing_sources([
+            {"tool": "A", "official_url": "https://example.com/a", "agent_plans": [], "coding_plans": [], "token_plans": []},
+            {"tool": "B", "sources": [{"label": "L", "url": "https://example.com/b"}], "agent_plans": [],
+             "coding_plans": [], "token_plans": []},
+        ])
+        self.assertEqual(grouped[0]["sources"][0]["url"], "https://example.com/a")
+        self.assertEqual(grouped[0]["sources"][0]["status"], "unknown")
+        self.assertEqual(grouped[1]["sources"][0]["label"], "L")
 
     @staticmethod
     def _post_json(url, payload):

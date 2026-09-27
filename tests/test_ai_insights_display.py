@@ -34,10 +34,11 @@ class AiInsightsDisplayTests(unittest.TestCase):
           const el = (tag, className = '', text = '') => new Element(tag, className, text);
           const app = new Element('main');
           const document = { createElement: tag => new Element(tag) };
+          const dateTime = value => (value ? String(value) : '未知');
           const state = Object.assign({
             aiInsights: null, aiInsightsError: '', aiInsightsLoaded: false, aiInsightsLoading: false,
             aiInsightsGenerating: false, aiInsightsGoal: '', aiInsightsPromise: null,
-            aiInsightsReadVersion: 0, view: 'ai-insights'
+            aiInsightsReadVersion: 0, aiInsightsOpen: false, view: 'recommendations'
           }, payload.state || {});
           const calls = [];
           const api = async (path, options) => {
@@ -45,7 +46,7 @@ class AiInsightsDisplayTests(unittest.TestCase):
             if (payload.apiError) throw new Error(payload.apiError);
             return payload.apiResponse;
           };
-          const context = vm.createContext({ app, document, state, api, el, render() {}, JSON });
+          const context = vm.createContext({ app, document, state, api, el, dateTime, render() {}, JSON });
           const start = source.indexOf('    function aiInsightText(');
           const end = source.indexOf('    function agentConfigurationRank(', start);
           if (start < 0 || end < 0) throw new Error('AI insights functions were not found');
@@ -62,7 +63,7 @@ class AiInsightsDisplayTests(unittest.TestCase):
               disabled: node.disabled, attrs: node.attrs, children: node.children.map(serialize) };
           }
           (async () => {
-            vm.runInContext('renderAiInsightsPage()', context);
+            vm.runInContext('app.replaceChildren(renderAiInsightsPanel())', context);
             if (payload.operation === 'refresh') await vm.runInContext('refreshAiInsights()', context);
             if (payload.operation === 'generate') await vm.runInContext(`runAiInsights(${JSON.stringify(payload.goal || '')})`, context);
             if (payload.operation === 'submit') {
@@ -72,7 +73,7 @@ class AiInsightsDisplayTests(unittest.TestCase):
               const form = nodes.find(node => node.tag === 'form');
               await form.listeners.submit({ preventDefault() {} });
             }
-            vm.runInContext('renderAiInsightsPage()', context);
+            vm.runInContext('app.replaceChildren(renderAiInsightsPanel())', context);
             const result = {
               tree: serialize(app), text: app.textContent, calls,
               tags: walk(app).map(node => node.tag),
@@ -82,7 +83,8 @@ class AiInsightsDisplayTests(unittest.TestCase):
                 loaded: state.aiInsightsLoaded,
                 loading: state.aiInsightsLoading,
                 generating: state.aiInsightsGenerating,
-                goal: state.aiInsightsGoal
+                goal: state.aiInsightsGoal,
+                open: state.aiInsightsOpen
               }
             };
             process.stdout.write(JSON.stringify(result));
@@ -97,23 +99,30 @@ class AiInsightsDisplayTests(unittest.TestCase):
         )
         return json.loads(result.stdout)
 
+    def sensenova_config(self, available=True, timeout=180):
+        return {
+            "provider": "sensenova", "base_url": "https://token.sensenova.cn/v1",
+            "model": "sensenova-6.8-flash-lite", "timeout_seconds": timeout, "available": available,
+        }
+
     def test_renders_provenance_and_keeps_model_output_as_text(self):
         result = self.render({
             "state": {
                 "aiInsightsLoaded": True,
                 "aiInsights": {
-                    "config": {"provider": "codex", "model": "Codex Test", "reasoning_effort": "high", "timeout_seconds": 300, "available": True},
+                    "config": self.sensenova_config(timeout=300),
                     "analysis": {
-                        "generated_at": "2026-09-26T12:00:00Z", "model": "Codex Test", "reasoning_effort": "high",
+                        "generated_at": "2026-09-26T12:00:00Z", "provider": "sensenova",
+                        "model": "sensenova-6.8-flash-lite",
                         "goal": "复杂重构", "snapshot_hash": "snap-1", "summary": "<img src=x onerror=alert(1)> 总结",
                         "findings": [{"title": "<b>高分</b>", "detail": "保持 HTML 原样显示", "evidence": [{
                             "id": "E-42", "label": "ModelTest 总分", "value": 91.5, "unit": "分", "source": "ModelTest",
-                            "as_of": "2026-09-25", "model": "模型-A", "tool": "Codex", "reasoning_effort": "high"
+                            "as_of": "2026-09-25", "model": "模型-A", "tool": "Lab", "reasoning_effort": "high"
                         }]}],
                         "recommendations": [{"use_case": "<script>审查</script>", "reason": "有本地实测依据", "tradeoffs": "尚无速度分", "candidate": {
-                            "id": "candidate-a", "kind": "model", "model": "模型-A", "tool": "Codex", "reasoning_effort": "high"
+                            "id": "candidate-a", "kind": "model", "model": "模型-A", "tool": "Lab", "reasoning_effort": "high"
                         }, "evidence": [{"id": "E-42", "label": "ModelTest 总分", "value": 91.5, "unit": "分", "source": "ModelTest",
-                            "as_of": "2026-09-25", "model": "模型-A", "tool": "Codex", "reasoning_effort": "high"}]}],
+                            "as_of": "2026-09-25", "model": "模型-A", "tool": "Lab", "reasoning_effort": "high"}]}],
                         "limitations": ["<svg onload=alert(2)>"]
                     },
                     "stale": False, "busy": False, "coverage": {"candidate_count": 3, "evidence_count": 8}, "warnings": []
@@ -128,23 +137,26 @@ class AiInsightsDisplayTests(unittest.TestCase):
         self.assertIn("E-42", result["text"])
         self.assertIn("2026-09-25", result["text"])
         self.assertIn("模型-A", result["text"])
-        self.assertIn("Codex", result["text"])
+        self.assertIn("Lab", result["text"])
         self.assertIn("高", result["text"])
         self.assertNotIn("img", result["tags"])
         self.assertNotIn("script", result["tags"])
         self.assertNotIn("svg", result["tags"])
         self.assertEqual(result["calls"], [])
+        self.assertEqual(result["tree"]["children"][0]["tag"], "details")
+        self.assertIn("ai-insights-panel", result["tree"]["children"][0]["className"])
 
     def test_empty_loading_stale_and_unavailable_states_are_explained(self):
         empty = self.render({
             "state": {"aiInsightsLoaded": True, "aiInsights": {
-                "config": {"provider": "codex", "model": "Codex", "reasoning_effort": "medium", "timeout_seconds": 90, "available": False},
+                "config": self.sensenova_config(available=False, timeout=90),
                 "analysis": None, "stale": False, "busy": False,
                 "coverage": {"candidate_count": 0, "evidence_count": 0}, "warnings": []
             }}
         })
         self.assertIn("还没有 AI 分析结果", empty["text"])
-        self.assertIn("本机 Codex CLI 当前不可用", empty["text"])
+        self.assertIn("服务器未配置 SENSENOVA_API_KEY", empty["text"])
+        self.assertIn("未配置 Key", empty["text"])
         self.assertEqual(empty["calls"], [])
 
         loading = self.render({
@@ -155,21 +167,22 @@ class AiInsightsDisplayTests(unittest.TestCase):
 
         stale = self.render({
             "state": {"aiInsightsLoaded": True, "aiInsights": {
-                "config": {"provider": "codex", "model": "Codex", "reasoning_effort": "medium", "timeout_seconds": 90, "available": True},
-                "analysis": {"generated_at": "now", "model": "Codex", "reasoning_effort": "medium", "goal": "x", "summary": "旧结果",
+                "config": self.sensenova_config(timeout=90),
+                "analysis": {"generated_at": "now", "model": "sensenova-6.8-flash-lite", "goal": "x", "summary": "旧结果",
                     "findings": [], "recommendations": [], "limitations": []},
                 "stale": True, "busy": False, "coverage": {"candidate_count": 1, "evidence_count": 2}, "warnings": []
             }}
         })
         self.assertIn("数据快照已过期", stale["text"])
         self.assertIn("旧结果", stale["text"])
+        self.assertIn("已过期", stale["text"])
 
     def test_get_failure_keeps_the_previous_saved_analysis(self):
         old = {"summary": "上一次保存的总结", "findings": [], "recommendations": [], "limitations": []}
         result = self.render({
             "operation": "refresh", "apiError": "GET unavailable",
             "state": {"aiInsightsLoaded": True, "aiInsights": {
-                "config": {"provider": "codex", "model": "Codex", "reasoning_effort": "high", "timeout_seconds": 120, "available": True},
+                "config": self.sensenova_config(timeout=120),
                 "analysis": old, "stale": True, "busy": False,
                 "coverage": {"candidate_count": 2, "evidence_count": 4}, "warnings": []
             }}
@@ -185,9 +198,9 @@ class AiInsightsDisplayTests(unittest.TestCase):
         old = {"summary": "旧分析仍在", "findings": [], "recommendations": [], "limitations": []}
         goal = "  复杂代码审查与重构  "
         result = self.render({
-            "operation": "submit", "goal": goal, "apiError": "Codex CLI failed",
+            "operation": "submit", "goal": goal, "apiError": "SenseNova 超时",
             "state": {"aiInsightsLoaded": True, "aiInsights": {
-                "config": {"provider": "codex", "model": "Codex", "reasoning_effort": "high", "timeout_seconds": 300, "available": True},
+                "config": self.sensenova_config(timeout=300),
                 "analysis": old, "stale": False, "busy": False,
                 "coverage": {"candidate_count": 4, "evidence_count": 6}, "warnings": []
             }}
@@ -197,13 +210,28 @@ class AiInsightsDisplayTests(unittest.TestCase):
         }}])
         self.assertEqual(result["state"]["analysis"], old)
         self.assertEqual(result["state"]["goal"], goal)
-        self.assertIn("Codex CLI failed", result["text"])
+        self.assertIn("SenseNova 超时", result["text"])
         self.assertIn("旧分析仍在", result["text"])
         self.assertIn("已有结果会继续保留", result["text"])
 
-    def test_nav_and_goal_limit_are_present(self):
+    def test_missing_key_blocks_generation(self):
+        result = self.render({
+            "operation": "generate", "goal": "代码审查",
+            "state": {"aiInsightsLoaded": True, "aiInsights": {
+                "config": self.sensenova_config(available=False),
+                "analysis": None, "stale": False, "busy": False,
+                "coverage": {"candidate_count": 1, "evidence_count": 1}, "warnings": []
+            }}
+        })
+        self.assertEqual(result["calls"], [])
+        self.assertIn("未配置 SenseNova API Key", result["text"])
+
+    def test_nav_tab_is_replaced_by_the_legion_panel(self):
         html = INDEX_PATH.read_text(encoding="utf-8")
-        self.assertIn('data-view="ai-insights"', html)
+        self.assertNotIn('data-view="ai-insights"', html)
+        self.assertIn('"ai-insights": "recommendations"', html)
+        self.assertIn('renderAiInsightsPanel()', html)
+        self.assertIn('ai-insights-panel', html)
         self.assertIn('goal.maxLength = 1000', html)
         self.assertIn('setAttribute("maxlength", "1000")', html)
 
