@@ -6,6 +6,7 @@ import math
 from collections import defaultdict
 from typing import Any, Iterable
 
+from .baseline import grade_intelligence, intelligence_baseline
 from .domain import DashboardError
 
 
@@ -372,6 +373,12 @@ def build_model_overview(
     for rank, group in enumerate(ranked, 1):
         group["third_party_rank"] = rank
 
+    baseline = intelligence_baseline(models)
+    for group in groups.values():
+        aa_group = group["sources"].get("artificial_analysis_model")
+        raw_score = aa_group.get("raw_score") if isinstance(aa_group, dict) else None
+        group["intelligence_check"] = grade_intelligence(raw_score, baseline)
+
     battle_configs = [
         config
         for group in groups.values()
@@ -397,6 +404,7 @@ def build_model_overview(
         "local_share": LOCAL_SHARE,
         "minimum_local_repeats": MIN_LOCAL_REPEATS,
         "expected_cases": sorted(expected_cases),
+        "intelligence_baseline": baseline,
         "models": rows,
     }
 

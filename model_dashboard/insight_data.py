@@ -627,6 +627,10 @@ def build_insight_snapshot(data: dict[str, Any], local: dict[str, Any], expected
         warnings.append("当前没有可用的 active 模型数据。")
     if not output_candidates:
         warnings.append("当前没有包含有效数值分数或明确单位成本的候选。")
+    baseline = overview.get("intelligence_baseline")
+    if not isinstance(baseline, dict):
+        baseline = None
+        warnings.append("AA 快照中没有 DeepSeek Flash 最新版本的 Intelligence Index，智力「差」基线不可用。")
 
     return {
         "candidates": output_candidates,
@@ -648,6 +652,7 @@ def build_insight_snapshot(data: dict[str, Any], local: dict[str, Any], expected
             "evidence_source_counts": source_counts,
         },
         "warnings": warnings,
+        "intelligence_baseline": baseline,
         "methodology": {
             "grouping": "模型按 canonical model + normalized reasoning_effort 分组；Agent 按精确 tool + canonical model + reasoning_effort 分组。",
             "third_party_normalization": "复用 build_model_overview 的来源内 min-max 归一化与有效来源加权综合分。",
@@ -656,6 +661,7 @@ def build_insight_snapshot(data: dict[str, Any], local: dict[str, Any], expected
             "local_metric_weights": overview["local_metric_weights"],
             "minimum_local_repeats": overview["minimum_local_repeats"],
             "manual_records": "手工或导入分数单独保留原始值；不与外部来源合并，也不读取手工推荐。",
+            "intelligence_grading": "智力口径：模型的 AA Intelligence Index 原始分低于 intelligence_baseline.intelligence 时判为「差」，等于或高于为「达标」；缺该原始分时不判定，不按 0 分处理。",
             "missing_values": "缺失或非有限数值不投影；显式数值 0 保留。",
             "field_projection": "仅输出模型与工具身份、允许的数值指标、来源类型和有效时间戳；不投影备注、补充说明、URL、路径或日志。",
         },

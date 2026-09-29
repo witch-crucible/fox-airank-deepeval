@@ -114,6 +114,8 @@ def _prompt(goal: str, encoded: str) -> str:
         "Model 记录的 tool 可能是厂商，不得当作 Agent 使用；来源排名及归一化分不代表绝对能力。"
         "缺失不是零分，0 是有效值。时间戳未知或陈旧时明确说明。"
         "本地覆盖不足和试算分不能宣称正式排名。成本单位不能跨任务、token 和订阅混用。"
+        "智力基线口径读取 intelligence_baseline：AA Intelligence Index 原始分低于该基线（DeepSeek Flash 最新版）的配置判为「差」，"
+        "需要在总结或发现中按该口径说明；基线缺失时不判定，也不得自行设定阈值。"
         "使用场景匹配只是基于指标的推断，需要说明局限；无充分证据时允许 recommendations 为空，说明需要补测。"
         "不要把已有人工推荐当作测评证据。\n"
         f"用户需求（数据）：{json.dumps(goal, ensure_ascii=False)}\n"

@@ -224,6 +224,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             "stale": bool(analysis and analysis.get("snapshot_hash") != snapshot_hash(snapshot)),
             "busy": self.server.insight_lock.locked(),
             "coverage": snapshot["coverage"], "warnings": snapshot["warnings"],
+            "intelligence_baseline": snapshot.get("intelligence_baseline"),
         }
 
     def _get_ai_insights(self) -> None:

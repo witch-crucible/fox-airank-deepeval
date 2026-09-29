@@ -549,19 +549,21 @@ class ModelDashboardTests(unittest.TestCase):
                     self.assertNotIn("同步 AA 前 30", html)
                     self.assertIn("同步 LLM Stats 全榜", html)
                     self.assertNotIn(">同步榜单</summary>", html)
-                    self.assertIn("能力排名", html)
-                    self.assertIn("Agent 排名", html)
-                    self.assertIn("Model 排名", html)
-                    self.assertIn("function renderRankings(models)", html)
-                    self.assertIn("function bestAgentEntries(models)", html)
-                    self.assertIn("function scoredModels(models)", html)
-                    self.assertIn("function appendRankingRows(chart, ranked, titleFn, subtitleFn)", html)
-                    self.assertIn("ranking-split", html)
-                    self.assertIn("按 AI 编程工具聚合，取该指标最佳成绩", html)
-                    self.assertIn("按模型配置逐条比较当前指标", html)
-                    self.assertIn("配对模型：", html)
-                    self.assertIn("配对 Agent：", html)
+                    # 已删除的参考榜死代码不应再出现。
+                    self.assertNotIn("function renderRankings(", html)
+                    self.assertNotIn("function bestAgentEntries(", html)
+                    self.assertNotIn("function scoredModels(", html)
+                    self.assertNotIn("function appendRankingRows(", html)
+                    self.assertNotIn("function renderCoverage(", html)
+                    self.assertNotIn("ranking-split", html)
+                    self.assertNotIn("metric-strip", html)
+                    self.assertNotIn("dashboard-grid", html)
                     self.assertIn("空白不按 0 分处理", html)
+                    # 顶栏分组导航、主题切换与设计 token。
+                    self.assertIn("data-group-tab", html)
+                    self.assertIn("VIEW_GROUPS", html)
+                    self.assertIn("data-theme", html)
+                    self.assertIn("function pageHero(", html)
                     self.assertIn('data-view="table"', html)
                     self.assertIn('data-view="recommendations"', html)
                     self.assertIn('data-view="recommendation-log"', html)
@@ -598,10 +600,10 @@ class ModelDashboardTests(unittest.TestCase):
                     self.assertIn('view: "recommendations"', html)
                     self.assertIn('function renderRecommendationsPage()', html)
                     self.assertIn('function renderRecommendationLogPage()', html)
-                    self.assertIn('function renderLegionArtwork(src, alt, summaryText)', html)
-                    self.assertIn('el("details", "legion-artwork")', html)
-                    self.assertIn('展开军团海报', html)
-                    self.assertIn('展开技能冷却现场', html)
+                    self.assertIn('function renderLegionArtwork(src, alt)', html)
+                    self.assertIn('function openArtworkLightbox(src, alt)', html)
+                    self.assertIn('el("figure", "legion-hero-art")', html)
+                    self.assertIn('el("dialog", "artwork-lightbox")', html)
                     self.assertIn('/static/art/vibe-coding-legion.png', html)
                     self.assertIn('/static/art/vibe-coding-legion-log.png', html)
                     self.assertIn('function recommendationModel(entry)', html)
@@ -619,7 +621,7 @@ class ModelDashboardTests(unittest.TestCase):
                     self.assertIn('recommendation-pricing-link', html)
                     self.assertIn('price-card.is-targeted', html)
                     self.assertIn('已定位 ${targetTool} 的订阅费用', html)
-                    self.assertIn('已定位 ${targetTool} 的 Agent / Code Plan 订阅费用', html)
+                    self.assertIn('已定位 ${targetTool} 的 Agent / Token Plan 订阅费用', html)
                     self.assertIn('purposeRole: "primary"', html)
                     self.assertIn('purposeRole: "secondary"', html)
                     self.assertIn('is-secondary-purpose', html)
@@ -676,14 +678,15 @@ class ModelDashboardTests(unittest.TestCase):
                     self.assertIn("function renderPricingPanel(section, pricing)", html)
                     self.assertIn("function renderPricingNav()", html)
                     self.assertIn("Agent Plan", html)
-                    self.assertIn("Code Plan", html)
                     self.assertIn("Token Plan", html)
                     self.assertIn("section-pricing-agent", html)
-                    self.assertIn("section-pricing-code", html)
                     self.assertIn("section-pricing-token", html)
                     self.assertIn('"pricing-agent": "pricing"', html)
-                    self.assertIn('"pricing-code": "pricing"', html)
                     self.assertIn('"pricing-token": "pricing"', html)
+                    # 旧 Code Plan 锚点继续映射到 pricing 页与 Token Plan 区块。
+                    self.assertIn('"pricing-code": "pricing"', html)
+                    self.assertIn("PRICING_LEGACY_HASHES", html)
+                    self.assertIn('"section-pricing-code": "section-pricing-token"', html)
                     self.assertIn("plan-detail", html)
                     self.assertIn("section-pricing-value", html)
                     self.assertIn('"pricing-value": "pricing"', html)
@@ -1356,17 +1359,36 @@ class ModelDashboardTests(unittest.TestCase):
             expected_composite = row[13] if has_component else None
             self.assertEqual(model["scores"]["composite_total"], expected_composite)
 
-    def test_seed_pricing_uses_agent_and_coding_plan_groups(self):
+    def test_seed_pricing_uses_agent_and_token_plan_groups(self):
         seed_path = Path(__file__).resolve().parent.parent / "model_dashboard" / "seed_data.json"
         pricing = json.loads(seed_path.read_text(encoding="utf-8"))["pricing"]
 
         self.assertTrue(pricing)
         for entry in pricing:
             self.assertIn("agent_plans", entry)
-            self.assertIn("coding_plans", entry)
-            self.assertNotIn("ide_plans", entry)
-            self.assertNotIn("code_plans", entry)
-            self.assertNotIn("plans", entry)
+            self.assertIn("token_plans", entry, f"{entry.get('tool')} 缺少 token_plans")
+            for legacy in ("coding_plans", "code_plans", "ide_plans", "plans"):
+                self.assertNotIn(legacy, entry, f"{entry.get('tool')} 仍残留旧字段 {legacy}")
+
+    def test_normalize_pricing_kinds_moves_coding_plans_into_token(self):
+        from model_dashboard.pricing import normalize_pricing_kinds, value_overview
+
+        pricing = [
+            {"tool": "A", "agent_plans": [], "coding_plans": [{"name": "Lite", "price_cny_month": 90, "included_tokens": 45_000_000}]},
+            {"tool": "B", "agent_plans": [], "code_plans": [{"name": "Go", "price_cny_month": 30}], "token_plans": [{"name": "Go", "price_cny_month": 30}]},
+        ]
+        moved = normalize_pricing_kinds(pricing)
+
+        self.assertEqual(moved, 1)
+        self.assertEqual([plan["name"] for plan in pricing[0]["token_plans"]], ["Lite"])
+        self.assertNotIn("coding_plans", pricing[0])
+        # 同名档位不重复追加。
+        self.assertEqual([plan["name"] for plan in pricing[1]["token_plans"]], ["Go"])
+        self.assertNotIn("code_plans", pricing[1])
+        # 迁移后的档位进入统一坐标系，且归属 token 分区。
+        rows = value_overview(pricing)["token_rows"]
+        self.assertEqual([row["tool"] for row in rows], ["A"])
+        self.assertEqual(rows[0]["kind"], "token")
 
     def test_collect_watch_snapshot_tracks_python_and_ignores_local_data(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1411,19 +1433,24 @@ class ModelDashboardTests(unittest.TestCase):
 
         pricing = [
             {"tool": "A", "agent_plans": [{"name": "1x", "price_cny_month": 100, "included_tokens": 50_000_000}],
-             "coding_plans": [], "token_plans": []},
-            {"tool": "B", "agent_plans": [], "coding_plans": [],
+             "token_plans": []},
+            {"tool": "B", "agent_plans": [],
              "token_plans": [{"name": "U", "price_cny_month": 90, "included_usd_credit": 30}]},
-            {"tool": "C", "agent_plans": [{"name": "N", "price_cny_month": 50}], "coding_plans": [], "token_plans": []},
+            {"tool": "C", "agent_plans": [{"name": "N", "price_cny_month": 50}], "token_plans": []},
+            {"tool": "D", "agent_plans": [],
+             "coding_plans": [{"name": "Old", "price_cny_month": 80, "included_tokens": 20_000_000}], "token_plans": []},
         ]
         overview = value_overview(pricing)
-        self.assertEqual([row["tool"] for row in overview["token_rows"]], ["A"])
+        # 旧 coding_plans 档位并入 token 分区后同样进入主坐标。
+        self.assertEqual([(row["tool"], row["kind"]) for row in overview["token_rows"]],
+                         [("A", "agent"), ("D", "token")])
         self.assertAlmostEqual(overview["token_rows"][0]["cny_per_mtok"], 2.0)
         self.assertEqual(overview["token_rows"][0]["relative"], 1.0)
+        self.assertAlmostEqual(overview["token_rows"][1]["cny_per_mtok"], 4.0)
         self.assertEqual([row["tool"] for row in overview["credit_rows"]], ["B"])
         self.assertAlmostEqual(overview["credit_rows"][0]["cny_per_usd_credit"], 3.0)
         self.assertEqual(len(overview["other_rows"]), 1)
-        self.assertEqual(overview["total"], 3)
+        self.assertEqual(overview["total"], 4)
         self.assertEqual(value_overview("not-a-list"), {
             "usd_to_cny": 6.75, "token_rows": [], "credit_rows": [], "other_rows": [], "planned": 0, "total": 0,
         })

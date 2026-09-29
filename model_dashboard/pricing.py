@@ -32,17 +32,17 @@ USD_TO_CNY = 6.75
 MTOK = 1_000_000
 
 #: 分区键 → 种子/库内字段名的映射；与前端 PRICING_SECTIONS 顺序一致。
+#: 只有两类订阅形态：Agent Plan（IDE / Agent 档位）与 Token Plan（按 token /
+#: Credits 额度计费）。原 Code Plan（CLI / Coding 档位）已整体并入 Token Plan。
 PLAN_FIELDS = (
     ("agent", "agent_plans"),
-    ("coding", "coding_plans"),
     ("token", "token_plans"),
 )
 
-#: 历史字段名，供脏数据兜底读取。
+#: 历史字段名，供脏数据兜底读取；coding / code 两类旧字段归属 token 分区。
 LEGACY_PLAN_FIELDS = {
     "agent": ("agent_plans", "ide_plans"),
-    "coding": ("coding_plans", "code_plans"),
-    "token": ("token_plans",),
+    "token": ("token_plans", "coding_plans", "code_plans", "plans"),
 }
 
 #: 判定「页面不可用」的特征串：命中即视为反爬拦截或纯 JS 渲染占位页。
@@ -88,11 +88,50 @@ def _number(value: Any) -> float | None:
 
 
 def _plans_of(item: dict[str, Any], kind: str) -> list[dict[str, Any]]:
-    for field in LEGACY_PLAN_FIELDS.get(kind, (kind + "_plans",)):
+    """按优先级取档位；规范字段为空时继续回退到历史字段。"""
+    primary: list[dict[str, Any]] = []
+    for index, field in enumerate(LEGACY_PLAN_FIELDS.get(kind, (kind + "_plans",))):
         plans = item.get(field)
-        if isinstance(plans, list):
-            return [plan for plan in plans if isinstance(plan, dict)]
-    return []
+        if not isinstance(plans, list):
+            continue
+        plans = [plan for plan in plans if isinstance(plan, dict)]
+        if plans:
+            return plans
+        if index == 0:
+            primary = plans
+    return primary
+
+
+def normalize_pricing_kinds(pricing: Any) -> int:
+    """把历史 ``coding_plans`` / ``code_plans`` 档位并入 ``token_plans``。
+
+    就地修改列表并返回迁移的档位条数。``token_plans`` 中已存在的同名档位
+    不会被重复追加，因此函数可重复执行。
+    """
+    if not isinstance(pricing, list):
+        return 0
+    moved = 0
+    for item in pricing:
+        if not isinstance(item, dict):
+            continue
+        existing = item.get("token_plans")
+        merged = [plan for plan in existing if isinstance(plan, dict)] if isinstance(existing, list) else []
+        seen = {str(plan.get("name") or "").strip() for plan in merged}
+        for field in ("coding_plans", "code_plans"):
+            legacy = item.pop(field, None)
+            if not isinstance(legacy, list):
+                continue
+            for plan in legacy:
+                if not isinstance(plan, dict):
+                    continue
+                name = str(plan.get("name") or "").strip()
+                if name in seen:
+                    continue
+                seen.add(name)
+                merged.append(plan)
+                moved += 1
+        item["token_plans"] = merged
+    return moved
 
 
 def value_rows(pricing: Any) -> list[dict[str, Any]]:

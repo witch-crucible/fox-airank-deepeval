@@ -12,7 +12,7 @@ __pycache__/
 /results/
 /runs/
 model_dashboard/data.local.json
-var/sqlite/
+/var/
 .deepeval/
 *.egg-info/
 cases/code_generation/pelican_bicycle/node_modules/

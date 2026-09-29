@@ -4,6 +4,7 @@ import math
 import re
 from typing import Any, Iterable
 
+from .baseline import INTELLIGENCE_METRIC, intelligence_baseline
 from .domain import DashboardError
 from .sources import finite_number
 
@@ -311,6 +312,16 @@ def pareto_frontier(entries: list[dict[str, Any]]) -> set[str]:
     return frontier
 
 
+def _mark_baseline(items: list[dict[str, Any]], value_field: str, baseline: dict[str, Any] | None) -> None:
+    """低于 DeepSeek Flash 最新版智力时标 ``below_baseline``；任一侧缺值都不判定。"""
+    reference = (baseline or {}).get("intelligence")
+    for item in items:
+        value = finite_number(item.get(value_field))
+        item["below_baseline"] = bool(
+            value is not None and isinstance(reference, (int, float)) and float(value) < float(reference)
+        )
+
+
 def build_balance_ranking(
     models: list[dict[str, Any]],
     focus: Any = None,
@@ -322,9 +333,15 @@ def build_balance_ranking(
         raise DashboardError("效率视图范围必须是 focus 或 all")
     effective_weights = normalize_balance_weights(weights)
     focus_lists = normalize_focus(focus)
+    baseline = intelligence_baseline(models)
     groups: list[dict[str, Any]] = []
     for group in BALANCE_GROUPS:
         focus_set = set(focus_lists.get(group["key"], ()))
+        group_baseline = (
+            baseline
+            if BALANCE_METRIC_FIELDS[group["key"]]["capability"] == ("scores", INTELLIGENCE_METRIC)
+            else None
+        )
         rows = [
             model
             for model in models
@@ -361,13 +378,14 @@ def build_balance_ranking(
                 }
             )
         if not entries:
-            groups.append({**group, "rows": [], "best": None, "incomplete": incomplete, "pareto_count": 0})
+            groups.append({**group, "rows": [], "best": None, "incomplete": incomplete, "pareto_count": 0, "baseline": group_baseline})
             continue
         # 成本与耗时越低越好，归一化后取反；能力越高越好。
         capability_scores = normalized_series([entry["capability"] for entry in entries])
         cost_scores = [1 - value for value in normalized_series([entry["cost"] for entry in entries])]
         time_scores = [1 - value for value in normalized_series([entry["time"] for entry in entries])]
         frontier = pareto_frontier(entries)
+        _mark_baseline(entries, "capability", group_baseline)
         for index, entry in enumerate(entries):
             parts = {
                 "capability": capability_scores[index],
@@ -391,6 +409,7 @@ def build_balance_ranking(
                 "best": entries[0],
                 "incomplete": incomplete,
                 "pareto_count": len(frontier),
+                "baseline": group_baseline,
             }
         )
     return {
@@ -401,6 +420,7 @@ def build_balance_ranking(
             "cost": {"label": "单任务成本", "unit": "USD", "higher_is_better": False},
             "time": {"label": "单任务耗时", "unit": "秒", "higher_is_better": False},
         },
+        "intelligence_baseline": baseline,
         "groups": groups,
     }
 
@@ -428,10 +448,12 @@ def build_efficiency_overview(
     if scope not in EFFICIENCY_SCOPES:
         raise DashboardError("效率视图范围必须是 focus 或 all")
     focus_lists = normalize_focus(focus)
+    baseline = intelligence_baseline(models)
     charts: list[dict[str, Any]] = []
     updated_at = ""
     for spec in EFFICIENCY_CHARTS:
         focus_set = set(focus_lists.get(spec["source_type"], ()))
+        chart_baseline = baseline if spec["y_score"] == INTELLIGENCE_METRIC else None
         rows = [
             model
             for model in models
@@ -448,6 +470,7 @@ def build_efficiency_overview(
         matched = {point["key"] for point in points}
         missing = [key for key in focus_lists.get(spec["source_type"], ()) if key not in matched]
         points.sort(key=lambda item: (-float(item["y"]), float(item["x"]), item["key"]))
+        _mark_baseline(points, "y", chart_baseline)
         visible = [point for point in points if point["focused"]] if scope == "focus" else points
         quadrant = attractive_quadrant(visible)
         charts.append(
@@ -455,6 +478,7 @@ def build_efficiency_overview(
                 **{key: value for key, value in spec.items() if key != "source_type"},
                 "points": visible,
                 "quadrant": quadrant,
+                "baseline": chart_baseline,
                 "pareto_keys": scatter_pareto_keys(visible),
                 "focus_total": len(focus_lists.get(spec["source_type"], ())),
                 "focus_matched": len(matched & focus_set),
@@ -466,6 +490,7 @@ def build_efficiency_overview(
         "scope": scope,
         "focus": focus_lists,
         "charts": charts,
+        "intelligence_baseline": baseline,
         "balance": build_balance_ranking(models, focus=focus_lists, scope=scope, weights=weights),
         "updated_at": updated_at,
     }

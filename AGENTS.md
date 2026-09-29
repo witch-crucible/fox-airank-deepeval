@@ -2,20 +2,20 @@
 
 ## Project Structure & Module Organization
 
-`benchmark/` contains the Python CLI, report renderer, and hidden grading specifications. `benchmark.py` is the repository-level entry point. Benchmark fixtures live under `cases/<category>/<case_name>/`; each case includes `case.json`, `TASK.md`, and any JavaScript inputs or public tests. Python regression tests are in `tests/`, with known-good JavaScript implementations in `tests/reference/`. Treat `runs/` as generated execution output: inspect reports and logs there, but make reusable changes in `benchmark/`, `cases/`, or `tests/`. Design notes are stored under `docs/`.
+`benchmark/` contains the Python CLI, report renderer, and hidden grading specifications. `benchmark.py` is the repository-level entry point. Benchmark fixtures live under `cases/<category>/<case_name>/`; each case includes `case.json`, `TASK.md`, and any JavaScript inputs or public tests. Python regression tests are in `tests/`, with known-good JavaScript implementations in `tests/reference/`. Treat `runs/` as generated execution output: inspect reports and logs there, but make reusable changes in `benchmark/`, `cases/`, or `tests/`. Design notes are stored under `docs/`; the model dashboard (UI, data sources and scoring) is documented separately in `docs/model-dashboard.md`, while `model_dashboard/static/index.html` is the single-file UI served by `model_dashboard/server.py`.
 
 ## Build, Test, and Development Commands
 
 - `python3 benchmark.py list` lists all registered cases and verifies that case metadata loads.
-- `python3 benchmark.py prepare --run-id smoke --tool codex --case fix-cart-total` creates an isolated smoke-test workspace.
-- `python3 benchmark.py execute --run-dir runs/smoke --tool codex --case fix-cart-total` invokes the configured agent from `tools.json`.
-- `python3 benchmark.py evaluate --run-dir runs/smoke --tool codex --case fix-cart-total` runs the three DeepEval GEval metrics and writes tool-scoped local JSON/HTML.
+- `python3 benchmark.py prepare --run-id smoke --tool codex --case draw-pelican-bicycle` creates an isolated smoke-test workspace.
+- `python3 benchmark.py execute --run-dir runs/smoke --tool codex --case draw-pelican-bicycle` invokes the configured agent from `tools.json`.
+- `python3 benchmark.py evaluate --run-dir runs/smoke --tool codex --case draw-pelican-bicycle` runs the three DeepEval GEval metrics and writes tool-scoped local JSON/HTML.
 - `python3 benchmark.py stability` aggregates repeated runs per tool/model/intelligence/case into `runs/stability-report.{json,md,html}`.
 - `python3 benchmark.py archive --keep 5` previews archiving old runs into `runs/_archive/`; add `--apply` to move, `--restore <run-id>` to move back.
-- `python3 benchmark.py new-case --id fix-cart-total --category code_correction --title "..."` scaffolds a case and registers it in `benchmark/specs.json`.
+- `python3 benchmark.py new-case --id draw-pelican-bicycle --category code_generation --title "..."` scaffolds a case and registers it in `benchmark/specs.json`.
 - `python3 benchmark.py report --run-dir <run> --fail-under 0.8` exits 1 when any evaluated tool's pass rate is below the threshold.
 - `python3 -m unittest discover -s tests -v` runs the repository regression suite.
-- `python3 -m compileall -q benchmark tests` checks Python syntax and imports.
+- `python3 -m compileall -q benchmark model_dashboard tests run_benchmark.py` checks Python syntax and imports.
 
 Python 3.10+, Node.js 18+, and `deepeval==4.2.0` are required for evaluation. There is no separate build step or formatter configuration.
 
